@@ -9,7 +9,13 @@ import { Colors, Fonts, Spacing } from "@/constants/theme";
 import { PillMenu } from "@/features/home/pill-menu";
 import { PillRow } from "@/features/home/pill-row";
 import { SettingsPanel } from "@/features/home/settings-panel";
-import { TOPICS, TOPICS_ROW_TWO } from "@/features/home/topics";
+import {
+  GAME_ROUTES,
+  TOPICS,
+  TOPICS_ROW_TWO,
+  type Topic,
+} from "@/features/home/topics";
+import type { GameType } from "@/types/cardinal";
 
 /**
  * The home screen. Nothing here is tappable — the pill rows are pure
@@ -21,24 +27,31 @@ export default function Home() {
   const router = useRouter();
   const { height: screenH } = useWindowDimensions();
 
-  const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  // The held pill, kept whole rather than as a title: committing needs its
+  // gameType to know which template to open.
+  const [activeTopic, setActiveTopic] = useState<Topic | null>(null);
   const paused = useSharedValue(0);
   const selection = useSharedValue(0);
 
-  const handleOpen = (t: string) => {
+  const handleOpen = (title: string, gameType: GameType) => {
     // A second finger on the other row must not steal the open menu.
     if (activeTopic !== null) return;
-    setActiveTopic(t);
+    setActiveTopic({ title, gameType });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  // TODO(week5): route to the recap / quiz / upload / scores screens using
-  // MENU_ITEMS[index] once they exist. Guard on index >= 0 there too — a
-  // cancelled hold arrives as -1 and must never navigate anywhere.
+  // TODO(week5): route the recap / upload / scores rows once those screens
+  // exist. START QUIZ is the only one with anywhere to go so far.
   const handleCommit = (index: number) => {
+    // Read before clearing — the state is gone by the time we navigate.
+    const chosen = activeTopic;
     setActiveTopic(null);
-    if (index >= 0) Haptics.selectionAsync();
-    if (index === 1) router.push("/quiz");
+    // A cancelled hold arrives as -1 and must never navigate anywhere.
+    if (index < 0 || chosen === null) return;
+    Haptics.selectionAsync();
+    if (index !== 1) return;
+    const route = GAME_ROUTES[chosen.gameType];
+    if (route) router.push(route);
   };
 
   return (
@@ -80,7 +93,7 @@ export default function Home() {
       </View>
 
       {activeTopic !== null && (
-        <PillMenu title={activeTopic} selection={selection} />
+        <PillMenu title={activeTopic.title} selection={selection} />
       )}
 
       <SettingsPanel />

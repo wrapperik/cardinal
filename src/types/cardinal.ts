@@ -56,7 +56,7 @@ export interface CompassQuizPayload {
 
 export interface TrueFalsePayload {
   statement: string;
-  /** Right for true, left for false, up to skip. */
+  /** Right for true, left for false. Down is Pass, as it is in every template. */
   isTrue: boolean;
 }
 

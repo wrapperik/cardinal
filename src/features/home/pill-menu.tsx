@@ -1,14 +1,14 @@
-import { BlurView } from 'expo-blur';
-import { StyleSheet, Text, View } from 'react-native';
+import { BlurView } from "expo-blur";
+import { StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   withSpring,
   type SharedValue,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
-import { Colors, Fonts, Spacing } from '@/constants/theme';
-import { ITEM_STEP } from '@/features/home/pill-row';
-import { MENU_ITEMS } from '@/features/home/topics';
+import { Colors, Fonts, Spacing } from "@/constants/theme";
+import { ITEM_STEP } from "@/features/home/pill-row";
+import { MENU_ITEMS } from "@/features/home/topics";
 
 /**
  * Full-screen overlay shown while a pill is held. The finger stays down on
@@ -29,7 +29,12 @@ export function PillMenu({
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
         {MENU_ITEMS.map((label, index) => (
-          <MenuRow key={label} label={label} index={index} selection={selection} />
+          <MenuRow
+            key={label}
+            label={label}
+            index={index}
+            selection={selection}
+          />
         ))}
       </View>
     </View>
@@ -50,7 +55,13 @@ function MenuRow({
     return {
       backgroundColor: on ? Colors.bone : Colors.charcoal,
       transform: [
-        { scale: withSpring(on ? 1.06 : 1, { damping: 18, stiffness: 220, mass: 0.7 }) },
+        {
+          scale: withSpring(on ? 1.06 : 1, {
+            damping: 18,
+            stiffness: 220,
+            mass: 0.7,
+          }),
+        },
       ],
     };
   });
@@ -68,7 +79,7 @@ function MenuRow({
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 0,
     bottom: 0,
@@ -77,12 +88,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     fontFamily: Fonts.display,
-    fontSize: 20,
+    fontSize: 30,
     color: Colors.bone,
     letterSpacing: 2,
     marginBottom: Spacing.xl,
@@ -92,8 +103,8 @@ const styles = StyleSheet.create({
     minWidth: 240,
     paddingHorizontal: Spacing.lg,
     borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.sm,
   },
   rowText: {
