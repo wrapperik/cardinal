@@ -172,7 +172,11 @@ assets/
 src/
 ├── app/                  # expo-router routes — screens and layouts only
 │   ├── _layout.tsx       # Root stack, font loading, GestureHandlerRootView
-│   └── index.tsx         # Scaffold screen (temporary wiring check)
+│   ├── index.tsx         # Onboarding — the pipe-and-ball screen
+│   └── home.tsx          # Scaffold screen (temporary wiring check)
+├── features/
+│   └── onboarding/
+│       └── path.ts       # Arc-length pipe geometry (pure, worklet-safe)
 ├── constants/
 │   └── theme.ts          # Colours, type, spacing, gesture thresholds
 ├── lib/
@@ -180,6 +184,37 @@ src/
 └── types/
     └── cardinal.ts       # Firestore document shapes
 ```
+
+### Onboarding
+
+Onboarding holds the no-buttons constraint from the very first screen: a ball sits in
+a pipe, and the user simply **holds** it. Nothing is tapped, including the thing that
+advances the pages.
+
+The rhythm is hold → travel → haptic → read → hold again. The ball advances to the
+next milestone and stops there, so the pause to read the new line is built into the
+mechanic rather than asked for.
+
+The whole screen is driven by **one scalar** — how far the ball has travelled along
+the pipe's centreline. Camera pan, body copy, progress dots and completion all derive
+from it, so there is no second source of truth to keep in sync.
+
+- **The ball never moves on screen.** It is pinned at 68% of the viewport height, in
+  the thumb zone; the camera translates the pipe beneath it. That is what makes a hold
+  possible at all — a moving ball would slide out from under a stationary finger.
+- **`path.ts`** turns a polyline into an arc-length parameterised path with rounded
+  corners, exposing `pointAtDistance(d) → { x, y, tx, ty }`. Being arc-length correct
+  is what keeps the ball's speed constant through the bends instead of racing round
+  the corners.
+- **Holding** runs a `withTiming` to the next milestone with its duration derived from
+  the distance remaining, so `HOLD_SPEED` (320 px/s) reads as one steady speed
+  everywhere. Releasing early cancels it and springs back to the milestone the stage
+  began at, so each stage is one deliberate hold.
+- **The pipe** is one centreline stroked twice — wide in bone, then narrower in the
+  background rust. Inner and outer corner radii are not independent numbers; they are
+  the two edges of one stroked centreline, so `PIPE.cornerRadius` is the single dial
+  for how the pipe turns (currently 120, giving an 80px inner and 160px outer radius
+  around an 80px bore).
 
 Only screens and layout files belong in `src/app` — everything else lives elsewhere
 under `src/`. The `@/` alias maps to `src/`, so `@/constants/theme` resolves to
