@@ -1,3 +1,5 @@
+import type { Href } from 'expo-router';
+
 import type { GameType } from '@/types/cardinal';
 
 /**
@@ -23,6 +25,18 @@ export const TOPICS: Topic[] = [
 
 /** Second row starts halfway through, so the two rows never line up. */
 export const TOPICS_ROW_TWO: Topic[] = [...TOPICS.slice(2), ...TOPICS.slice(0, 2)];
+
+/**
+ * Where each template lives. Two of the four are built; the rest are null on
+ * purpose, so holding one of their pills quietly does nothing rather than
+ * pushing a route that does not exist yet.
+ */
+export const GAME_ROUTES: Record<GameType, Href | null> = {
+  compassQuiz: '/quiz',
+  trueFalseDuel: '/true-false',
+  sequenceSwipe: null,
+  matchRelease: null,
+};
 
 /** Labels for the hold-and-slide menu shown while a pill is held. */
 export const MENU_ITEMS = [

@@ -11,6 +11,7 @@ import Animated, {
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { MENU_ITEMS, type Topic } from '@/features/home/topics';
+import type { GameType } from '@/types/cardinal';
 
 const REPEATS = 3;
 /** Pixels per second the pills drift. Slow — this is ambience, not motion. */
@@ -27,7 +28,9 @@ interface PillRowProps {
   paused: SharedValue<number>;
   /** Index of the currently highlighted menu row while a pill is held. */
   selection: SharedValue<number>;
-  onOpen: (title: string) => void;
+  /** Two plain strings rather than the Topic itself: this crosses the worklet
+   *  boundary via runOnJS on every touch, and primitives cost nothing to pass. */
+  onOpen: (title: string, gameType: GameType) => void;
   onCommit: (index: number) => void;
 }
 
@@ -75,6 +78,7 @@ export function PillRow({
             <Pill
               key={`${r}-${i}`}
               title={topic.title}
+              gameType={topic.gameType}
               trackX={offset}
               setWidth={setWidth}
               direction={direction}
@@ -92,6 +96,7 @@ export function PillRow({
 
 function Pill({
   title,
+  gameType,
   trackX,
   setWidth,
   direction,
@@ -101,12 +106,13 @@ function Pill({
   onCommit,
 }: {
   title: string;
+  gameType: GameType;
   trackX: SharedValue<number>;
   setWidth: SharedValue<number>;
   direction: 1 | -1;
   paused: SharedValue<number>;
   selection: SharedValue<number>;
-  onOpen: (title: string) => void;
+  onOpen: (title: string, gameType: GameType) => void;
   onCommit: (index: number) => void;
 }) {
   const { width: screenW } = useWindowDimensions();
@@ -144,7 +150,7 @@ function Pill({
     .onBegin(() => {
       paused.value = 1;
       selection.value = 0;
-      runOnJS(onOpen)(title);
+      runOnJS(onOpen)(title, gameType);
     })
     .onChange((e) => {
       // translationY is cumulative from the touch-down point, which is what a

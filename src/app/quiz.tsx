@@ -17,7 +17,11 @@ import Svg, { Circle, Path } from "react-native-svg";
 
 import Home from "@/app/home";
 import BgGrid from "@/assets/images/BG-Grid.svg";
-import { PULL_TAB_HEIGHT, PullTab } from "@/components/pull-tab";
+import {
+  PULL_TAB_HEIGHT,
+  PULL_TAB_WIDTH,
+  PullTab,
+} from "@/components/pull-tab";
 import {
   Colors,
   Fonts,
@@ -44,6 +48,11 @@ const LETTERS = ["A", "B", "C"] as const;
  *  left-to-right the way the list above is scanned. South is always Pass and
  *  never a choice, which is why it has no entry here. */
 const CHOICE_DIRECTION = ["west", "north", "east"] as const;
+
+/** How far the exit tab pokes into the quiz while it is closed. */
+const TAB_PEEK = PULL_TAB_WIDTH;
+/** Extra width tucked under home's edge so the tab never shows a seam. */
+const TAB_TUCK = 40;
 
 /** How far behind the drag vector each successive ghost sits. */
 const TRAIL_LAG = 0.2;
@@ -217,14 +226,14 @@ export default function Quiz() {
     ],
   }));
 
+  // 0 = only the tab peeking in at the right edge, 1 = home has covered the quiz.
   const exitProgress = useSharedValue(0);
   // 1 = fully off to the right, 0 = settled. The stack renders this screen with
   // no animation of its own, so the entrance is ours to play.
   const entryProgress = useSharedValue(1);
-  // Home is only mounted behind the quiz while the exit drag is actually live —
-  // the pull tab should reveal the real home screen sliding in underneath,
-  // mirroring the settings tab, without paying Home's cost for the rest of the quiz.
-  const [showHomeBackdrop, setShowHomeBackdrop] = useState(false);
+  // Home rides on the sled, so it only needs to exist once the drag is live —
+  // no reason to pay for a second Home's marquee timers for the whole quiz.
+  const [previewHome, setPreviewHome] = useState(false);
 
   useEffect(() => {
     entryProgress.value = withSpring(0, SETTLE_SPRING);
@@ -233,7 +242,7 @@ export default function Quiz() {
   const exitDrag = Gesture.Pan()
     .activeOffsetX([-12, 12])
     .onBegin(() => {
-      runOnJS(setShowHomeBackdrop)(true);
+      runOnJS(setPreviewHome)(true);
     })
     .onChange((e) => {
       exitProgress.value = Math.min(
@@ -250,7 +259,7 @@ export default function Quiz() {
             : exitProgress.value > 0.35;
       if (leaving) {
         // Wrapped rather than `runOnJS(router.back)` — handing a detached method
-        // across the bridge drops its binding to the router. The backdrop stays
+        // across the bridge drops its binding to the router. The preview stays
         // mounted through the pop: it is what the user is looking at by then.
         exitProgress.value = withTiming(1, { duration: 200 }, (done) => {
           if (done) runOnJS(leaveQuiz)();
@@ -258,19 +267,27 @@ export default function Quiz() {
         return;
       }
       exitProgress.value = withSpring(0, SETTLE_SPRING, (done) => {
-        if (done) runOnJS(setShowHomeBackdrop)(false);
+        if (done) runOnJS(setPreviewHome)(false);
       });
     })
     .onFinalize(() => {
       // A touch that never cleared activeOffsetX gets no onEnd, so nothing would
-      // ever tear the backdrop back down. Brushing the tab must not leave a
-      // whole second Home mounted and animating out of sight behind the quiz.
-      if (exitProgress.value === 0) runOnJS(setShowHomeBackdrop)(false);
+      // ever tear the preview back down. Brushing the tab must not leave a whole
+      // second Home mounted and animating away off the right edge.
+      if (exitProgress.value === 0) runOnJS(setPreviewHome)(false);
     });
 
+  // The quiz itself only ever plays its entrance. Leaving is home arriving over
+  // the top of it, not the quiz sliding away.
   const screenStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: screenW * entryProgress.value }],
+  }));
+
+  // Closed, the sled sits one tab-width short of the right edge so only the tab
+  // shows. Open, it has travelled a full screen width to the left.
+  const sledStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: screenW * (entryProgress.value - exitProgress.value) },
+      { translateX: screenW - TAB_PEEK - exitProgress.value * screenW },
     ],
   }));
 
@@ -279,24 +296,10 @@ export default function Quiz() {
 
   return (
     <View style={styles.root}>
-      {showHomeBackdrop && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Home />
-        </View>
-      )}
-
       <Animated.View style={[styles.screen, screenStyle]}>
         <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
           {progressLabel}
         </Text>
-
-        <GestureDetector gesture={exitDrag}>
-          <PullTab
-            label="EXIT"
-            backgroundColor={Colors.rust}
-            style={[styles.exitTab, { top: insets.top + Spacing.sm }]}
-          />
-        </GestureDetector>
 
         <View
           style={[
@@ -377,10 +380,7 @@ export default function Quiz() {
               ))}
 
               <View
-                style={[
-                  styles.passToken,
-                  boxAt(CENTRES.south, TOKEN_SIZE),
-                ]}
+                style={[styles.passToken, boxAt(CENTRES.south, TOKEN_SIZE)]}
               >
                 <Svg width={20} height={20}>
                   <Path
@@ -408,7 +408,11 @@ export default function Quiz() {
                 <Animated.View
                   style={[
                     styles.card,
-                    { left: cardLeft, top: cardTop, backgroundColor: Colors.bone },
+                    {
+                      left: cardLeft,
+                      top: cardTop,
+                      backgroundColor: Colors.bone,
+                    },
                     cardStyle,
                   ]}
                 />
@@ -416,6 +420,33 @@ export default function Quiz() {
             </View>
           </View>
         </View>
+
+        {/* The way out, built exactly like the settings tab on home: one wide
+            sled with the tab on the left and the screen it reveals attached to
+            its right. The tab belongs to the surface it brings in, so dragging
+            it pulls home across the quiz rather than shoving the quiz aside. */}
+        <Animated.View
+          style={[styles.sled, { width: screenW + TAB_PEEK }, sledStyle]}
+          pointerEvents="box-none"
+        >
+          <GestureDetector gesture={exitDrag}>
+            <PullTab
+              label="EXIT"
+              backgroundColor={Colors.rust}
+              extraWidth={TAB_TUCK}
+              style={[styles.exitTab, { top: insets.top + Spacing.md }]}
+            />
+          </GestureDetector>
+
+          {/* A preview only — the real home takes over the instant the pop
+              lands, so nothing here should ever accept a touch. */}
+          <View
+            style={[styles.homePreview, { width: screenW }]}
+            pointerEvents="none"
+          >
+            {previewHome && <Home />}
+          </View>
+        </Animated.View>
       </Animated.View>
     </View>
   );
@@ -593,7 +624,11 @@ function Ghost({
 
   return (
     <Animated.View
-      style={[styles.card, { left, top, backgroundColor: TrailDark[index] }, style]}
+      style={[
+        styles.card,
+        { left, top, backgroundColor: TrailDark[index] },
+        style,
+      ]}
     />
   );
 }
@@ -601,7 +636,8 @@ function Ghost({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    // Home's rust, showing through as the quiz drags off to the left.
+    // Home's rust, showing through in the gap the quiz has not covered yet
+    // while it slides in on mount.
     backgroundColor: Colors.rust,
   },
   screen: {
@@ -614,13 +650,30 @@ const styles = StyleSheet.create({
     right: 0,
     textAlign: "center",
     fontFamily: Fonts.display,
-    fontSize: 20,
+    fontSize: 30,
     color: Theme.text,
     letterSpacing: 2,
+    marginTop: 8,
+  },
+  sled: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 10,
   },
   exitTab: {
+    // Inside the sled's own bounds rather than hanging off its left edge:
+    // Android clips children that overflow their parent, so a tab positioned
+    // outside would neither draw nor take touches there.
     position: "absolute",
-    right: 0,
+    left: 0,
+  },
+  homePreview: {
+    position: "absolute",
+    left: TAB_PEEK,
+    top: 0,
+    bottom: 0,
   },
   body: {
     flex: 1,
@@ -636,6 +689,7 @@ const styles = StyleSheet.create({
     color: Theme.text,
     textAlign: "center",
     letterSpacing: 0.5,
+    marginTop: Spacing.lg,
   },
   options: {
     paddingHorizontal: Spacing.lg,
@@ -668,6 +722,7 @@ const styles = StyleSheet.create({
     // Only a floor. `space-between` on the body opens up whatever slack the
     // device actually has, so a fixed gap here would just crowd short screens.
     marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   grid: {
     position: "absolute",

@@ -15,6 +15,9 @@ import { Theme } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
 
+/** Shared by every game route, so the two can never drift apart. */
+const GAME_SCREEN = { animation: 'none', gestureEnabled: false } as const;
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Afacad_400Regular,
@@ -43,14 +46,12 @@ export default function RootLayout() {
             gestureEnabled: true,
           }}
         >
-          {/* The quiz animates itself, in both directions: its exit tab drags
-              the screen aside to reveal home underneath. Leaving the stack's
-              own push/pop animation on would play a second slide over the top
-              of that one — hence 'none', and no edge-swipe to race it. */}
-          <Stack.Screen
-            name="quiz"
-            options={{ animation: 'none', gestureEnabled: false }}
-          />
+          {/* Every game animates itself, in both directions: its exit tab drags
+              home in over the top. Leaving the stack's own push/pop animation
+              on would play a second slide over that one — hence 'none', and no
+              edge-swipe to race it. */}
+          <Stack.Screen name="quiz" options={GAME_SCREEN} />
+          <Stack.Screen name="true-false" options={GAME_SCREEN} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
