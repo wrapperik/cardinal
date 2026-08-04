@@ -24,7 +24,19 @@ export const Theme = {
   correct: Colors.blue,
   incorrect: Colors.rust,
   accent: Colors.rust,
+  /** Hairline edge that makes the glass capsule read as a surface, not a smudge. */
+  glassEdge: 'rgba(217, 217, 217, 0.45)',
+  /** Tint sitting over the blur, so the capsule reads as glass on a flat backdrop. */
+  glassTint: 'rgba(217, 217, 217, 0.12)',
 } as const;
+
+/**
+ * Ghost-trail fills, nearest the ball first. These are bone pre-blended over rust
+ * at 30% / 18% / 10% rather than bone at those alphas — solid fills keep the trail
+ * flat where the ghosts overlap, instead of compounding into darker crescents.
+ * Recompute these if either Colors.bone or Colors.rust changes.
+ */
+export const Trail = ['#CB6C5A', '#C95944', '#C74D35'] as const;
 
 /**
  * The four cardinal directions. Down is always reserved for Pass in the
