@@ -17,6 +17,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 
 import Home from "@/app/home";
 import BgGrid from "@/assets/images/BG-Grid.svg";
+import { CharacterMark } from "@/components/character-mark";
 import {
   PULL_TAB_HEIGHT,
   PULL_TAB_WIDTH,
@@ -30,6 +31,7 @@ import {
   Theme,
   TrailDark,
 } from "@/constants/theme";
+import { useCharacter } from "@/features/character/store";
 import { SAMPLE_QUESTIONS } from "@/features/quiz/questions";
 
 /** The draggable puck at the compass centre. */
@@ -57,6 +59,11 @@ const TAB_TUCK = 40;
 /** How far behind the drag vector each successive ghost sits. */
 const TRAIL_LAG = 0.2;
 
+/** Degrees of spin per pixel dragged. Tuned so a commit-length pull turns the
+ *  character about a third of a turn — enough to see it move, not so much it
+ *  becomes a blur. */
+const ROLL_PER_PX = 0.45;
+
 /** Gentle settle — mirrors the spring used for the onboarding and home tabs. */
 const SETTLE_SPRING = { damping: 16, stiffness: 140, mass: 0.9 } as const;
 
@@ -80,6 +87,7 @@ export default function Quiz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
+  const { equippedId } = useCharacter();
 
   // Three separate ceilings, whichever bites first. Width alone is not enough:
   // the question and its three options now sit above the compass, and on a
@@ -222,6 +230,10 @@ export default function Quiz() {
     transform: [
       { translateX: dx.value },
       { translateY: dy.value },
+      // Rolls rather than slides. A plain disc looks identical whichever way
+      // it is turned, so this reads as nothing at all until a character with
+      // arms is equipped — at which point the whole drag comes alive.
+      { rotateZ: `${(dx.value + dy.value) * ROLL_PER_PX}deg` },
       { scale: 1 - held.value * 0.08 },
     ],
   }));
@@ -401,21 +413,16 @@ export default function Quiz() {
                   dy={dy}
                   left={cardLeft}
                   top={cardTop}
+                  characterId={equippedId}
                 />
               ))}
 
               <GestureDetector gesture={drag}>
                 <Animated.View
-                  style={[
-                    styles.card,
-                    {
-                      left: cardLeft,
-                      top: cardTop,
-                      backgroundColor: Colors.bone,
-                    },
-                    cardStyle,
-                  ]}
-                />
+                  style={[styles.card, { left: cardLeft, top: cardTop }, cardStyle]}
+                >
+                  <CharacterMark characterId={equippedId} size={CARD_SIZE} />
+                </Animated.View>
               </GestureDetector>
             </View>
           </View>
@@ -608,28 +615,38 @@ function Ghost({
   dy,
   left,
   top,
+  characterId,
 }: {
   index: number;
   dx: SharedValue<number>;
   dy: SharedValue<number>;
   left: number;
   top: number;
+  characterId: string;
 }) {
   const style = useAnimatedStyle(() => {
     const k = 1 - TRAIL_LAG * (index + 1);
     return {
-      transform: [{ translateX: dx.value * k }, { translateY: dy.value * k }],
+      transform: [
+        { translateX: dx.value * k },
+        { translateY: dy.value * k },
+        // Each ghost is turned to where the character actually was at that
+        // point in the drag, so the trail smears the silhouette instead of
+        // stamping the same orientation three times.
+        { rotateZ: `${(dx.value + dy.value) * k * ROLL_PER_PX}deg` },
+        { scale: 1 - index * 0.06 },
+      ],
     };
   });
 
   return (
-    <Animated.View
-      style={[
-        styles.card,
-        { left, top, backgroundColor: TrailDark[index] },
-        style,
-      ]}
-    />
+    <Animated.View style={[styles.card, { left, top }, style]}>
+      <CharacterMark
+        characterId={characterId}
+        size={CARD_SIZE}
+        color={TrailDark[index]}
+      />
+    </Animated.View>
   );
 }
 
