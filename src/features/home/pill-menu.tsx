@@ -8,13 +8,7 @@ import Animated, {
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { ITEM_STEP } from '@/features/home/pill-row';
-
-export const MENU_ITEMS = [
-  'QUICK RECAP',
-  'START QUIZ',
-  'UPLOAD MATERIAL',
-  'PAST SCORES',
-];
+import { MENU_ITEMS } from '@/features/home/topics';
 
 /**
  * Full-screen overlay shown while a pill is held. The finger stays down on

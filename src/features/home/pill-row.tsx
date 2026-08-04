@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
-import type { Topic } from '@/features/home/topics';
+import { MENU_ITEMS, type Topic } from '@/features/home/topics';
 
 const REPEATS = 3;
 /** Pixels per second the pills drift. Slow — this is ambience, not motion. */
@@ -18,7 +18,6 @@ const MARQUEE_SPEED = 28;
 
 /** Finger travel per menu item. */
 export const ITEM_STEP = 56;
-export const MENU_COUNT = 4;
 
 interface PillRowProps {
   topics: Topic[];
@@ -151,7 +150,8 @@ function Pill({
       // translationY is cumulative from the touch-down point, which is what a
       // continuous hold-and-slide selection needs.
       const raw = Math.round(e.translationY / ITEM_STEP);
-      selection.value = Math.min(MENU_COUNT - 1, Math.max(0, raw));
+      // The clamp must derive from the data or the two silently drift apart.
+      selection.value = Math.min(MENU_ITEMS.length - 1, Math.max(0, raw));
     })
     .onEnd(() => {
       // Only a clean release counts as a choice.

@@ -23,3 +23,11 @@ export const TOPICS: Topic[] = [
 
 /** Second row starts halfway through, so the two rows never line up. */
 export const TOPICS_ROW_TWO: Topic[] = [...TOPICS.slice(2), ...TOPICS.slice(0, 2)];
+
+/** Labels for the hold-and-slide menu shown while a pill is held. */
+export const MENU_ITEMS = [
+  'QUICK RECAP',
+  'START QUIZ',
+  'UPLOAD MATERIAL',
+  'PAST SCORES',
+] as const;

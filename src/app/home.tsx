@@ -1,15 +1,15 @@
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useSharedValue } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts, Spacing } from '@/constants/theme';
-import { PillMenu } from '@/features/home/pill-menu';
-import { PillRow } from '@/features/home/pill-row';
-import { SettingsPanel } from '@/features/home/settings-panel';
-import { TOPICS, TOPICS_ROW_TWO } from '@/features/home/topics';
+import { Colors, Fonts, Spacing } from "@/constants/theme";
+import { PillMenu } from "@/features/home/pill-menu";
+import { PillRow } from "@/features/home/pill-row";
+import { SettingsPanel } from "@/features/home/settings-panel";
+import { TOPICS, TOPICS_ROW_TWO } from "@/features/home/topics";
 
 /**
  * The home screen. Nothing here is tappable — the pill rows are pure
@@ -26,6 +26,8 @@ export default function Home() {
   const selection = useSharedValue(0);
 
   const handleOpen = (t: string) => {
+    // A second finger on the other row must not steal the open menu.
+    if (activeTopic !== null) return;
     setActiveTopic(t);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
@@ -36,14 +38,12 @@ export default function Home() {
   const handleCommit = (index: number) => {
     setActiveTopic(null);
     if (index >= 0) Haptics.selectionAsync();
-    if (index === 1) router.push('/quiz');
+    if (index === 1) router.push("/quiz");
   };
 
   return (
     <View style={styles.container}>
-      <Text
-        style={[styles.wordmark, { paddingTop: insets.top + Spacing.md }]}
-      >
+      <Text style={[styles.wordmark, { paddingTop: insets.top + Spacing.md }]}>
         CARDINAL
       </Text>
 
@@ -79,7 +79,9 @@ export default function Home() {
         <View style={[styles.dot, styles.dotBottomRight]} />
       </View>
 
-      {activeTopic !== null && <PillMenu title={activeTopic} selection={selection} />}
+      {activeTopic !== null && (
+        <PillMenu title={activeTopic} selection={selection} />
+      )}
 
       <SettingsPanel />
     </View>
@@ -97,22 +99,23 @@ const styles = StyleSheet.create({
   wordmark: {
     paddingLeft: Spacing.lg,
     fontFamily: Fonts.display,
-    fontSize: 28,
+    marginTop: 8,
     color: Colors.bone,
     letterSpacing: 2,
+    fontSize: 40,
   },
   pillBlock: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: Spacing.md,
   },
   dots: {
-    position: 'absolute',
+    position: "absolute",
     width: DOT_SIZE * 2 + DOT_GAP,
     height: DOT_SIZE * 2 + DOT_GAP,
   },
   dot: {
-    position: 'absolute',
+    position: "absolute",
     width: DOT_SIZE,
     height: DOT_SIZE,
     borderRadius: DOT_SIZE / 2,

@@ -1,34 +1,70 @@
-import { Image } from 'expo-image';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  FadeIn,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
   type SharedValue,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Path } from "react-native-svg";
 
-import { Colors, Fonts, Gestures, Spacing, Theme } from '@/constants/theme';
-import { SAMPLE_QUESTIONS } from '@/features/quiz/questions';
+import Home from "@/app/home";
+import BgGrid from "@/assets/images/BG-Grid.svg";
+import { PULL_TAB_HEIGHT, PullTab } from "@/components/pull-tab";
+import {
+  Colors,
+  Fonts,
+  Gestures,
+  Spacing,
+  Theme,
+  TrailDark,
+} from "@/constants/theme";
+import { SAMPLE_QUESTIONS } from "@/features/quiz/questions";
 
+/** The draggable puck at the compass centre. */
 const CARD_SIZE = 70;
-const PILL_H = 44;
-const SIDE_PILL_W = 124;
+
+/** Compass targets. All four are the same circle — moving the answer text up
+ *  into the list is what makes that possible, and an identical target in every
+ *  direction is the only arrangement that cannot read as lopsided. */
+const TOKEN_SIZE = 56;
+
+/** The letter is the only thing the list and the compass share, so a drag is
+ *  never aimed at a word. Index order is reading order: A, B, C. */
+const LETTERS = ["A", "B", "C"] as const;
+
+/** Where each lettered choice sits on the compass — A west, B north, C east,
+ *  left-to-right the way the list above is scanned. South is always Pass and
+ *  never a choice, which is why it has no entry here. */
+const CHOICE_DIRECTION = ["west", "north", "east"] as const;
+
+/** How far behind the drag vector each successive ghost sits. */
+const TRAIL_LAG = 0.2;
 
 /** Gentle settle — mirrors the spring used for the onboarding and home tabs. */
 const SETTLE_SPRING = { damping: 16, stiffness: 140, mass: 0.9 } as const;
 
+/** Verdict hold. Wrong answers linger longer — the reveal is the lesson. */
+const VERDICT_MS = 600;
+const VERDICT_WRONG_MS = 1100;
+
+/** Centre-to-centre box for something of `size` sitting on a compass point. */
+const boxAt = (c: { x: number; y: number }, size: number) => ({
+  left: c.x - size / 2,
+  top: c.y - size / 2,
+});
+
 /**
- * Compass Quiz. Every question is answered by dragging the top card toward
- * one of four cardinal directions — north/west/east are the three choices,
- * south is always Pass. There is nothing to tap, including the way out: the
+ * Compass Quiz. The question and its three lettered options are read at the
+ * top; the answer is given at the bottom by dragging the puck toward A, B or C,
+ * with south always Pass. There is nothing to tap, including the way out: the
  * exit tab is dragged, not pressed, just like the settings tab on home.
  */
 export default function Quiz() {
@@ -36,13 +72,32 @@ export default function Quiz() {
   const router = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
-  // Radius the four answer pills are centred on, and the smaller guide ring
-  // drawn inside it. Both scale with screen width, capped so wide screens
-  // don't blow the compass out too large.
-  const PILL_RADIUS = Math.min(screenW * 0.36, 150);
-  const RING_RADIUS = PILL_RADIUS * 0.73;
-  const cardLeft = PILL_RADIUS - CARD_SIZE / 2;
-  const cardTop = PILL_RADIUS - CARD_SIZE / 2;
+  // Three separate ceilings, whichever bites first. Width alone is not enough:
+  // the question and its three options now sit above the compass, and on a
+  // short device a width-sized compass runs off the bottom of the screen.
+  const RADIUS = Math.min(
+    // East and west tokens fully on screen, with a margin.
+    (screenW - TOKEN_SIZE) / 2 - Spacing.xl,
+    // Leaves the top block room to breathe, including a three-line question.
+    (screenH * 0.36 - TOKEN_SIZE) / 2,
+    // And never sprawls, however much room a large device offers.
+    128,
+  );
+  const COMPASS_SIZE = RADIUS * 2 + TOKEN_SIZE;
+  const CENTRE = COMPASS_SIZE / 2;
+  const RING_RADIUS = RADIUS * 0.72;
+
+  // Every compass point, as a centre. Tokens, glows and the ring all derive
+  // from these, so the geometry is stated once.
+  const CENTRES = {
+    north: { x: CENTRE, y: TOKEN_SIZE / 2 },
+    south: { x: CENTRE, y: COMPASS_SIZE - TOKEN_SIZE / 2 },
+    west: { x: TOKEN_SIZE / 2, y: CENTRE },
+    east: { x: COMPASS_SIZE - TOKEN_SIZE / 2, y: CENTRE },
+  } as const;
+
+  const cardLeft = CENTRE - CARD_SIZE / 2;
+  const cardTop = CENTRE - CARD_SIZE / 2;
 
   const [index, setIndex] = useState(0);
   const question = SAMPLE_QUESTIONS[index];
@@ -50,6 +105,9 @@ export default function Quiz() {
   // -1 = no verdict showing. Otherwise the index of the committed answer.
   const verdictIndex = useSharedValue(-1);
   const verdictCorrect = useSharedValue(false);
+  // -1 = nothing revealed. On a wrong answer this points at the right choice
+  // so it can flip blue alongside the rust pick.
+  const revealCorrect = useSharedValue(-1);
   // Blocks a second commit from landing while a verdict is still on screen.
   const committing = useRef(false);
   const verdictTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,26 +144,39 @@ export default function Quiz() {
     const correct = answer === question.correctIndex;
     verdictIndex.value = answer;
     verdictCorrect.value = correct;
+    if (!correct) revealCorrect.value = question.correctIndex;
     Haptics.notificationAsync(
       correct
         ? Haptics.NotificationFeedbackType.Success
         : Haptics.NotificationFeedbackType.Error,
     );
 
-    verdictTimeout.current = setTimeout(() => {
-      verdictIndex.value = -1;
-      committing.current = false;
-      advanceQuestion();
-    }, 600);
+    verdictTimeout.current = setTimeout(
+      () => {
+        verdictIndex.value = -1;
+        revealCorrect.value = -1;
+        committing.current = false;
+        advanceQuestion();
+      },
+      correct ? VERDICT_MS : VERDICT_WRONG_MS,
+    );
   }
 
   const dx = useSharedValue(0);
   const dy = useSharedValue(0);
+  // Card press-state, mirroring the onboarding ball's touch acknowledgement.
+  const held = useSharedValue(0);
 
   const drag = Gesture.Pan()
+    .onBegin(() => {
+      held.value = withTiming(1, { duration: 140 });
+    })
     .onChange((e) => {
       dx.value += e.changeX;
       dy.value += e.changeY;
+    })
+    .onFinalize(() => {
+      held.value = withTiming(0, { duration: 220 });
     })
     .onEnd((e) => {
       const absX = Math.abs(dx.value);
@@ -115,14 +186,23 @@ export default function Quiz() {
       const horizontal = absX > absY * Gestures.dominantAxisRatio;
       const vertical = absY > absX * Gestures.dominantAxisRatio;
       const travel = horizontal ? absX : absY;
-      const velocity = horizontal ? Math.abs(e.velocityX) : Math.abs(e.velocityY);
+      const velocity = horizontal
+        ? Math.abs(e.velocityX)
+        : Math.abs(e.velocityY);
       const commits =
         (horizontal || vertical) &&
-        (travel > Gestures.commitDistance || velocity > Gestures.commitVelocity);
+        (travel > Gestures.commitDistance ||
+          velocity > Gestures.commitVelocity);
 
       if (commits) {
-        // north = choices[0], west = choices[1], east = choices[2], south = pass
-        const answer = horizontal ? (dx.value > 0 ? 2 : 1) : dy.value > 0 ? -1 : 0;
+        // west = A = 0, north = B = 1, east = C = 2, south = pass.
+        const answer = horizontal
+          ? dx.value > 0
+            ? 2
+            : 0
+          : dy.value > 0
+            ? -1
+            : 1;
         runOnJS(commit)(answer);
       }
       dx.value = withSpring(0, SETTLE_SPRING);
@@ -130,221 +210,316 @@ export default function Quiz() {
     });
 
   const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: dx.value }, { translateY: dy.value }],
+    transform: [
+      { translateX: dx.value },
+      { translateY: dy.value },
+      { scale: 1 - held.value * 0.08 },
+    ],
   }));
 
-  const exitX = useSharedValue(0);
+  const exitProgress = useSharedValue(0);
+  // 1 = fully off to the right, 0 = settled. The stack renders this screen with
+  // no animation of its own, so the entrance is ours to play.
+  const entryProgress = useSharedValue(1);
+  // Home is only mounted behind the quiz while the exit drag is actually live —
+  // the pull tab should reveal the real home screen sliding in underneath,
+  // mirroring the settings tab, without paying Home's cost for the rest of the quiz.
+  const [showHomeBackdrop, setShowHomeBackdrop] = useState(false);
+
+  useEffect(() => {
+    entryProgress.value = withSpring(0, SETTLE_SPRING);
+  }, [entryProgress]);
+
   const exitDrag = Gesture.Pan()
     .activeOffsetX([-12, 12])
-    .onChange((e) => {
-      exitX.value = Math.min(0, exitX.value + e.changeX);
+    .onBegin(() => {
+      runOnJS(setShowHomeBackdrop)(true);
     })
-    .onEnd(() => {
-      // Wrapped rather than `runOnJS(router.back)` — handing a detached method
-      // across the bridge drops its binding to the router.
-      if (exitX.value < -60) runOnJS(leaveQuiz)();
-      exitX.value = withSpring(0, SETTLE_SPRING);
+    .onChange((e) => {
+      exitProgress.value = Math.min(
+        1,
+        Math.max(0, exitProgress.value - e.changeX / screenW),
+      );
+    })
+    .onEnd((e) => {
+      const leaving =
+        e.velocityX < -600
+          ? true
+          : e.velocityX > 600
+            ? false
+            : exitProgress.value > 0.35;
+      if (leaving) {
+        // Wrapped rather than `runOnJS(router.back)` — handing a detached method
+        // across the bridge drops its binding to the router. The backdrop stays
+        // mounted through the pop: it is what the user is looking at by then.
+        exitProgress.value = withTiming(1, { duration: 200 }, (done) => {
+          if (done) runOnJS(leaveQuiz)();
+        });
+        return;
+      }
+      exitProgress.value = withSpring(0, SETTLE_SPRING, (done) => {
+        if (done) runOnJS(setShowHomeBackdrop)(false);
+      });
+    })
+    .onFinalize(() => {
+      // A touch that never cleared activeOffsetX gets no onEnd, so nothing would
+      // ever tear the backdrop back down. Brushing the tab must not leave a
+      // whole second Home mounted and animating out of sight behind the quiz.
+      if (exitProgress.value === 0) runOnJS(setShowHomeBackdrop)(false);
     });
 
-  const exitStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: exitX.value }],
+  const screenStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: screenW * (entryProgress.value - exitProgress.value) },
+    ],
   }));
 
   const total = SAMPLE_QUESTIONS.length;
-  const progressLabel = `${String(index + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}`;
+  const progressLabel = `${String(index + 1).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (
-    <View style={styles.container}>
-      <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
-        {progressLabel}
-      </Text>
+    <View style={styles.root}>
+      {showHomeBackdrop && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Home />
+        </View>
+      )}
 
-      <GestureDetector gesture={exitDrag}>
-        <Animated.View
-          style={[styles.exitTab, { top: insets.top + Spacing.sm }, exitStyle]}
+      <Animated.View style={[styles.screen, screenStyle]}>
+        <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
+          {progressLabel}
+        </Text>
+
+        <GestureDetector gesture={exitDrag}>
+          <PullTab
+            label="EXIT"
+            backgroundColor={Colors.rust}
+            style={[styles.exitTab, { top: insets.top + Spacing.sm }]}
+          />
+        </GestureDetector>
+
+        <View
+          style={[
+            styles.body,
+            {
+              // Clears the progress label and the exit tab, both absolute.
+              paddingTop: insets.top + PULL_TAB_HEIGHT + Spacing.lg,
+              paddingBottom: insets.bottom + Spacing.lg,
+            },
+          ]}
         >
-          <Text style={styles.exitChevron}>‹</Text>
-          <Text style={styles.exitLabel}>EXIT</Text>
-        </Animated.View>
-      </GestureDetector>
+          <Animated.View key={index} entering={FadeIn.duration(220)}>
+            <Text style={styles.question}>{question.prompt}</Text>
 
-      <Text style={[styles.question, { top: screenH * 0.2 }]}>
-        {question.prompt}
-      </Text>
+            <View style={styles.options}>
+              {question.choices.map((choice, i) => (
+                <OptionRow
+                  key={i}
+                  index={i}
+                  label={choice}
+                  verdictIndex={verdictIndex}
+                  verdictCorrect={verdictCorrect}
+                  revealCorrect={revealCorrect}
+                />
+              ))}
+            </View>
+          </Animated.View>
 
-      <View style={[styles.compassWrap, { marginTop: screenH * 0.12 }]}>
-        <View style={{ width: PILL_RADIUS * 2, height: PILL_RADIUS * 2 }}>
-          <Image
-            source={require('../../assets/images/BG-Grid.svg')}
-            style={{
-              position: 'absolute',
-              width: PILL_RADIUS * 2.4,
-              height: PILL_RADIUS * 2.4,
-              left: -PILL_RADIUS * 0.2,
-              top: -PILL_RADIUS * 0.2,
-            }}
-            contentFit="contain"
-          />
+          <View style={styles.compassWrap}>
+            <View style={{ width: COMPASS_SIZE, height: COMPASS_SIZE }}>
+              <BgGrid
+                width={COMPASS_SIZE * 1.2}
+                height={COMPASS_SIZE * 1.2}
+                style={[
+                  styles.grid,
+                  { left: -COMPASS_SIZE * 0.1, top: -COMPASS_SIZE * 0.1 },
+                ]}
+              />
 
-          <Svg
-            width={RING_RADIUS * 2 + 2}
-            height={RING_RADIUS * 2 + 2}
-            style={{
-              position: 'absolute',
-              left: PILL_RADIUS - RING_RADIUS - 1,
-              top: PILL_RADIUS - RING_RADIUS - 1,
-            }}
-          >
-            <Circle
-              cx={RING_RADIUS + 1}
-              cy={RING_RADIUS + 1}
-              r={RING_RADIUS}
-              stroke={Colors.bone}
-              strokeWidth={1}
-              fill="none"
-            />
-          </Svg>
+              <Svg
+                width={RING_RADIUS * 2 + 2}
+                height={RING_RADIUS * 2 + 2}
+                style={[
+                  styles.ring,
+                  boxAt({ x: CENTRE, y: CENTRE }, RING_RADIUS * 2 + 2),
+                ]}
+              >
+                <Circle
+                  cx={RING_RADIUS + 1}
+                  cy={RING_RADIUS + 1}
+                  r={RING_RADIUS}
+                  stroke={Colors.bone}
+                  strokeWidth={1}
+                  fill="none"
+                />
+              </Svg>
 
-          {/* Direction glows sit behind the pills, so render them first. */}
-          <DirectionGlow
-            direction="north"
-            dx={dx}
-            dy={dy}
-            left={PILL_RADIUS - CARD_SIZE * 0.8}
-            top={-CARD_SIZE * 0.8}
-          />
-          <DirectionGlow
-            direction="south"
-            dx={dx}
-            dy={dy}
-            left={PILL_RADIUS - CARD_SIZE * 0.8}
-            top={PILL_RADIUS * 2 - CARD_SIZE * 0.8}
-          />
-          <DirectionGlow
-            direction="west"
-            dx={dx}
-            dy={dy}
-            left={-CARD_SIZE * 0.8}
-            top={PILL_RADIUS - CARD_SIZE * 0.8}
-          />
-          <DirectionGlow
-            direction="east"
-            dx={dx}
-            dy={dy}
-            left={PILL_RADIUS * 2 - CARD_SIZE * 0.8}
-            top={PILL_RADIUS - CARD_SIZE * 0.8}
-          />
+              {/* Direction glows sit behind the tokens, so render them first. */}
+              {(["north", "south", "east", "west"] as const).map((d) => (
+                <DirectionGlow
+                  key={d}
+                  direction={d}
+                  dx={dx}
+                  dy={dy}
+                  {...boxAt(CENTRES[d], CARD_SIZE * 1.6)}
+                />
+              ))}
 
-          <View style={[styles.northWrap, { top: -PILL_H / 2 }]}>
-            <AnswerPill
-              index={0}
-              label={question.choices[0]}
-              verdictIndex={verdictIndex}
-              verdictCorrect={verdictCorrect}
-            />
-          </View>
+              {LETTERS.map((_, i) => (
+                <AnswerToken
+                  key={i}
+                  index={i}
+                  verdictIndex={verdictIndex}
+                  verdictCorrect={verdictCorrect}
+                  revealCorrect={revealCorrect}
+                  {...boxAt(CENTRES[CHOICE_DIRECTION[i]], TOKEN_SIZE)}
+                />
+              ))}
 
-          <View style={[styles.southWrap, { bottom: -PILL_H / 2 }]}>
-            <View style={styles.passPill}>
-              <View style={styles.passBadge}>
-                <Text style={styles.passBadgeText}>×</Text>
+              <View
+                style={[
+                  styles.passToken,
+                  boxAt(CENTRES.south, TOKEN_SIZE),
+                ]}
+              >
+                <Svg width={20} height={20}>
+                  <Path
+                    d="M3 3 L17 17 M17 3 L3 17"
+                    stroke={Colors.bone}
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                  />
+                </Svg>
               </View>
-              <Text style={styles.passText}>PASS</Text>
+
+              {/* Furthest ghost first, so the nearer brighter ones paint over it. */}
+              {[2, 1, 0].map((i) => (
+                <Ghost
+                  key={i}
+                  index={i}
+                  dx={dx}
+                  dy={dy}
+                  left={cardLeft}
+                  top={cardTop}
+                />
+              ))}
+
+              <GestureDetector gesture={drag}>
+                <Animated.View
+                  style={[
+                    styles.card,
+                    { left: cardLeft, top: cardTop, backgroundColor: Colors.bone },
+                    cardStyle,
+                  ]}
+                />
+              </GestureDetector>
             </View>
           </View>
-
-          <View
-            style={[styles.westWrap, { top: PILL_RADIUS - PILL_H / 2 }]}
-          >
-            <AnswerPill
-              index={1}
-              label={question.choices[1]}
-              verdictIndex={verdictIndex}
-              verdictCorrect={verdictCorrect}
-            />
-          </View>
-
-          <View
-            style={[styles.eastWrap, { top: PILL_RADIUS - PILL_H / 2 }]}
-          >
-            <AnswerPill
-              index={2}
-              label={question.choices[2]}
-              verdictIndex={verdictIndex}
-              verdictCorrect={verdictCorrect}
-            />
-          </View>
-
-          <View
-            style={[
-              styles.cardCircle,
-              styles.cardBack,
-              { left: cardLeft, top: cardTop + 40 },
-            ]}
-          />
-          <View
-            style={[
-              styles.cardCircle,
-              styles.cardMid,
-              { left: cardLeft, top: cardTop + 22 },
-            ]}
-          />
-          <GestureDetector gesture={drag}>
-            <Animated.View
-              style={[
-                styles.cardCircle,
-                styles.cardTop,
-                { left: cardLeft, top: cardTop },
-                cardStyle,
-              ]}
-            />
-          </GestureDetector>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
 /**
- * One of the three answer pills (north/west/east). Bone until the drag
- * commits to it, then it flips blue for correct or rust for wrong — the
- * only place in the app blue appears, so it has to read as the payoff.
+ * One lettered option in the list under the question. At rest it is a plain
+ * surface row; on a verdict it fills blue for correct or rust for wrong. The
+ * fill carries the colour rather than the text so the label stays bone —
+ * legible against charcoal and against either verdict colour.
  */
-function AnswerPill({
+function OptionRow({
   index,
   label,
   verdictIndex,
   verdictCorrect,
+  revealCorrect,
 }: {
   index: number;
   label: string;
   verdictIndex: SharedValue<number>;
   verdictCorrect: SharedValue<boolean>;
+  revealCorrect: SharedValue<number>;
 }) {
-  const pillStyle = useAnimatedStyle(() => {
+  const rowStyle = useAnimatedStyle(() => {
     const active = verdictIndex.value === index;
+    const revealed = revealCorrect.value === index;
+    // Wrong pick shows rust on the picked row AND blue on the right one, so a
+    // miss still teaches the answer.
     return {
       backgroundColor: withTiming(
-        active ? (verdictCorrect.value ? Theme.correct : Theme.incorrect) : Colors.bone,
+        active
+          ? verdictCorrect.value
+            ? Theme.correct
+            : Theme.incorrect
+          : revealed
+            ? Theme.correct
+            : Theme.surface,
         { duration: 150 },
       ),
     };
   });
 
-  const textStyle = useAnimatedStyle(() => ({
-    color: withTiming(verdictIndex.value === index ? Colors.bone : Colors.charcoal, {
-      duration: 150,
-    }),
-  }));
+  return (
+    <Animated.View style={[styles.optionRow, rowStyle]}>
+      <Text style={styles.optionLetter}>{LETTERS[index]}</Text>
+      <Text style={styles.optionLabel} numberOfLines={1} adjustsFontSizeToFit>
+        {label}
+      </Text>
+    </Animated.View>
+  );
+}
+
+/**
+ * A lettered compass target. Bone until the drag commits to it, then it flips
+ * blue for correct or rust for wrong — the only place in the app blue appears,
+ * so it has to read as the payoff.
+ */
+function AnswerToken({
+  index,
+  verdictIndex,
+  verdictCorrect,
+  revealCorrect,
+  left,
+  top,
+}: {
+  index: number;
+  verdictIndex: SharedValue<number>;
+  verdictCorrect: SharedValue<boolean>;
+  revealCorrect: SharedValue<number>;
+  left: number;
+  top: number;
+}) {
+  const tokenStyle = useAnimatedStyle(() => {
+    const active = verdictIndex.value === index;
+    const revealed = revealCorrect.value === index;
+    return {
+      backgroundColor: withTiming(
+        active
+          ? verdictCorrect.value
+            ? Theme.correct
+            : Theme.incorrect
+          : revealed
+            ? Theme.correct
+            : Colors.bone,
+        { duration: 150 },
+      ),
+    };
+  });
+
+  const textStyle = useAnimatedStyle(() => {
+    const active = verdictIndex.value === index;
+    const revealed = revealCorrect.value === index;
+    return {
+      color: withTiming(active || revealed ? Colors.bone : Colors.charcoal, {
+        duration: 150,
+      }),
+    };
+  });
 
   return (
-    <Animated.View style={[styles.pill, pillStyle]}>
-      <Animated.Text
-        style={[styles.pillText, textStyle]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {label}
+    <Animated.View style={[styles.token, { left, top }, tokenStyle]}>
+      <Animated.Text style={[styles.tokenText, textStyle]}>
+        {LETTERS[index]}
       </Animated.Text>
     </Animated.View>
   );
@@ -362,7 +537,7 @@ function DirectionGlow({
   left,
   top,
 }: {
-  direction: 'north' | 'south' | 'east' | 'west';
+  direction: "north" | "south" | "east" | "west";
   dx: SharedValue<number>;
   dy: SharedValue<number>;
   left: number;
@@ -375,13 +550,13 @@ function DirectionGlow({
     const vertical = absY > absX * Gestures.dominantAxisRatio;
 
     let progress = 0;
-    if (horizontal && direction === 'east' && dx.value > 0) {
+    if (horizontal && direction === "east" && dx.value > 0) {
       progress = Math.min(1, absX / Gestures.commitDistance);
-    } else if (horizontal && direction === 'west' && dx.value < 0) {
+    } else if (horizontal && direction === "west" && dx.value < 0) {
       progress = Math.min(1, absX / Gestures.commitDistance);
-    } else if (vertical && direction === 'south' && dy.value > 0) {
+    } else if (vertical && direction === "south" && dy.value > 0) {
       progress = Math.min(1, absY / Gestures.commitDistance);
-    } else if (vertical && direction === 'north' && dy.value < 0) {
+    } else if (vertical && direction === "north" && dy.value < 0) {
       progress = Math.min(1, absY / Gestures.commitDistance);
     }
 
@@ -391,145 +566,148 @@ function DirectionGlow({
   return <Animated.View style={[styles.glow, { left, top }, style]} />;
 }
 
+/**
+ * Motion trail behind the draggable card, exactly like the onboarding ball's.
+ * Ghosts sit progressively further back along the drag vector, so the trail
+ * always points home to the compass centre whichever way the card is pulled.
+ */
+function Ghost({
+  index,
+  dx,
+  dy,
+  left,
+  top,
+}: {
+  index: number;
+  dx: SharedValue<number>;
+  dy: SharedValue<number>;
+  left: number;
+  top: number;
+}) {
+  const style = useAnimatedStyle(() => {
+    const k = 1 - TRAIL_LAG * (index + 1);
+    return {
+      transform: [{ translateX: dx.value * k }, { translateY: dy.value * k }],
+    };
+  });
+
+  return (
+    <Animated.View
+      style={[styles.card, { left, top, backgroundColor: TrailDark[index] }, style]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
+    flex: 1,
+    // Home's rust, showing through as the quiz drags off to the left.
+    backgroundColor: Colors.rust,
+  },
+  screen: {
     flex: 1,
     backgroundColor: Theme.background,
   },
   progress: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
-    textAlign: 'center',
+    textAlign: "center",
     fontFamily: Fonts.display,
     fontSize: 20,
     color: Theme.text,
     letterSpacing: 2,
   },
   exitTab: {
-    position: 'absolute',
-    right: -42,
-    height: PILL_H,
-    backgroundColor: Colors.rust,
-    borderTopLeftRadius: 999,
-    borderBottomLeftRadius: 999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
+    position: "absolute",
+    right: 0,
   },
-  exitChevron: {
+  body: {
+    flex: 1,
+    // Question and options ride at the top, compass at the foot; whatever slack
+    // the device has opens up between them rather than squeezing either.
+    justifyContent: "space-between",
+  },
+  question: {
+    paddingHorizontal: Spacing.lg,
     fontFamily: Fonts.body,
-    fontSize: 20,
+    fontSize: 22,
+    lineHeight: 30,
+    color: Theme.text,
+    textAlign: "center",
+    letterSpacing: 0.5,
+  },
+  options: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 999,
+  },
+  optionLetter: {
+    // Fixed width so every label starts on the same line, whatever the letter.
+    width: 26,
+    fontFamily: Fonts.display,
+    fontSize: 17,
     color: Colors.bone,
   },
-  exitLabel: {
+  optionLabel: {
+    flex: 1,
     fontFamily: Fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 17,
     letterSpacing: 1,
     color: Colors.bone,
   },
-  question: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.xl,
-    fontFamily: Fonts.body,
-    fontSize: 22,
-    lineHeight: 32,
-    color: Theme.text,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
   compassWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    // Only a floor. `space-between` on the body opens up whatever slack the
+    // device actually has, so a fixed gap here would just crowd short screens.
+    marginTop: Spacing.md,
+  },
+  grid: {
+    position: "absolute",
+  },
+  ring: {
+    position: "absolute",
   },
   glow: {
-    position: 'absolute',
+    position: "absolute",
     width: CARD_SIZE * 1.6,
     height: CARD_SIZE * 1.6,
     borderRadius: 999,
     backgroundColor: Colors.bone,
   },
-  northWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+  token: {
+    position: "absolute",
+    width: TOKEN_SIZE,
+    height: TOKEN_SIZE,
+    borderRadius: TOKEN_SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  southWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  westWrap: {
-    position: 'absolute',
-    left: -SIDE_PILL_W / 2,
-    width: SIDE_PILL_W,
-  },
-  eastWrap: {
-    position: 'absolute',
-    right: -SIDE_PILL_W / 2,
-    width: SIDE_PILL_W,
-  },
-  pill: {
-    height: PILL_H,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-  },
-  pillText: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 15,
+  tokenText: {
+    fontFamily: Fonts.display,
+    fontSize: 22,
     letterSpacing: 1,
   },
-  passPill: {
-    height: PILL_H,
-    borderRadius: 999,
+  passToken: {
+    position: "absolute",
+    width: TOKEN_SIZE,
+    height: TOKEN_SIZE,
+    borderRadius: TOKEN_SIZE / 2,
     backgroundColor: Colors.rust,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  passBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: Colors.bone,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  passBadgeText: {
-    fontFamily: Fonts.body,
-    fontSize: 12,
-    color: Colors.bone,
-  },
-  passText: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 15,
-    letterSpacing: 1,
-    color: Colors.bone,
-  },
-  cardCircle: {
-    position: 'absolute',
+  card: {
+    position: "absolute",
     width: CARD_SIZE,
     height: CARD_SIZE,
     borderRadius: CARD_SIZE / 2,
-  },
-  cardBack: {
-    backgroundColor: Theme.surface,
-  },
-  cardMid: {
-    backgroundColor: Theme.textMuted,
-  },
-  cardTop: {
-    backgroundColor: Colors.bone,
   },
 });

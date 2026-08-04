@@ -42,7 +42,16 @@ export default function RootLayout() {
             // Exiting is a swipe, never a tap — keep gesture dismissal on.
             gestureEnabled: true,
           }}
-        />
+        >
+          {/* The quiz animates itself, in both directions: its exit tab drags
+              the screen aside to reveal home underneath. Leaving the stack's
+              own push/pop animation on would play a second slide over the top
+              of that one — hence 'none', and no edge-swipe to race it. */}
+          <Stack.Screen
+            name="quiz"
+            options={{ animation: 'none', gestureEnabled: false }}
+          />
+        </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
