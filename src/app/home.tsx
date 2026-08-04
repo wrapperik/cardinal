@@ -1,139 +1,131 @@
-import * as Haptics from "expo-haptics";
-import { StyleSheet, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from 'expo-haptics';
+import { useState } from 'react';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { DirectionKey } from "@/constants/theme";
-import { Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { PillMenu } from '@/features/home/pill-menu';
+import { PillRow } from '@/features/home/pill-row';
+import { SettingsPanel } from '@/features/home/settings-panel';
+import { TOPICS, TOPICS_ROW_TWO } from '@/features/home/topics';
 
 /**
- * Scaffold screen. It exists to prove the stack is wired end to end —
- * Reanimated on the UI thread, Gesture Handler resolving a dominant axis,
- * and Haptics firing on commit. The real templates replace it.
+ * The home screen. Nothing here is tappable — the pill rows are pure
+ * ambience and the only interaction is dragging the settings tab in from
+ * the right edge, in keeping with the gesture-only premise.
  */
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const committed = useSharedValue<DirectionKey | null>(null);
+  const { height: screenH } = useWindowDimensions();
 
-  const onCommit = (direction: DirectionKey) => {
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  const paused = useSharedValue(0);
+  const selection = useSharedValue(0);
+
+  const handleOpen = (t: string) => {
+    setActiveTopic(t);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    console.log("committed:", direction);
   };
 
-  const pan = Gesture.Pan()
-    .onChange((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-    })
-    .onEnd((event) => {
-      const { translationX: dx, translationY: dy } = event;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-
-      // Dominant-axis thresholding: a diagonal that does not clearly favour
-      // one axis is ambiguous, and ambiguous swipes snap back.
-      const horizontal = absX > absY * Gestures.dominantAxisRatio;
-      const vertical = absY > absX * Gestures.dominantAxisRatio;
-      const travel = horizontal ? absX : absY;
-      const velocity = horizontal
-        ? Math.abs(event.velocityX)
-        : Math.abs(event.velocityY);
-
-      const passes =
-        (horizontal || vertical) &&
-        (travel > Gestures.commitDistance ||
-          velocity > Gestures.commitVelocity);
-
-      if (passes) {
-        const direction: DirectionKey = horizontal
-          ? dx > 0
-            ? "east"
-            : "west"
-          : dy > 0
-            ? "south"
-            : "north";
-        committed.value = direction;
-        runOnJS(onCommit)(direction);
-      }
-
-      translateX.value = withSpring(0, { damping: 18 });
-      translateY.value = withSpring(0, { damping: 18 });
-    });
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
-  }));
+  // TODO(week5): route to the recap / quiz / upload / scores screens using
+  // MENU_ITEMS[index] once they exist. Guard on index >= 0 there too — a
+  // cancelled hold arrives as -1 and must never navigate anywhere.
+  const handleCommit = (index: number) => {
+    setActiveTopic(null);
+    if (index >= 0) Haptics.selectionAsync();
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Text style={styles.wordmark}>CARDINAL</Text>
-      <Text style={styles.tagline}>The direction you swipe is the answer.</Text>
-
-      <GestureDetector gesture={pan}>
-        <Animated.View style={[styles.card, cardStyle]}>
-          <Text style={styles.cardLabel}>Flick me in any direction</Text>
-        </Animated.View>
-      </GestureDetector>
-
-      <Text style={styles.hint}>
-        © Cardinal 2026
+    <View style={styles.container}>
+      <Text
+        style={[styles.wordmark, { paddingTop: insets.top + Spacing.md }]}
+      >
+        CARDINAL
       </Text>
+
+      {/* Padded at the foot rather than centred outright: the design sits the
+          rows above the middle of the screen, not in it. */}
+      <View style={[styles.pillBlock, { paddingBottom: screenH * 0.28 }]}>
+        <PillRow
+          topics={TOPICS}
+          direction={1}
+          paused={paused}
+          selection={selection}
+          onOpen={handleOpen}
+          onCommit={handleCommit}
+        />
+        <PillRow
+          topics={TOPICS_ROW_TWO}
+          direction={-1}
+          paused={paused}
+          selection={selection}
+          onOpen={handleOpen}
+          onCommit={handleCommit}
+        />
+      </View>
+
+      <View
+        style={[
+          styles.dots,
+          { left: Spacing.lg, bottom: insets.bottom + Spacing.lg },
+        ]}
+      >
+        <View style={[styles.dot, styles.dotTopLeft]} />
+        <View style={[styles.dot, styles.dotBottomLeft]} />
+        <View style={[styles.dot, styles.dotBottomRight]} />
+      </View>
+
+      {activeTopic !== null && <PillMenu title={activeTopic} selection={selection} />}
+
+      <SettingsPanel />
     </View>
   );
 }
 
+const DOT_SIZE = 10;
+const DOT_GAP = 8;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.background,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    backgroundColor: Colors.rust,
   },
   wordmark: {
+    paddingLeft: Spacing.lg,
     fontFamily: Fonts.display,
-    fontSize: 60,
-    color: Theme.text,
+    fontSize: 28,
+    color: Colors.bone,
     letterSpacing: 2,
   },
-  tagline: {
-    fontFamily: Fonts.body,
-    fontSize: 18,
-    color: Theme.textMuted,
-    marginBottom: Spacing.xl,
+  pillBlock: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: Spacing.md,
   },
-  card: {
-    width: 160,
-    height: 160,
-    borderRadius: 100,
-    backgroundColor: Theme.surface,
-    borderWidth: 1,
-    borderColor: Theme.accent,
-    alignItems: "center",
-    justifyContent: "center",
+  dots: {
+    position: 'absolute',
+    width: DOT_SIZE * 2 + DOT_GAP,
+    height: DOT_SIZE * 2 + DOT_GAP,
   },
-  cardLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: 15,
-    color: Theme.text,
+  dot: {
+    position: 'absolute',
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: DOT_SIZE / 2,
+    backgroundColor: Colors.bone,
+    opacity: 0.9,
   },
-  hint: {
-    fontFamily: Fonts.body,
-    fontSize: 14,
-    color: Theme.textMuted,
-    marginTop: Spacing.xl,
-    textAlign: "center",
+  dotTopLeft: {
+    left: 0,
+    top: 0,
+  },
+  dotBottomLeft: {
+    left: 0,
+    top: DOT_SIZE + DOT_GAP,
+  },
+  dotBottomRight: {
+    left: DOT_SIZE + DOT_GAP,
+    top: DOT_SIZE + DOT_GAP,
   },
 });
