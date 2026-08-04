@@ -1,16 +1,20 @@
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useState } from "react";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  interpolateColor,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
+import { PULL_TAB_WIDTH, PullTab } from "@/components/pull-tab";
+import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
 
 /** How far the tab pokes into the screen when the panel is closed. */
-const TAB_PEEK = 132;
+const TAB_PEEK = PULL_TAB_WIDTH;
 /** Extra width tucked under the panel edge so the tab never shows a seam. */
 const TAB_TUCK = 40;
 
@@ -50,12 +54,19 @@ export function SettingsPanel() {
       .activeOffsetX([-12, 12])
       .onChange((e) => {
         // Dragging left (negative changeX) opens it.
-        progress.value = Math.min(1, Math.max(0, progress.value - e.changeX / screenW));
+        progress.value = Math.min(
+          1,
+          Math.max(0, progress.value - e.changeX / screenW),
+        );
       })
       .onEnd((e) => {
         // A decisive flick wins over position, so a short fast pull still opens it.
         const open =
-          e.velocityX < -600 ? true : e.velocityX > 600 ? false : progress.value > 0.4;
+          e.velocityX < -600
+            ? true
+            : e.velocityX > 600
+              ? false
+              : progress.value > 0.4;
         progress.value = withSpring(open ? 1 : 0, PANEL_SPRING);
       });
 
@@ -65,19 +76,31 @@ export function SettingsPanel() {
       pointerEvents="box-none"
     >
       <GestureDetector gesture={makeDrag()}>
-        <View style={[styles.tab, { top: insets.top + Spacing.md }]}>
-          <Text style={styles.tabChevron}>‹</Text>
-          <Text style={styles.tabLabel}>SETTINGS</Text>
-        </View>
+        <PullTab
+          label="SETTINGS"
+          backgroundColor={Colors.charcoal}
+          extraWidth={TAB_TUCK}
+          style={[styles.tab, { top: insets.top + Spacing.md }]}
+        />
       </GestureDetector>
 
       <GestureDetector gesture={makeDrag()}>
         <View style={[styles.panel, { width: screenW }]}>
           <View style={{ paddingTop: insets.top + Spacing.xl }}>
             <Text style={styles.heading}>SETTINGS</Text>
-            <Text style={styles.row}>ACCOUNT</Text>
-            <Text style={styles.row}>ACCESSIBILITY</Text>
-            <Text style={styles.row}>ABOUT</Text>
+
+            <Text style={styles.sectionLabel}>ACCOUNT</Text>
+            {/* TODO(week5): populate from Firebase Auth once the login flow exists. */}
+            <InfoRow label="NAME" value="GUEST" />
+            <InfoRow label="SYNC" value="OFF" />
+
+            <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
+            <AccessibilityRow />
+            {/* TODO(week7): wire to the real tap-zone overlay when the accessibility mode ships. */}
+
+            <Text style={styles.sectionLabel}>ABOUT</Text>
+            <InfoRow label="VERSION" value="1.0.0" />
+            <InfoRow label="BUILD" value="WEEK 5" />
           </View>
 
           <Text style={[styles.hint, { bottom: insets.bottom + Spacing.xl }]}>
@@ -89,60 +112,146 @@ export function SettingsPanel() {
   );
 }
 
+/** A static label/value line, used for ACCOUNT and ABOUT. */
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
+/**
+ * EDGE TAP ZONES toggle. A drag-only switch — the knob follows the finger
+ * and releasing snaps it to the nearer side, matching the no-tap premise.
+ */
+function AccessibilityRow() {
+  const [tapZones, setTapZones] = useState(false);
+  const knob = useSharedValue(0); // 0 = off, 1 = on
+
+  // The child toggle's GestureDetector takes precedence over the panel's
+  // close-drag automatically (innermost first), so this never fights the sled.
+  const toggleDrag = Gesture.Pan()
+    .activeOffsetX([-6, 6])
+    .onChange((e) => {
+      knob.value = Math.min(1, Math.max(0, knob.value + e.changeX / 22));
+    })
+    .onEnd(() => {
+      const on = knob.value > 0.5;
+      knob.value = withSpring(on ? 1 : 0, {
+        damping: 18,
+        stiffness: 220,
+        mass: 0.7,
+      });
+      runOnJS(setTapZones)(on);
+    });
+
+  const trackStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      knob.value,
+      [0, 1],
+      [Theme.surface, Colors.rust],
+    ),
+  }));
+
+  const knobStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: knob.value * 22 }],
+  }));
+
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>EDGE TAP ZONES</Text>
+      <View style={styles.toggleWrap}>
+        <Text style={styles.toggleState}>{tapZones ? "ON" : "OFF"}</Text>
+        <GestureDetector gesture={toggleDrag}>
+          <Animated.View style={[styles.track, trackStyle]}>
+            <Animated.View style={[styles.knob, knobStyle]} />
+          </Animated.View>
+        </GestureDetector>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   sled: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     bottom: 0,
     left: 0,
     zIndex: 10,
   },
   tab: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
-    width: TAB_PEEK + TAB_TUCK,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderTopLeftRadius: 999,
-    borderBottomLeftRadius: 999,
-    // Same charcoal as the panel, so the tucked-under portion shows no seam.
-    backgroundColor: Colors.charcoal,
   },
   panel: {
-    position: 'absolute',
+    position: "absolute",
     left: TAB_PEEK,
     top: 0,
     bottom: 0,
     backgroundColor: Theme.background,
     paddingHorizontal: Spacing.lg,
   },
-  tabChevron: {
-    fontFamily: Fonts.body,
-    fontSize: 20,
-    color: Theme.text,
-  },
-  tabLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 15,
-    letterSpacing: 1,
-    color: Theme.text,
-  },
   heading: {
     fontFamily: Fonts.display,
-    fontSize: 24,
+    color: Theme.text,
+    letterSpacing: 2,
+    fontSize: 40,
+  },
+  sectionLabel: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 2,
+    color: Theme.textMuted,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.glassEdge,
+  },
+  infoLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 15,
     color: Theme.text,
   },
-  row: {
-    marginTop: Spacing.lg,
-    fontFamily: Fonts.body,
-    fontSize: 16,
+  infoValue: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 15,
     color: Theme.textMuted,
   },
+  toggleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  toggleState: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 12,
+    color: Theme.textMuted,
+    marginRight: Spacing.sm,
+  },
+  track: {
+    width: 52,
+    height: 30,
+    borderRadius: 999,
+  },
+  knob: {
+    position: "absolute",
+    left: 3,
+    top: 3,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.bone,
+  },
   hint: {
-    position: 'absolute',
+    position: "absolute",
     left: Spacing.lg,
     right: Spacing.lg,
     fontFamily: Fonts.body,

@@ -39,6 +39,13 @@ export const Theme = {
 export const Trail = ['#CB6C5A', '#C95944', '#C74D35'] as const;
 
 /**
+ * The same ghost trail for screens on the charcoal background — bone blended
+ * over charcoal at the same 30 / 18 / 10%. A trail is always pre-blended against
+ * whatever it sits on, so the rust set above cannot be reused here.
+ */
+export const TrailDark = ['#676767', '#535353', '#464646'] as const;
+
+/**
  * The four cardinal directions. Down is always reserved for Pass in the
  * Compass Quiz, so the mapping is fixed app-wide rather than per-template.
  */
