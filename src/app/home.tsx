@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
@@ -17,6 +18,7 @@ import { TOPICS, TOPICS_ROW_TWO } from '@/features/home/topics';
  */
 export default function Home() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { height: screenH } = useWindowDimensions();
 
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -34,6 +36,7 @@ export default function Home() {
   const handleCommit = (index: number) => {
     setActiveTopic(null);
     if (index >= 0) Haptics.selectionAsync();
+    if (index === 1) router.push('/quiz');
   };
 
   return (
