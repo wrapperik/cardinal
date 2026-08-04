@@ -6,6 +6,7 @@ import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, Spacing } from "@/constants/theme";
+import { CharacterWheel } from "@/features/home/character-wheel";
 import { PillMenu } from "@/features/home/pill-menu";
 import { PillRow } from "@/features/home/pill-row";
 import { SettingsPanel } from "@/features/home/settings-panel";
@@ -50,8 +51,7 @@ export default function Home() {
     if (index < 0 || chosen === null) return;
     Haptics.selectionAsync();
     if (index !== 1) return;
-    const route = GAME_ROUTES[chosen.gameType];
-    if (route) router.push(route);
+    router.push(GAME_ROUTES[chosen.gameType]);
   };
 
   return (
@@ -91,6 +91,8 @@ export default function Home() {
         <View style={[styles.dot, styles.dotBottomLeft]} />
         <View style={[styles.dot, styles.dotBottomRight]} />
       </View>
+
+      <CharacterWheel bottom={insets.bottom + Spacing.lg} />
 
       {activeTopic !== null && (
         <PillMenu title={activeTopic.title} selection={selection} />

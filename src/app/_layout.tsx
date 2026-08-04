@@ -52,6 +52,8 @@ export default function RootLayout() {
               edge-swipe to race it. */}
           <Stack.Screen name="quiz" options={GAME_SCREEN} />
           <Stack.Screen name="true-false" options={GAME_SCREEN} />
+          <Stack.Screen name="sequence" options={GAME_SCREEN} />
+          <Stack.Screen name="match" options={GAME_SCREEN} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
