@@ -419,7 +419,11 @@ export default function Quiz() {
 
               <GestureDetector gesture={drag}>
                 <Animated.View
-                  style={[styles.card, { left: cardLeft, top: cardTop }, cardStyle]}
+                  style={[
+                    styles.card,
+                    { left: cardLeft, top: cardTop },
+                    cardStyle,
+                  ]}
                 >
                   <CharacterMark characterId={equippedId} size={CARD_SIZE} />
                 </Animated.View>
