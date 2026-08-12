@@ -22,6 +22,7 @@ import {
   type MatchPair,
   type MatchRound,
 } from "@/features/match/rounds";
+import { getMatchZoneHeight } from "@/features/match/layout";
 
 /** Zone footprint — fixed rather than measured, so a worklet can hit-test a
  *  drop the instant a finger lifts instead of waiting on onLayout. */
@@ -172,15 +173,18 @@ export default function Match() {
   const passPillTop = screenH - (insets.bottom + Spacing.xl) - PULL_TAB_HEIGHT;
   const termCardTop = passPillTop - Spacing.lg - TERM_CARD_H;
 
-  const zonesBlockH = ZONE_H * 3 + ZONE_GAP * 2;
   const availableH = termCardTop - promptBottom;
+  const zoneHeight = getMatchZoneHeight(availableH);
+  const zonesBlockH = zoneHeight * 3 + ZONE_GAP * 2;
   // Centred in the gap between the prompt and the term card, per the brief —
   // not pinned to the top of that gap.
   const zonesTop = promptBottom + Math.max(0, (availableH - zonesBlockH) / 2);
 
   const zoneLeft = Spacing.lg;
   const zoneWidth = screenW - Spacing.lg * 2;
-  const zoneTops = [0, 1, 2].map((i) => zonesTop + i * (ZONE_H + ZONE_GAP));
+  const zoneTops = [0, 1, 2].map(
+    (i) => zonesTop + i * (zoneHeight + ZONE_GAP),
+  );
 
   const passDy = useSharedValue(0);
   const passDrag = Gesture.Pan()
@@ -213,6 +217,7 @@ export default function Match() {
           key={i}
           index={i}
           top={zoneTops[i]}
+          height={zoneHeight}
           left={zoneLeft}
           width={zoneWidth}
           pair={round.pairs[zoneOrder[i]]}
@@ -235,7 +240,7 @@ export default function Match() {
           zoneLeft={zoneLeft}
           zoneWidth={zoneWidth}
           zoneTops={zoneTops}
-          zoneHeight={ZONE_H}
+          zoneHeight={zoneHeight}
           matchedFlags={matchedFlags}
           wrongFlags={wrongFlags}
           hoverZone={hoverZone}
@@ -285,6 +290,7 @@ function shuffleZoneOrder(count: number): number[] {
 interface ZoneProps {
   index: number;
   top: number;
+  height: number;
   left: number;
   width: number;
   pair: MatchPair;
@@ -302,6 +308,7 @@ interface ZoneProps {
 function Zone({
   index,
   top,
+  height,
   left,
   width,
   pair,
@@ -335,7 +342,7 @@ function Zone({
   const isFilled = matchedPairIndex !== null;
 
   return (
-    <Animated.View style={[styles.zone, { top, left, width }, zoneStyle]}>
+    <Animated.View style={[styles.zone, { top, left, width, height }, zoneStyle]}>
       {isFilled ? (
         <View style={styles.zoneMatchedContent} pointerEvents="none">
           <Text style={styles.zoneMatchedTerm} numberOfLines={1}>
@@ -493,7 +500,6 @@ const styles = StyleSheet.create({
   },
   zone: {
     position: "absolute",
-    height: ZONE_H,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",

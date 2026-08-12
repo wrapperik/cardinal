@@ -28,6 +28,7 @@ import {
   pointAtDistance,
   stageAtDistance,
 } from "@/features/onboarding/path";
+import { useAuth } from "@/features/auth/auth-provider";
 
 /** One line per stage, shown centred once the ball has passed that milestone. */
 const STAGES = [
@@ -97,6 +98,7 @@ export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
+  const { completeOnboarding } = useAuth();
 
   const [stage, setStage] = useState(0);
   const completed = useRef(false);
@@ -109,12 +111,12 @@ export default function Onboarding() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  // TODO(week5): persist an "onboarded" flag once Firebase Auth gates the entry route.
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (completed.current) return;
     completed.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace("/home");
+    await completeOnboarding();
+    router.replace("/sign-up");
   };
 
   const dotsHeld = useSharedValue(0);

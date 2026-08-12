@@ -8,10 +8,13 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Theme } from '@/constants/theme';
+import { AuthGate } from '@/features/auth/auth-gate';
+import { AuthProvider } from '@/features/auth/auth-provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,25 +40,40 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: Theme.background },
-            // Exiting is a swipe, never a tap — keep gesture dismissal on.
-            gestureEnabled: true,
-          }}
-        >
-          {/* Every game animates itself, in both directions: its exit tab drags
-              home in over the top. Leaving the stack's own push/pop animation
-              on would play a second slide over that one — hence 'none', and no
-              edge-swipe to race it. */}
-          <Stack.Screen name="quiz" options={GAME_SCREEN} />
-          <Stack.Screen name="true-false" options={GAME_SCREEN} />
-          <Stack.Screen name="sequence" options={GAME_SCREEN} />
-          <Stack.Screen name="match" options={GAME_SCREEN} />
-        </Stack>
+        <AuthProvider>
+          <AuthGate>
+            <View style={styles.viewport}>
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: Theme.background },
+                  // Exiting is a swipe, never a tap — keep gesture dismissal on.
+                  gestureEnabled: true,
+                }}
+              >
+                <Stack.Screen name="sign-up" options={{ animation: 'fade' }} />
+                <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
+                {/* Every game animates itself, in both directions: its exit tab drags
+                    home in over the top. Leaving the stack's own push/pop animation
+                    on would play a second slide over that one — hence 'none', and no
+                    edge-swipe to race it. */}
+                <Stack.Screen name="quiz" options={GAME_SCREEN} />
+                <Stack.Screen name="true-false" options={GAME_SCREEN} />
+                <Stack.Screen name="sequence" options={GAME_SCREEN} />
+                <Stack.Screen name="match" options={GAME_SCREEN} />
+              </Stack>
+            </View>
+          </AuthGate>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  viewport: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+});

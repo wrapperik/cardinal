@@ -88,6 +88,7 @@ export default function Quiz() {
   const router = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { equippedId } = useCharacter();
+  const compactHeight = screenH < 650;
 
   // Three separate ceilings, whichever bites first. Width alone is not enough:
   // the question and its three options now sit above the compass, and on a
@@ -96,7 +97,7 @@ export default function Quiz() {
     // East and west tokens fully on screen, with a margin.
     (screenW - TOKEN_SIZE) / 2 - Spacing.xl,
     // Leaves the top block room to breathe, including a three-line question.
-    (screenH * 0.36 - TOKEN_SIZE) / 2,
+    (screenH * (compactHeight ? 0.31 : 0.36) - TOKEN_SIZE) / 2,
     // And never sprawls, however much room a large device offers.
     128,
   );
@@ -319,7 +320,8 @@ export default function Quiz() {
             {
               // Clears the progress label and the exit tab, both absolute.
               paddingTop: insets.top + PULL_TAB_HEIGHT + Spacing.lg,
-              paddingBottom: insets.bottom + Spacing.lg,
+              paddingBottom:
+                insets.bottom + (compactHeight ? Spacing.xs : Spacing.lg),
             },
           ]}
         >
@@ -340,7 +342,12 @@ export default function Quiz() {
             </View>
           </Animated.View>
 
-          <View style={styles.compassWrap}>
+          <View
+            style={[
+              styles.compassWrap,
+              compactHeight && styles.compassWrapCompact,
+            ]}
+          >
             <View style={{ width: COMPASS_SIZE, height: COMPASS_SIZE }}>
               <BgGrid
                 width={COMPASS_SIZE * 1.2}
@@ -744,6 +751,9 @@ const styles = StyleSheet.create({
     // device actually has, so a fixed gap here would just crowd short screens.
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
+  },
+  compassWrapCompact: {
+    marginBottom: Spacing.xs,
   },
   grid: {
     position: "absolute",

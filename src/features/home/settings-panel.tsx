@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PULL_TAB_WIDTH, PullTab } from "@/components/pull-tab";
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
+import { useAuth } from "@/features/auth/auth-provider";
 
 /** How far the tab pokes into the screen when the panel is closed. */
 const TAB_PEEK = PULL_TAB_WIDTH;
@@ -33,6 +34,7 @@ const PANEL_SPRING = { damping: 18, stiffness: 140, mass: 0.9 } as const;
 export function SettingsPanel() {
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
+  const { signOutUser, user } = useAuth();
 
   // 0 = closed, 1 = open.
   const progress = useSharedValue(0);
@@ -90,9 +92,10 @@ export function SettingsPanel() {
             <Text style={styles.heading}>SETTINGS</Text>
 
             <Text style={styles.sectionLabel}>ACCOUNT</Text>
-            {/* TODO(week5): populate from Firebase Auth once the login flow exists. */}
-            <InfoRow label="NAME" value="GUEST" />
-            <InfoRow label="SYNC" value="OFF" />
+            <InfoRow label="NAME" value={user?.displayName ?? "STUDENT"} />
+            <InfoRow label="EMAIL" value={user?.email ?? "—"} />
+            <InfoRow label="SYNC" value="ON" />
+            <SignOutRow onSignOut={signOutUser} />
 
             <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
             <AccessibilityRow />
@@ -117,7 +120,54 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text numberOfLines={1} ellipsizeMode="middle" style={styles.infoValue}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/** A deliberate left swipe prevents accidental sign-out inside a draggable panel. */
+function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
+  const [error, setError] = useState(false);
+  const drag = useSharedValue(0);
+
+  const signOut = async () => {
+    setError(false);
+    try {
+      await onSignOut();
+    } catch {
+      setError(true);
+    }
+  };
+
+  const gesture = Gesture.Pan()
+    .activeOffsetX([-8, 8])
+    .onChange((event) => {
+      drag.value = Math.max(-112, Math.min(0, drag.value + event.changeX));
+    })
+    .onEnd(() => {
+      if (drag.value < -88) runOnJS(signOut)();
+      drag.value = withSpring(0, {
+        damping: 18,
+        stiffness: 220,
+        mass: 0.7,
+      });
+    });
+
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: drag.value }],
+  }));
+
+  return (
+    <View>
+      <GestureDetector gesture={gesture}>
+        <Animated.View style={[styles.signOutRow, dragStyle]}>
+          <Text style={styles.signOutLabel}>SIGN OUT</Text>
+          <Text style={styles.signOutHint}>SWIPE LEFT</Text>
+        </Animated.View>
+      </GestureDetector>
+      {error && <Text style={styles.signOutError}>COULDN&apos;T SIGN OUT. TRY AGAIN.</Text>}
     </View>
   );
 }
@@ -222,9 +272,37 @@ const styles = StyleSheet.create({
     color: Theme.text,
   },
   infoValue: {
+    flex: 1,
+    marginLeft: Spacing.lg,
+    textAlign: "right",
     fontFamily: Fonts.bodyBold,
     fontSize: 15,
     color: Theme.textMuted,
+  },
+  signOutRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.glassEdge,
+  },
+  signOutLabel: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 15,
+    color: Colors.rust,
+  },
+  signOutHint: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: Theme.textMuted,
+  },
+  signOutError: {
+    marginTop: Spacing.sm,
+    fontFamily: Fonts.bodyBold,
+    fontSize: 11,
+    color: Colors.rust,
   },
   toggleWrap: {
     flexDirection: "row",

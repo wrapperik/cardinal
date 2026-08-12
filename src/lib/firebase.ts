@@ -1,9 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
-// @ts-expect-error — getReactNativePersistence ships in the RN build but is
-// missing from firebase/auth's published types.
-import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -17,18 +14,9 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-/** AsyncStorage persistence keeps returning users logged in across launches. */
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
-
-/**
- * Offline persistence is what lets revision continue in a queue with no
- * signal; writes sync automatically once the device reconnects.
- */
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
-});
+/** Web/SSR-safe defaults. Native persistence is configured in firebase.native.ts. */
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 export const storage = getStorage(app);
 
