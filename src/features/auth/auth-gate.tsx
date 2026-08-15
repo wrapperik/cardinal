@@ -1,16 +1,20 @@
-import { usePathname, useRouter } from "expo-router";
-import { useEffect, type PropsWithChildren } from "react";
+import { usePathname, useRootNavigationState, useRouter } from "expo-router";
+import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Fonts, Theme } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-provider";
 import { getAuthDestination } from "@/features/auth/routing";
 
-export function AuthGate({ children }: PropsWithChildren) {
+/**
+ * Kept beside (rather than around) the root navigator. That way the navigator
+ * remains mounted while a protected-route redirect is dispatched.
+ */
+export function AuthGate() {
   const pathname = usePathname();
   const router = useRouter();
+  const navigationState = useRootNavigationState();
   const { initializing, onboarded, user } = useAuth();
-  const visualQa = process.env.EXPO_PUBLIC_VISUAL_QA === "1";
   const destination = getAuthDestination({
     pathname,
     onboarded,
@@ -18,11 +22,10 @@ export function AuthGate({ children }: PropsWithChildren) {
   });
 
   useEffect(() => {
-    if (!visualQa && !initializing && destination) router.replace(destination);
-  }, [destination, initializing, router, visualQa]);
-
-  // Local visual-QA instrumentation; removed after protected route inspection.
-  if (visualQa) return children;
+    if (navigationState?.key && !initializing && destination) {
+      router.replace(destination);
+    }
+  }, [destination, initializing, navigationState?.key, router]);
 
   if (initializing || destination) {
     return (
@@ -32,12 +35,14 @@ export function AuthGate({ children }: PropsWithChildren) {
     );
   }
 
-  return children;
+  return null;
 }
 
 const styles = StyleSheet.create({
   loading: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
+    zIndex: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Theme.background,

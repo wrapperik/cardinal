@@ -24,5 +24,8 @@ export function getAuthDestination({
     return pathname === "/" || AUTH_ROUTES.has(pathname) ? null : "/";
   }
 
-  return pathname === "/" ? "/sign-in" : null;
+  // An onboarded user who is signed out belongs on an auth screen, wherever they
+  // were standing. Matching only "/" here left sign-out with no visible effect:
+  // it is triggered from the settings panel on /home, which stayed put.
+  return AUTH_ROUTES.has(pathname) ? null : "/sign-in";
 }

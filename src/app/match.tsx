@@ -24,9 +24,6 @@ import {
 } from "@/features/match/rounds";
 import { getMatchZoneHeight } from "@/features/match/layout";
 
-/** Zone footprint — fixed rather than measured, so a worklet can hit-test a
- *  drop the instant a finger lifts instead of waiting on onLayout. */
-const ZONE_H = 84;
 const ZONE_GAP = 14;
 
 /** Resting card height. Width is left to the text — see termCard's style. */
@@ -80,7 +77,7 @@ export default function Match() {
   // would move zones the player already read and memorised.
   const zoneOrder = useMemo(
     () => shuffleZoneOrder(round.pairs.length),
-    [roundIndex, round.pairs.length],
+    [round],
   );
 
   const matchedPairIndices = new Set(

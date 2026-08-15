@@ -16,6 +16,7 @@ import {
 } from "@/features/auth/onboarding";
 import {
   createEmailAccount,
+  completeGoogleRedirect,
   resetPassword,
   signInWithEmail,
   signInWithGoogle,
@@ -43,6 +44,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     getOnboardingComplete().then(setOnboarded);
+    completeGoogleRedirect().catch(() => {
+      // The form will surface any user-triggered sign-in error on its next attempt.
+    });
     return onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
@@ -54,19 +58,60 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setOnboarded(true);
   }, []);
 
+  // Update the local session immediately. Firebase will emit the same state
+  // shortly afterwards, but waiting for that event left the route guard with a
+  // brief unauthenticated window after submitting either auth form.
+  const signUp = useCallback(async (...args: Parameters<typeof createEmailAccount>) => {
+    const nextUser = await createEmailAccount(...args);
+    setUser(nextUser);
+    return nextUser;
+  }, []);
+
+  const signIn = useCallback(async (...args: Parameters<typeof signInWithEmail>) => {
+    const nextUser = await signInWithEmail(...args);
+    setUser(nextUser);
+    return nextUser;
+  }, []);
+
+  const signInWithGoogleNow = useCallback(
+    async (...args: Parameters<typeof signInWithGoogle>) => {
+      const nextUser = await signInWithGoogle(...args);
+      if (nextUser) setUser(nextUser);
+      return nextUser;
+    },
+    [],
+  );
+
+  // Same reasoning as signIn/signUp, mirrored: clearing the session here rather
+  // than waiting for Firebase's event closes the window where a signed-out user
+  // is still looking at a protected screen.
+  const signOutNow = useCallback(async () => {
+    await signOutUser();
+    setUser(null);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       initializing: !authReady || onboarded === null,
       onboarded,
       completeOnboarding,
-      signUp: createEmailAccount,
-      signIn: signInWithEmail,
-      signInWithGoogle,
+      signUp,
+      signIn,
+      signInWithGoogle: signInWithGoogleNow,
       sendPasswordReset: resetPassword,
-      signOutUser,
+      signOutUser: signOutNow,
     }),
-    [authReady, completeOnboarding, onboarded, user],
+    [
+      authReady,
+      completeOnboarding,
+      onboarded,
+      signIn,
+      signInWithGoogleNow,
+      signOutNow,
+      signUp,
+      user,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

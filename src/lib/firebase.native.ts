@@ -3,7 +3,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 // @ts-expect-error — getReactNativePersistence ships in the RN build but is
 // missing from firebase/auth's published types.
 import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -22,10 +22,12 @@ export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });
 
-/** Revision continues offline and syncs automatically after reconnection. */
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
-});
+/**
+ * Memory cache only. persistentLocalCache() is IndexedDB-backed, which React
+ * Native has no implementation of, so Firestore logged a warning and silently
+ * fell back to exactly this on the first read.
+ */
+export const db = getFirestore(app);
 
 export const storage = getStorage(app);
 

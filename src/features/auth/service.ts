@@ -1,28 +1,17 @@
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
   createUserWithEmailAndPassword,
-  GoogleAuthProvider,
   sendPasswordResetEmail,
-  signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
   type User,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { Platform } from "react-native";
 
+import { finishGoogleRedirect, startGoogleSignIn } from "@/features/auth/google-auth";
 import { auth, db } from "@/lib/firebase";
 
 const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-
-if (googleWebClientId) {
-  GoogleSignin.configure({
-    webClientId: googleWebClientId,
-    iosClientId: googleIosClientId,
-  });
-}
 
 async function createUserDocument(user: User): Promise<void> {
   const reference = doc(db, "users", user.uid);
@@ -63,16 +52,15 @@ export async function signInWithGoogle(): Promise<User | null> {
     throw { code: "auth/google-not-configured" };
   }
 
-  if (Platform.OS === "android") {
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-  }
+  const user = await startGoogleSignIn();
+  if (!user) return null;
+  await createUserDocument(user);
+  return user;
+}
 
-  const response = await GoogleSignin.signIn();
-  if (response.type === "cancelled") return null;
-  if (!response.data.idToken) throw { code: "auth/google-missing-token" };
-
-  const credential = GoogleAuthProvider.credential(response.data.idToken);
-  const user = (await signInWithCredential(auth, credential)).user;
+export async function completeGoogleRedirect(): Promise<User | null> {
+  const user = await finishGoogleRedirect();
+  if (!user) return null;
   await createUserDocument(user);
   return user;
 }

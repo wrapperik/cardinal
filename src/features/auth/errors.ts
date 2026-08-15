@@ -13,6 +13,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
     "Google sign-in still needs its client ID. Check the app configuration.",
   "auth/google-missing-token":
     "Google couldn't complete sign-in. Please try again.",
+  "auth/google-needs-dev-build":
+    "Google sign-in needs a development build. Use email here in Expo Go.",
 };
 
 export function getAuthErrorMessage(error: unknown): string {

@@ -38,6 +38,17 @@ describe("getAuthDestination", () => {
     ).toBe("/sign-in");
   });
 
+  it("pulls a signed-out user off protected screens", () => {
+    // Sign-out happens in the settings panel on /home, so this is the path that
+    // makes the swipe do something visible.
+    expect(
+      getAuthDestination({ pathname: "/home", onboarded: true, signedIn: false }),
+    ).toBe("/sign-in");
+    expect(
+      getAuthDestination({ pathname: "/quiz", onboarded: true, signedIn: false }),
+    ).toBe("/sign-in");
+  });
+
   it("allows signed-out users to move between auth screens", () => {
     expect(
       getAuthDestination({

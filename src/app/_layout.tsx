@@ -41,30 +41,29 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <AuthGate>
-            <View style={styles.viewport}>
-              <StatusBar style="light" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: Theme.background },
-                  // Exiting is a swipe, never a tap — keep gesture dismissal on.
-                  gestureEnabled: true,
-                }}
-              >
-                <Stack.Screen name="sign-up" options={{ animation: 'fade' }} />
-                <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
-                {/* Every game animates itself, in both directions: its exit tab drags
-                    home in over the top. Leaving the stack's own push/pop animation
-                    on would play a second slide over that one — hence 'none', and no
-                    edge-swipe to race it. */}
-                <Stack.Screen name="quiz" options={GAME_SCREEN} />
-                <Stack.Screen name="true-false" options={GAME_SCREEN} />
-                <Stack.Screen name="sequence" options={GAME_SCREEN} />
-                <Stack.Screen name="match" options={GAME_SCREEN} />
-              </Stack>
-            </View>
-          </AuthGate>
+          <View style={styles.viewport}>
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: Theme.background },
+                // Exiting is a swipe, never a tap — keep gesture dismissal on.
+                gestureEnabled: true,
+              }}
+            >
+              <Stack.Screen name="sign-up" options={{ animation: 'fade' }} />
+              <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
+              {/* Every game animates itself, in both directions: its exit tab drags
+                  home in over the top. Leaving the stack's own push/pop animation
+                  on would play a second slide over that one — hence 'none', and no
+                  edge-swipe to race it. */}
+              <Stack.Screen name="quiz" options={GAME_SCREEN} />
+              <Stack.Screen name="true-false" options={GAME_SCREEN} />
+              <Stack.Screen name="sequence" options={GAME_SCREEN} />
+              <Stack.Screen name="match" options={GAME_SCREEN} />
+            </Stack>
+            <AuthGate />
+          </View>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
