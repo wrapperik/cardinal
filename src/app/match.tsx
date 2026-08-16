@@ -17,11 +17,8 @@ import Svg, { Path } from "react-native-svg";
 import { GAME_HEADER_H, GameShell } from "@/components/game-shell";
 import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
 import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
-import {
-  SAMPLE_ROUNDS,
-  type MatchPair,
-  type MatchRound,
-} from "@/features/match/rounds";
+import type { MatchPair, MatchRound } from "@/features/match/rounds";
+import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
 
 const ZONE_GAP = 14;
@@ -70,8 +67,11 @@ export default function Match() {
     null,
   ]);
 
-  const round: MatchRound = SAMPLE_ROUNDS[roundIndex];
-  const total = SAMPLE_ROUNDS.length;
+  // The uploaded deck for whichever course was opened, or the shipped fixtures
+  // when this was reached without one.
+  const rounds = useMatchRounds();
+  const round: MatchRound = rounds[roundIndex];
+  const total = rounds.length;
 
   // Shuffled once per round, not per render — re-shuffling on every match
   // would move zones the player already read and memorised.

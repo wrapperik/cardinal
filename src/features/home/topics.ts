@@ -23,16 +23,40 @@ export const TOPICS: Topic[] = [
   { title: 'BIOLOGY', gameType: 'trueFalseDuel' },
 ];
 
-/** Second row starts halfway through, so the two rows never line up. */
-export const TOPICS_ROW_TWO: Topic[] = [...TOPICS.slice(2), ...TOPICS.slice(0, 2)];
+/**
+ * Offsets the second row so the two never line up. Computed rather than
+ * declared, because the rows are now driven by the course store — a course
+ * created from an upload has to land in both rows without anyone maintaining
+ * a second hand-written list.
+ */
+export function rotate<T>(list: T[], by: number): T[] {
+  if (list.length === 0) return list;
+  const at = by % list.length;
+  return [...list.slice(at), ...list.slice(0, at)];
+}
 
-/** Where each template lives. All four MVP mechanics are now reachable. */
-export const GAME_ROUTES: Record<GameType, Href> = {
-  compassQuiz: '/quiz',
-  trueFalseDuel: '/true-false',
-  sequenceSwipe: '/sequence',
-  matchRelease: '/match',
-};
+/**
+ * Where each template lives, with the course carried along so the screen knows
+ * whose cards to deal. Written as a switch rather than a lookup table because
+ * typed routes only accept a literal pathname in the params-carrying form — a
+ * `Record<GameType, Href>` widens the pathname and stops typechecking.
+ *
+ * A missing courseId is the honest signal for "no particular course": the
+ * screens fall back to their shipped fixtures.
+ */
+export function gameHref(gameType: GameType, courseId?: string): Href {
+  const params = courseId ? { courseId } : undefined;
+  switch (gameType) {
+    case 'compassQuiz':
+      return { pathname: '/quiz', params };
+    case 'trueFalseDuel':
+      return { pathname: '/true-false', params };
+    case 'sequenceSwipe':
+      return { pathname: '/sequence', params };
+    case 'matchRelease':
+      return { pathname: '/match', params };
+  }
+}
 
 /** Labels for the hold-and-slide menu shown while a pill is held. */
 export const MENU_ITEMS = [

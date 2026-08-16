@@ -31,8 +31,12 @@ import {
   Theme,
   TrailDark,
 } from "@/constants/theme";
-import { useCharacter } from "@/features/character/store";
-import { SAMPLE_QUESTIONS } from "@/features/quiz/questions";
+import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
+// Character selection is disabled — see @/features/character/store, commented
+// out wholesale. The puck below always renders as the default character
+// instead of reading an equipped one.
+// import { useCharacter } from "@/features/character/store";
+import { useQuizQuestions } from "@/features/upload/play";
 
 /** The draggable puck at the compass centre. */
 const CARD_SIZE = 70;
@@ -87,7 +91,8 @@ export default function Quiz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
-  const { equippedId } = useCharacter();
+  // const { equippedId } = useCharacter();
+  const equippedId = DEFAULT_CHARACTER_ID;
   const compactHeight = screenH < 650;
 
   // Three separate ceilings, whichever bites first. Width alone is not enough:
@@ -117,8 +122,11 @@ export default function Quiz() {
   const cardLeft = CENTRE - CARD_SIZE / 2;
   const cardTop = CENTRE - CARD_SIZE / 2;
 
+  // The uploaded deck for whichever course was opened, or the shipped fixtures
+  // when the quiz was reached without one.
+  const questions = useQuizQuestions();
   const [index, setIndex] = useState(0);
-  const question = SAMPLE_QUESTIONS[index];
+  const question = questions[index];
 
   // -1 = no verdict showing. Otherwise the index of the committed answer.
   const verdictIndex = useSharedValue(-1);
@@ -141,7 +149,7 @@ export default function Quiz() {
   }
 
   function advanceQuestion() {
-    if (index + 1 >= SAMPLE_QUESTIONS.length) {
+    if (index + 1 >= questions.length) {
       router.back();
       return;
     }
@@ -304,7 +312,7 @@ export default function Quiz() {
     ],
   }));
 
-  const total = SAMPLE_QUESTIONS.length;
+  const total = questions.length;
   const progressLabel = `${String(index + 1).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (

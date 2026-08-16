@@ -33,10 +33,8 @@ import {
   PullTab,
 } from "@/components/pull-tab";
 import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
-import {
-  SAMPLE_STATEMENTS,
-  type TrueFalseStatement,
-} from "@/features/true-false/statements";
+import { useTrueFalseStatements } from "@/features/upload/play";
+import type { TrueFalseStatement } from "@/features/true-false/statements";
 
 /** Edge pill footprint. Tall and narrow so it reads as a lever on the rail,
  *  not a button. */
@@ -103,8 +101,11 @@ export default function TrueFalse() {
   const leftPillCentreX = leftPillLeft + PILL_W / 2;
   const rightPillCentreX = rightPillLeft + PILL_W / 2;
 
+  // The uploaded deck for whichever course was opened, or the shipped fixtures
+  // when this was reached without one.
+  const statements = useTrueFalseStatements();
   const [index, setIndex] = useState(0);
-  const statement: TrueFalseStatement = SAMPLE_STATEMENTS[index];
+  const statement: TrueFalseStatement = statements[index];
 
   const verdictActive = useSharedValue(false);
   const verdictCorrect = useSharedValue(false);
@@ -126,7 +127,7 @@ export default function TrueFalse() {
   }
 
   function advanceStatement() {
-    if (index + 1 >= SAMPLE_STATEMENTS.length) {
+    if (index + 1 >= statements.length) {
       router.back();
       return;
     }
@@ -312,7 +313,7 @@ export default function TrueFalse() {
     ],
   }));
 
-  const total = SAMPLE_STATEMENTS.length;
+  const total = statements.length;
   const progressLabel = `${String(index + 1).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (

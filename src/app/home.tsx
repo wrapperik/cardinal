@@ -1,21 +1,23 @@
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, Spacing } from "@/constants/theme";
-import { CharacterWheel } from "@/features/home/character-wheel";
+// Character selector disabled — see @/features/home/character-wheel and
+// @/features/character/store, both commented out wholesale.
+// import { CharacterWheel } from "@/features/home/character-wheel";
 import { PillMenu } from "@/features/home/pill-menu";
 import { PillRow } from "@/features/home/pill-row";
 import { SettingsPanel } from "@/features/home/settings-panel";
+import { gameHref, rotate, type Topic } from "@/features/home/topics";
+import { useCourses } from "@/features/upload/courses";
 import {
-  GAME_ROUTES,
-  TOPICS,
-  TOPICS_ROW_TWO,
-  type Topic,
-} from "@/features/home/topics";
+  UploadSheet,
+  type UploadSheetHandle,
+} from "@/features/upload/upload-sheet";
 import type { GameType } from "@/types/cardinal";
 
 /**
@@ -28,9 +30,15 @@ export default function Home() {
   const router = useRouter();
   const { height: screenH } = useWindowDimensions();
 
+  // The pills are the course list itself, so a course created from an upload
+  // shows up here without a second source of truth to keep in step.
+  const courses = useCourses();
+  const rowTwo = useMemo(() => rotate(courses, 2), [courses]);
+
   // The held pill, kept whole rather than as a title: committing needs its
   // gameType to know which template to open.
   const [activeTopic, setActiveTopic] = useState<Topic | null>(null);
+  const upload = useRef<UploadSheetHandle>(null);
   const paused = useSharedValue(0);
   const selection = useSharedValue(0);
 
@@ -41,8 +49,7 @@ export default function Home() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  // TODO(week5): route the recap / upload / scores rows once those screens
-  // exist. START QUIZ is the only one with anywhere to go so far.
+  // TODO(week5): route the recap and scores rows once those screens exist.
   const handleCommit = (index: number) => {
     // Read before clearing — the state is gone by the time we navigate.
     const chosen = activeTopic;
@@ -50,8 +57,15 @@ export default function Home() {
     // A cancelled hold arrives as -1 and must never navigate anywhere.
     if (index < 0 || chosen === null) return;
     Haptics.selectionAsync();
-    if (index !== 1) return;
-    router.push(GAME_ROUTES[chosen.gameType]);
+    // Matched by title rather than threaded through the pill: only primitives
+    // cross the worklet boundary on touch, and titles are unique by
+    // construction — the course store folds a duplicate into the original.
+    const course = courses.find((c) => c.title === chosen.title);
+    if (index === 1) {
+      router.push(gameHref(chosen.gameType, course?.id));
+      return;
+    }
+    if (index === 2) upload.current?.open(course?.id);
   };
 
   return (
@@ -64,7 +78,7 @@ export default function Home() {
           rows above the middle of the screen, not in it. */}
       <View style={[styles.pillBlock, { paddingBottom: screenH * 0.28 }]}>
         <PillRow
-          topics={TOPICS}
+          topics={courses}
           direction={1}
           paused={paused}
           selection={selection}
@@ -72,7 +86,7 @@ export default function Home() {
           onCommit={handleCommit}
         />
         <PillRow
-          topics={TOPICS_ROW_TWO}
+          topics={rowTwo}
           direction={-1}
           paused={paused}
           selection={selection}
@@ -92,12 +106,13 @@ export default function Home() {
         <View style={[styles.dot, styles.dotBottomRight]} />
       </View>
 
-      <CharacterWheel bottom={insets.bottom + Spacing.lg} />
+      {/* <CharacterWheel bottom={insets.bottom + Spacing.lg} /> */}
 
       {activeTopic !== null && (
         <PillMenu title={activeTopic.title} selection={selection} />
       )}
 
+      <UploadSheet ref={upload} />
       <SettingsPanel />
     </View>
   );

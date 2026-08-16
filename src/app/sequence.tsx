@@ -17,7 +17,8 @@ import Svg, { Path } from "react-native-svg";
 import { GameShell, GAME_HEADER_H } from "@/components/game-shell";
 import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
 import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
-import { SAMPLE_ROUNDS, type SequenceRound } from "@/features/sequence/rounds";
+import type { SequenceRound } from "@/features/sequence/rounds";
+import { useSequenceRounds } from "@/features/upload/play";
 
 /** Row card footprint. Fixed rather than derived from screen height — four
  *  of these plus their gaps have to fit the same on every device, and a
@@ -80,8 +81,11 @@ export default function Sequence() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // The uploaded deck for whichever course was opened, or the shipped fixtures
+  // when this was reached without one.
+  const rounds = useSequenceRounds();
   const [roundIndex, setRoundIndex] = useState(0);
-  const round: SequenceRound = SAMPLE_ROUNDS[roundIndex];
+  const round: SequenceRound = rounds[roundIndex];
 
   // itemOrder[k] is the correct-order index of whichever item landed at
   // shuffled position k. Reshuffled only when the round changes, never on
@@ -136,7 +140,7 @@ export default function Sequence() {
   }, [roundIndex, solved]);
 
   function advanceRound() {
-    if (roundIndex + 1 >= SAMPLE_ROUNDS.length) {
+    if (roundIndex + 1 >= rounds.length) {
       router.back();
       return;
     }
@@ -208,7 +212,7 @@ export default function Sequence() {
   }));
 
   return (
-    <GameShell step={roundIndex + 1} total={SAMPLE_ROUNDS.length}>
+    <GameShell step={roundIndex + 1} total={rounds.length}>
       <View style={styles.fill}>
         <View style={{ height: insets.top + GAME_HEADER_H }} />
 
