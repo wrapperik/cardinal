@@ -22,9 +22,9 @@ export interface PickedFile {
   size?: number;
   mimeType: string;
   /**
-   * Web hands base64 back from the picker itself; native reads it on demand.
-   * Always the bare payload — the picker strips the `data:` URL prefix the web
-   * implementation wraps it in.
+   * Web hands base64 back from the picker itself. Always the bare payload —
+   * the picker strips the `data:` URL prefix the web implementation wraps it
+   * in. This will be uploaded to Firebase Storage by the backend client.
    */
   base64?: string;
 }
@@ -47,8 +47,8 @@ export const ACCEPTED_MIME_TYPES = [
 ] as const;
 
 /**
- * 20 MB. Chosen to sit under every provider's inline-upload ceiling once
- * base64 has inflated the payload by a third, not because the picker cares.
+ * 20 MB. Keeps uploads small enough for a revision-note workflow and bounds
+ * the storage, transfer, and extraction work a single request can create.
  */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
@@ -78,7 +78,7 @@ export interface Course {
 /** 'auto' hands the choice of template to the model, per card. */
 export type TemplateChoice = GameType | 'auto';
 
-export type ExtractionProviderId = 'mock' | 'gemini' | 'groq';
+export type ExtractionProviderId = 'mock' | 'groq';
 
 export interface ExtractionRequest {
   file: PickedFile;
@@ -112,15 +112,15 @@ export type ExtractionOutcome =
   | { ok: false; reason: ExtractionFailure; message: string };
 
 /**
- * One model behind one call. Every provider takes the same request and either
- * returns cards or explains why it could not, so swapping Gemini for Groq is a
- * config change rather than a rewrite.
+ * One extraction boundary behind one call. The temporary mock and the future
+ * Groq Cloud Function share this contract, so the UI does not know where card
+ * generation runs.
  */
 export interface ExtractionProvider {
   id: ExtractionProviderId;
   /** Shown on the review screen so it is always clear what produced the cards. */
   label: string;
-  /** False when the key is missing, which is what selects the mock provider. */
+  /** Whether this provider can currently accept an extraction request. */
   isConfigured: () => boolean;
   extract: (
     request: ExtractionRequest,

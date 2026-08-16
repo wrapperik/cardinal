@@ -25,7 +25,7 @@ const SEEDS = seedCourses(TOPICS);
  * A module-level store rather than a context: courses are read from the
  * upload sheet, the home screen, and eventually the review screen, and
  * threading a provider through the router's layout for one array is more
- * plumbing than it is worth. Mirrors src/features/character/store.ts.
+ * plumbing than it is worth.
  */
 let snapshot: Course[] = SEEDS;
 

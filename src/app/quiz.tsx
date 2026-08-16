@@ -32,10 +32,6 @@ import {
   TrailDark,
 } from "@/constants/theme";
 import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
-// Character selection is disabled — see @/features/character/store, commented
-// out wholesale. The puck below always renders as the default character
-// instead of reading an equipped one.
-// import { useCharacter } from "@/features/character/store";
 import { useQuizQuestions } from "@/features/upload/play";
 
 /** The draggable puck at the compass centre. */

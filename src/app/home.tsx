@@ -6,9 +6,6 @@ import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, Spacing } from "@/constants/theme";
-// Character selector disabled — see @/features/home/character-wheel and
-// @/features/character/store, both commented out wholesale.
-// import { CharacterWheel } from "@/features/home/character-wheel";
 import { PillMenu } from "@/features/home/pill-menu";
 import { PillRow } from "@/features/home/pill-row";
 import { SettingsPanel } from "@/features/home/settings-panel";
@@ -105,8 +102,6 @@ export default function Home() {
         <View style={[styles.dot, styles.dotBottomLeft]} />
         <View style={[styles.dot, styles.dotBottomRight]} />
       </View>
-
-      {/* <CharacterWheel bottom={insets.bottom + Spacing.lg} /> */}
 
       {activeTopic !== null && (
         <PillMenu title={activeTopic.title} selection={selection} />
