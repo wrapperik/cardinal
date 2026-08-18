@@ -20,7 +20,7 @@ import type {
   PickedFile,
   TemplateChoice,
 } from '@/features/upload/types';
-import type { CardDoc, GameType } from '@/types/cardinal';
+import type { CardContent, GameType } from '@/types/cardinal';
 
 /**
  * Roughly how many cards a provider should aim for. Enough for a full study
@@ -141,7 +141,7 @@ function reducer(state: SheetState, action: Action): SheetState {
  *  from an "auto" upload still needs some default template to open into
  *  from the home screen, and the cards themselves are the only signal for
  *  what that should be. */
-function majorityGameType(cards: CardDoc[]): GameType {
+function majorityGameType(cards: CardContent[]): GameType {
   const counts = new Map<GameType, number>();
   for (const card of cards) counts.set(card.gameType, (counts.get(card.gameType) ?? 0) + 1);
   let best: GameType = 'compassQuiz';
@@ -155,7 +155,7 @@ function majorityGameType(cards: CardDoc[]): GameType {
   return best;
 }
 
-function countByTemplate(cards: CardDoc[]): { gameType: GameType; count: number }[] {
+function countByTemplate(cards: CardContent[]): { gameType: GameType; count: number }[] {
   const counts = new Map<GameType, number>();
   for (const card of cards) counts.set(card.gameType, (counts.get(card.gameType) ?? 0) + 1);
   return Array.from(counts.entries()).map(([gameType, count]) => ({ gameType, count }));

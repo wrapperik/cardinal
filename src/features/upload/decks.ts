@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 
 import type { LocalDeck } from "@/features/upload/types";
-import type { CardDoc, GameType } from "@/types/cardinal";
+import type { CardContent, GameType } from "@/types/cardinal";
 
 const STORAGE_KEY = "cardinal.decks";
 
@@ -87,7 +87,7 @@ export function selectCards(
   decks: LocalDeck[],
   courseId: string,
   gameType?: GameType,
-): CardDoc[] {
+): CardContent[] {
   return decks
     .filter((deck) => deck.courseId === courseId)
     .flatMap((deck) => deck.cards)
@@ -95,6 +95,6 @@ export function selectCards(
 }
 
 /** The same selection against the current snapshot, for one-shot reads. */
-export function cardsForCourse(courseId: string, gameType?: GameType): CardDoc[] {
+export function cardsForCourse(courseId: string, gameType?: GameType): CardContent[] {
   return selectCards(snapshot, courseId, gameType);
 }

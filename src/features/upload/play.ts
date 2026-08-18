@@ -2,7 +2,7 @@
  * Where an upload finally pays off: the bridge from stored cards to the shape
  * each game screen already plays.
  *
- * Every screen keeps its own local round type rather than consuming CardDoc
+ * Every screen keeps its own local round type rather than consuming CardContent
  * directly — those types encode constraints the payloads do not (a Compass
  * question's choices are a fixed triple, for one), and they predate uploads.
  * So the mapping lives here, in one place, instead of leaking the upload
@@ -21,14 +21,14 @@ import { SAMPLE_ROUNDS as SAMPLE_MATCH_ROUNDS, type MatchRound } from '@/feature
 import { SAMPLE_QUESTIONS, type CompassQuestion } from '@/features/quiz/questions';
 import { SAMPLE_ROUNDS as SAMPLE_SEQUENCE_ROUNDS, type SequenceRound } from '@/features/sequence/rounds';
 import { SAMPLE_STATEMENTS, type TrueFalseStatement } from '@/features/true-false/statements';
-import type { CardDoc, GameType } from '@/types/cardinal';
+import type { CardContent, GameType } from '@/types/cardinal';
 
 /**
  * The cards a game screen should play. Subscribing to the deck store rather
  * than reading it once matters on the home backdrop, where a save lands while
  * the screen is already mounted.
  */
-function useCards(gameType: GameType): CardDoc[] {
+function useCards(gameType: GameType): CardContent[] {
   const { courseId } = useLocalSearchParams<{ courseId?: string }>();
   const decks = useDecks();
   return useMemo(

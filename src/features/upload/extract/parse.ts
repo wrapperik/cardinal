@@ -17,7 +17,7 @@ import type {
   ExtractionResult,
   TemplateChoice,
 } from "@/features/upload/types";
-import type { CardDoc, GameType } from "@/types/cardinal";
+import type { CardContent, GameType } from "@/types/cardinal";
 
 interface ParseContext {
   courses: Pick<Course, "id" | "title">[];
@@ -63,7 +63,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseCompass(payload: Record<string, unknown>, difficulty: number): CardDoc | null {
+function parseCompass(payload: Record<string, unknown>, difficulty: number): CardContent | null {
   if (!Array.isArray(payload.choices) || payload.choices.length !== 3) return null;
   const choices = payload.choices.map(upper);
   if (choices.some((choice) => choice.length === 0)) return null;
@@ -75,7 +75,7 @@ function parseCompass(payload: Record<string, unknown>, difficulty: number): Car
   return { gameType: "compassQuiz", difficulty, payload: { question, choices, correctIndex } };
 }
 
-function parseTrueFalse(payload: Record<string, unknown>, difficulty: number): CardDoc | null {
+function parseTrueFalse(payload: Record<string, unknown>, difficulty: number): CardContent | null {
   const statement = upper(payload.statement);
   if (!statement || statement.length >= TRUE_FALSE_MAX_LENGTH) return null;
   if (typeof payload.isTrue !== "boolean") return null;
@@ -83,7 +83,7 @@ function parseTrueFalse(payload: Record<string, unknown>, difficulty: number): C
   return { gameType: "trueFalseDuel", difficulty, payload: { statement, isTrue: payload.isTrue } };
 }
 
-function parseSequence(payload: Record<string, unknown>, difficulty: number): CardDoc | null {
+function parseSequence(payload: Record<string, unknown>, difficulty: number): CardContent | null {
   if (!Array.isArray(payload.orderedItems) || payload.orderedItems.length !== 4) return null;
   const orderedItems = payload.orderedItems.map(upper);
   if (orderedItems.some((item) => item.length === 0)) return null;
@@ -94,7 +94,7 @@ function parseSequence(payload: Record<string, unknown>, difficulty: number): Ca
   return { gameType: "sequenceSwipe", difficulty, payload: { prompt, orderedItems } };
 }
 
-function parseMatch(payload: Record<string, unknown>, difficulty: number): CardDoc | null {
+function parseMatch(payload: Record<string, unknown>, difficulty: number): CardContent | null {
   if (!Array.isArray(payload.pairs) || payload.pairs.length !== 3) return null;
 
   const pairs: { term: string; definition: string }[] = [];
@@ -112,7 +112,7 @@ function parseMatch(payload: Record<string, unknown>, difficulty: number): CardD
   return { gameType: "matchRelease", difficulty, payload: { prompt, pairs } };
 }
 
-function parseCard(raw: unknown, template: TemplateChoice): CardDoc | null {
+function parseCard(raw: unknown, template: TemplateChoice): CardContent | null {
   if (!isRecord(raw)) return null;
 
   const gameType = raw.gameType;
@@ -153,7 +153,7 @@ export function parseExtractionResponse(raw: string, ctx: ParseContext): Extract
 
   const cards = parsed.cards
     .map((card) => parseCard(card, ctx.template))
-    .filter((card): card is CardDoc => card !== null);
+    .filter((card): card is CardContent => card !== null);
 
   if (cards.length === 0) {
     return { ok: false, reason: "empty", message: "NO USABLE CARDS CAME BACK — TRY A DIFFERENT FILE" };

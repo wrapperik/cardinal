@@ -8,7 +8,7 @@
  * card payloads are already the ones declared in @/types/cardinal.
  */
 
-import type { CardDoc, GameType } from '@/types/cardinal';
+import type { CardContent, GameType } from '@/types/cardinal';
 
 /* -------------------------------------------------------------------------- */
 /* Picking                                                                     */
@@ -90,7 +90,7 @@ export interface ExtractionRequest {
 }
 
 export interface ExtractionResult {
-  cards: CardDoc[];
+  cards: CardContent[];
   /** A course title the model would give this material, uppercased. */
   suggestedTitle: string;
   /** An existing course id when the material clearly belongs to one. */
@@ -142,7 +142,7 @@ export interface LocalDeck {
   title: string;
   /** The original filename, kept so the review screen can show provenance. */
   sourceName: string;
-  cards: CardDoc[];
+  cards: CardContent[];
   createdAt: number;
   provider: ExtractionProviderId;
 }

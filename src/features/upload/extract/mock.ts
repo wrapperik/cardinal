@@ -11,7 +11,7 @@ import { SAMPLE_QUESTIONS } from "@/features/quiz/questions";
 import { SAMPLE_ROUNDS as SEQUENCE_ROUNDS } from "@/features/sequence/rounds";
 import { SAMPLE_STATEMENTS } from "@/features/true-false/statements";
 import type { ExtractionOutcome, ExtractionProvider, ExtractionRequest, ExtractionResult } from "@/features/upload/types";
-import type { CardDoc, GameType } from "@/types/cardinal";
+import type { CardContent, GameType } from "@/types/cardinal";
 
 const ALL_TEMPLATES: readonly GameType[] = [
   "compassQuiz",
@@ -45,7 +45,7 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildCard(gameType: GameType, index: number): CardDoc {
+function buildCard(gameType: GameType, index: number): CardContent {
   switch (gameType) {
     case "compassQuiz": {
       const source = SAMPLE_QUESTIONS[index % SAMPLE_QUESTIONS.length];
@@ -85,7 +85,7 @@ async function extract(
 
   const templates = request.template === "auto" ? ALL_TEMPLATES : [request.template];
   const cardCount = Math.max(1, request.cardTarget);
-  const cards: CardDoc[] = Array.from({ length: cardCount }, (_, index) =>
+  const cards: CardContent[] = Array.from({ length: cardCount }, (_, index) =>
     buildCard(templates[index % templates.length], index),
   );
 
