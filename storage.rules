@@ -1,0 +1,62 @@
+rules_version = '2';
+
+/**
+ * Cardinal — Cloud Storage security rules.
+ *
+ * One object per upload job, at `uploads/{userId}/{uploadId}`.
+ *
+ * The object is named after the job rather than the file because the ERD
+ * already keeps the human-readable name separately, in `uploads.fileName`, and
+ * describes `storagePath` as a bucket path rather than a URL. Naming it this
+ * way buys three things: two uploads of "notes.pdf" cannot collide, the object
+ * and its job record are one-to-one, and the object becomes write-once for
+ * free — so a client cannot swap the file out while extraction is reading it.
+ *
+ * The limits below are the ones the picker already enforces client-side, in
+ * src/features/upload/types.ts. Restating them here is the point: the picker
+ * is a courtesy to the user, this is the rule.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /uploads/{userId}/{uploadId} {
+
+      function isUser() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      /** MAX_FILE_BYTES — 20 MB, bounding transfer and extraction cost. */
+      function withinSizeLimit() {
+        return request.resource.size <= 20 * 1024 * 1024;
+      }
+
+      /**
+       * ACCEPTED_MIME_TYPES. PDFs are the headline case; plain text and
+       * markdown ride along free. Note that pickers disagree about markdown —
+       * some report text/markdown, others fall back to text/plain, which is
+       * already allowed here.
+       */
+      function isAcceptedType() {
+        return request.resource.contentType in [
+          'application/pdf',
+          'text/plain',
+          'text/markdown'
+        ];
+      }
+
+      allow read: if isUser();
+
+      allow create: if isUser() && withinSizeLimit() && isAcceptedType();
+
+      // Write-once. A new attempt is a new job, and therefore a new object.
+      allow update: if false;
+
+      allow delete: if isUser();
+    }
+
+    // Everything else, including any path shape other than the one above.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -33,9 +33,11 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/react": "~19.1.10",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~10.0.0",
+    "firebase-tools": "^15.27.0",
     "typescript": "~5.9.2",
     "vitest": "^4.1.10"
   },
@@ -45,7 +47,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:rules": "firebase emulators:exec --project demo-cardinal --only firestore \"vitest run tests/rules\""
   },
   "private": true
 }
