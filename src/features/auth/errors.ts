@@ -8,13 +8,6 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   "auth/network-request-failed":
     "You're offline. Check your connection and try again.",
   "auth/too-many-requests": "Too many attempts. Wait a moment and try again.",
-  "auth/popup-closed-by-user": "Google sign-in was closed before it finished.",
-  "auth/google-not-configured":
-    "Google sign-in still needs its client ID. Check the app configuration.",
-  "auth/google-missing-token":
-    "Google couldn't complete sign-in. Please try again.",
-  "auth/google-needs-dev-build":
-    "Google sign-in needs a development build. Use email here in Expo Go.",
 };
 
 export function getAuthErrorMessage(error: unknown): string {

@@ -7,7 +7,6 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { AuthField } from "@/features/auth/auth-field";
 import {
   AuthButton,
-  AuthDivider,
   AuthLink,
   AuthNotice,
   AuthScreen,
@@ -20,13 +19,13 @@ import {
 
 export default function SignUp() {
   const router = useRouter();
-  const { signInWithGoogle, signUp } = useAuth();
+  const { signUp } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<AuthFieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"email" | "google" | null>(null);
+  const [busy, setBusy] = useState<"email" | null>(null);
 
   const submitEmail = async () => {
     const nextErrors = validateSignUp({ name, email, password });
@@ -37,18 +36,6 @@ export default function SignUp() {
     setBusy("email");
     try {
       await signUp(name, email, password);
-    } catch (error) {
-      setMessage(getAuthErrorMessage(error));
-      setBusy(null);
-    }
-  };
-
-  const submitGoogle = async () => {
-    setMessage(null);
-    setBusy("google");
-    try {
-      const user = await signInWithGoogle();
-      if (!user) setBusy(null);
     } catch (error) {
       setMessage(getAuthErrorMessage(error));
       setBusy(null);
@@ -106,13 +93,6 @@ export default function SignUp() {
         label={busy === "email" ? "CREATING ACCOUNT…" : "CREATE ACCOUNT"}
         disabled={busy !== null}
         onPress={submitEmail}
-      />
-      <AuthDivider />
-      <AuthButton
-        label={busy === "google" ? "CONNECTING…" : "CONTINUE WITH GOOGLE"}
-        variant="google"
-        disabled={busy !== null}
-        onPress={submitGoogle}
       />
     </AuthScreen>
   );

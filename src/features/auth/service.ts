@@ -10,10 +10,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import type { UserDoc } from "@/types/cardinal";
 
-import { finishGoogleRedirect, startGoogleSignIn } from "@/features/auth/google-auth";
 import { auth, db } from "@/lib/firebase";
-
-const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
 async function createUserDocument(user: User): Promise<void> {
   const reference = doc(db, "users", user.uid);
@@ -62,24 +59,6 @@ export async function signInWithEmail(
   password: string,
 ): Promise<User> {
   return (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
-}
-
-export async function signInWithGoogle(): Promise<User | null> {
-  if (!googleWebClientId) {
-    throw { code: "auth/google-not-configured" };
-  }
-
-  const user = await startGoogleSignIn();
-  if (!user) return null;
-  await createUserDocument(user);
-  return user;
-}
-
-export async function completeGoogleRedirect(): Promise<User | null> {
-  const user = await finishGoogleRedirect();
-  if (!user) return null;
-  await createUserDocument(user);
-  return user;
 }
 
 export async function resetPassword(email: string): Promise<void> {

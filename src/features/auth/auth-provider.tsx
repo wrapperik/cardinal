@@ -16,10 +16,8 @@ import {
 } from "@/features/auth/onboarding";
 import {
   createEmailAccount,
-  completeGoogleRedirect,
   resetPassword,
   signInWithEmail,
-  signInWithGoogle,
   signOutUser,
 } from "@/features/auth/service";
 
@@ -30,7 +28,6 @@ interface AuthContextValue {
   completeOnboarding: () => Promise<void>;
   signUp: typeof createEmailAccount;
   signIn: typeof signInWithEmail;
-  signInWithGoogle: typeof signInWithGoogle;
   sendPasswordReset: typeof resetPassword;
   signOutUser: typeof signOutUser;
 }
@@ -44,9 +41,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     getOnboardingComplete().then(setOnboarded);
-    completeGoogleRedirect().catch(() => {
-      // The form will surface any user-triggered sign-in error on its next attempt.
-    });
     return onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
@@ -73,15 +67,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return nextUser;
   }, []);
 
-  const signInWithGoogleNow = useCallback(
-    async (...args: Parameters<typeof signInWithGoogle>) => {
-      const nextUser = await signInWithGoogle(...args);
-      if (nextUser) setUser(nextUser);
-      return nextUser;
-    },
-    [],
-  );
-
   // Same reasoning as signIn/signUp, mirrored: clearing the session here rather
   // than waiting for Firebase's event closes the window where a signed-out user
   // is still looking at a protected screen.
@@ -98,7 +83,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       completeOnboarding,
       signUp,
       signIn,
-      signInWithGoogle: signInWithGoogleNow,
       sendPasswordReset: resetPassword,
       signOutUser: signOutNow,
     }),
@@ -107,7 +91,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       completeOnboarding,
       onboarded,
       signIn,
-      signInWithGoogleNow,
       signOutNow,
       signUp,
       user,

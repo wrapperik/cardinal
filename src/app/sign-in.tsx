@@ -7,7 +7,6 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { AuthField } from "@/features/auth/auth-field";
 import {
   AuthButton,
-  AuthDivider,
   AuthLink,
   AuthNotice,
   AuthScreen,
@@ -20,7 +19,7 @@ import {
 
 export default function SignIn() {
   const router = useRouter();
-  const { sendPasswordReset, signIn, signInWithGoogle } = useAuth();
+  const { sendPasswordReset, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<AuthFieldErrors>({});
@@ -28,7 +27,7 @@ export default function SignIn() {
     text: string;
     tone: "error" | "success";
   } | null>(null);
-  const [busy, setBusy] = useState<"email" | "google" | "reset" | null>(null);
+  const [busy, setBusy] = useState<"email" | "reset" | null>(null);
 
   const submitEmail = async () => {
     const nextErrors = validateSignIn({ email, password });
@@ -39,18 +38,6 @@ export default function SignIn() {
     setBusy("email");
     try {
       await signIn(email, password);
-    } catch (error) {
-      setMessage({ text: getAuthErrorMessage(error), tone: "error" });
-      setBusy(null);
-    }
-  };
-
-  const submitGoogle = async () => {
-    setMessage(null);
-    setBusy("google");
-    try {
-      const user = await signInWithGoogle();
-      if (!user) setBusy(null);
     } catch (error) {
       setMessage({ text: getAuthErrorMessage(error), tone: "error" });
       setBusy(null);
@@ -125,13 +112,6 @@ export default function SignIn() {
         label={busy === "email" ? "SIGNING IN…" : "SIGN IN"}
         disabled={busy !== null}
         onPress={submitEmail}
-      />
-      <AuthDivider />
-      <AuthButton
-        label={busy === "google" ? "CONNECTING…" : "CONTINUE WITH GOOGLE"}
-        variant="google"
-        disabled={busy !== null}
-        onPress={submitGoogle}
       />
     </AuthScreen>
   );

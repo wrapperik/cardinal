@@ -8,7 +8,8 @@ describe("getAuthErrorMessage", () => {
     ["auth/email-already-in-use", "An account already uses that email."],
     ["auth/network-request-failed", "You're offline. Check your connection and try again."],
     ["auth/too-many-requests", "Too many attempts. Wait a moment and try again."],
-    ["auth/popup-closed-by-user", "Google sign-in was closed before it finished."],
+    ["auth/invalid-email", "Enter a valid email."],
+    ["auth/weak-password", "Use at least 6 characters."],
   ])("maps %s to useful copy", (code, message) => {
     expect(getAuthErrorMessage({ code })).toBe(message);
   });

@@ -44,6 +44,7 @@ down again without the session ever feeling like a chore.
 - [Authentication](#authentication)
 - [Accessibility](#accessibility)
 - [Testing](#testing)
+- [Security rules](#security-rules)
 - [Scripts](#scripts)
 - [Roadmap](#roadmap)
 
@@ -57,8 +58,7 @@ screen, the upload flow and all four game templates are built and wired together
 **What works today**
 
 - Gesture-only onboarding: a ball held in a pipe, with no tap target anywhere.
-- Firebase Authentication: email and password sign-up, sign-in and password reset,
-  plus Google Sign-In (native on iOS and Android dev builds, redirect on web).
+- Firebase Authentication: email and password sign-up, sign-in and password reset.
   Sessions persist across launches, and a route gate keeps signed-out users off
   protected screens.
 - The home screen: two drifting marquee rows of courses, a hold-and-slide menu on
@@ -95,7 +95,7 @@ screen, the upload flow and all four game templates are built and wired together
 | Routing | **expo-router** | File-based routing, typed routes enabled |
 | Gestures | **react-native-gesture-handler** | Native-thread pan recognition |
 | Animation | **react-native-reanimated** | Drag physics, edge glow, snap-back, all on the UI thread |
-| Auth | **Firebase Authentication** | Email and password plus Google, with sessions that persist |
+| Auth | **Firebase Authentication** | Email and password, with sessions that persist |
 | Database | **Cloud Firestore** | User documents today, decks, cards and progress next |
 | File storage | **Firebase Storage** | Uploaded PDF and text source files |
 | Server logic | **Firebase Cloud Functions** | Holds the Groq key, runs extraction, and will validate SM-2 scheduling server side |
@@ -149,9 +149,12 @@ editing `.env`.
 
 ### Native builds
 
-Google Sign-In is a native module and is therefore missing from the prebuilt Expo Go
-binary. Cardinal detects this and returns a readable `auth/google-needs-dev-build`
-error rather than crashing, but to actually use it you need a development build:
+Cardinal uses no custom native modules. Every dependency it does use ships inside the
+prebuilt Expo Go binary, and Firebase is reached through the pure-JS SDK, so `npx expo
+start` and the Expo Go app are enough to run the whole thing — no Xcode, no Android
+Studio, no development build.
+
+Native builds remain available if you want one:
 
 ```bash
 npm run ios
@@ -161,10 +164,8 @@ npm run ios
 npm run android
 ```
 
-`app.config.ts` exists solely to register the Google Sign-In config plugin, which
-needs `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` from `.env`. Without the plugin the native
-build has no URL scheme for Google to hand the session back through, and sign-in
-returns to a still signed-out app. Everything else stays in `app.json`.
+All configuration lives in `app.json`. There is no `app.config.ts`; it existed only to
+register the Google Sign-In config plugin and went with it.
 
 ---
 
@@ -174,15 +175,11 @@ returns to a still signed-out app. Everything else stays in `app.json`.
 2. **Add a Web app** (the `</>` icon). Cardinal uses the Firebase **JS SDK**, so
    register a Web app even though this is a mobile project. Copy the config values
    into `.env`.
-3. **Authentication** then **Sign-in method**: enable **Email/Password** and
-   **Google**.
-4. In Google Cloud, create OAuth client IDs for web and iOS. The web client ID is
-   what mints the ID token Firebase accepts, so it is required on every platform,
-   including Android. The reversed iOS client ID goes into
-   `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME`.
-5. **Firestore Database**: create the database in **production mode**.
-6. **Storage**: enable it, for PDF and text uploads.
-7. Write your security rules before any real data goes in.
+3. **Authentication** then **Sign-in method**: enable **Email/Password**.
+4. **Firestore Database**: create the database in **production mode**.
+5. **Storage**: enable it, for PDF and text uploads.
+6. Deploy the security rules before any real data goes in — see
+   [Security rules](#security-rules).
 
 `EXPO_PUBLIC_*` values are inlined into the JS bundle. That is correct for Firebase
 web config, which is not a secret, but it means **Firestore Security Rules are the
@@ -234,7 +231,7 @@ src/
   app/                       expo-router routes: screens and layouts only
     _layout.tsx              root stack, font loading, providers, AuthGate
     index.tsx                onboarding, the pipe and ball screen
-    sign-in.tsx              email, password and Google sign-in
+    sign-in.tsx              email, password and password reset
     sign-up.tsx              account creation
     home.tsx                 course marquee, settings tab, upload tab
     quiz.tsx                 Compass Quiz
@@ -284,9 +281,7 @@ Only screens and layouts belong in `src/app`. Everything else lives elsewhere un
 Metro at build time. The native file configures `initializeAuth` with AsyncStorage
 persistence, which is what keeps a returning user signed in. Firestore runs on its
 memory cache on native, because `persistentLocalCache()` is IndexedDB backed and
-React Native has no implementation of it. `google-auth.ts`, `.native.ts` and `.web.ts`
-follow the same pattern: native uses the Google Sign-In module, web uses a Firebase
-redirect, and the bare file is a TypeScript fallback that only ever throws.
+React Native has no implementation of it.
 
 **State lives in module-level stores.** `features/upload/courses.ts` and
 `features/upload/decks.ts` are small stores exposed through `useSyncExternalStore`
@@ -613,8 +608,8 @@ by the discriminated union `CardDoc` in
 [`src/types/cardinal.ts`](src/types/cardinal.ts), so the compiler enforces the right
 payload for the right game type.
 
-Of this schema, only `users/{userId}` is written today, on account creation and on
-first Google sign-in. Decks and courses are stored on the device by
+Of this schema, only `users/{userId}` is written today, on account creation. Decks
+and courses are stored on the device by
 [`decks.ts`](src/features/upload/decks.ts) and
 [`courses.ts`](src/features/upload/courses.ts), whose record shapes were written to
 map cleanly onto `decks/` and `uploads/` when the sync lands.
@@ -653,8 +648,8 @@ gate would otherwise see the wrong answer.
 
 [`validation.ts`](src/features/auth/validation.ts) checks form input before a request
 is made, and [`errors.ts`](src/features/auth/errors.ts) maps Firebase error codes to
-messages a person can act on, including the two Cardinal raises itself:
-`auth/google-not-configured` and `auth/google-needs-dev-build`.
+messages a person can act on, falling back to a generic line rather than leaking an
+internal error string.
 
 ---
 
@@ -677,7 +672,7 @@ panel under EDGE TAP ZONES. The overlay it drives is the remaining piece of work
 npm test
 ```
 
-Vitest runs 60 tests across six files, all of them pure modules with no React Native
+Vitest runs 61 tests across six files, all of them pure modules with no React Native
 imports:
 
 | File | Covers |
@@ -694,6 +689,53 @@ another pure module must do so relatively. `parse.ts` imports `../course-rules` 
 exactly this reason; type-only imports may still use `@/`, since they are erased
 before the test runs.
 
+A further 38 tests cover the security rules and run separately, against the Firestore
+emulator:
+
+```bash
+npm run test:rules
+```
+
+These are skipped by a plain `npm test`, guarded on `FIRESTORE_EMULATOR_HOST`, so the
+main suite needs no emulator. The emulator is a Java program, so running them needs a
+JDK on the PATH (`brew install openjdk`).
+
+---
+
+## Security rules
+
+[`firestore.rules`](firestore.rules) and [`storage.rules`](storage.rules) enforce the
+model in [`docs/erd.md`](docs/erd.md). The app talks to Firestore directly from the
+device, so the TypeScript shapes in `src/types/cardinal.ts` only describe what the
+client *intends* to write — these rules are the only thing deciding what it is
+allowed to.
+
+Ownership is the backbone: every root document carries `ownerId`, and every user
+subcollection is keyed by the uid in its path. Beyond that, two groups of fields are
+denied to the client because the ERD assigns them to a Cloud Function, which bypasses
+rules through the Admin SDK:
+
+| Locked to the backend | Why |
+| --- | --- |
+| `users/{userId}/stats/**` | Derived from sessions and progress in its entirety |
+| `currentStreak`, `longestStreak`, `lastStudiedDate` | Derived from sessions, so a client cannot award itself a streak |
+| An upload's `status`, `deckId`, `cardsGenerated`, `completedAt` | A client can only ever open an honestly pending job, never mint a finished one pointing at a deck it does not own |
+
+Session counters are also monotonic, and a closed session cannot reopen, so the
+totals the stats trigger reads cannot be rewritten after the fact.
+
+Storage objects live at `uploads/{userId}/{uploadId}` — keyed by the job rather than
+the filename, which makes them collision-free and write-once.
+
+```bash
+npx firebase deploy --only firestore:rules,firestore:indexes,storage
+```
+
+Two constraints worth knowing before writing the sync layer: a deck update must set
+`updatedAt: serverTimestamp()` or it is rejected, and course title uniqueness is not
+enforceable in rules, since rules cannot query — `addCourse()` handles that
+client-side.
+
 ---
 
 ## Scripts
@@ -705,6 +747,7 @@ before the test runs.
 | `npm run android` | Build and run the Android development build |
 | `npm run web` | Start the web build |
 | `npm test` | Run the Vitest suite |
+| `npm run test:rules` | Run the security rules tests against the Firestore emulator |
 | `npm run lint` | Lint |
 | `npx tsc --noEmit` | Typecheck |
 | `npx expo-doctor` | Validate project config and dependency versions |

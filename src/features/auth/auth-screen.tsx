@@ -13,7 +13,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
-import { GoogleMark } from "@/features/auth/google-mark";
 
 interface AuthScreenProps extends PropsWithChildren {
   eyebrow: string;
@@ -63,7 +62,6 @@ interface AuthButtonProps {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  variant?: "primary" | "google";
 }
 
 export function AuthLink({
@@ -102,7 +100,6 @@ export function AuthButton({
   label,
   onPress,
   disabled = false,
-  variant = "primary",
 }: AuthButtonProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -133,31 +130,13 @@ export function AuthButton({
         }}
         style={[
           styles.button,
-          variant === "primary" ? styles.primaryButton : styles.googleButton,
+          styles.primaryButton,
           disabled && styles.buttonDisabled,
         ]}
       >
-        {variant === "google" && <GoogleMark />}
-        <Text
-          style={[
-            styles.buttonText,
-            variant === "google" && styles.googleButtonText,
-          ]}
-        >
-          {label}
-        </Text>
+        <Text style={styles.buttonText}>{label}</Text>
       </Pressable>
     </Animated.View>
-  );
-}
-
-export function AuthDivider() {
-  return (
-    <View style={styles.dividerRow}>
-      <View style={styles.divider} />
-      <Text style={styles.dividerText}>OR</Text>
-      <View style={styles.divider} />
-    </View>
   );
 }
 
@@ -209,27 +188,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   primaryButton: { backgroundColor: Colors.rust },
-  googleButton: { backgroundColor: Colors.bone },
   buttonDisabled: { opacity: 0.45 },
   buttonText: {
     fontFamily: Fonts.bodyBold,
     fontSize: 15,
     letterSpacing: 0.6,
     color: Colors.bone,
-  },
-  googleButtonText: { color: Theme.surface },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginVertical: Spacing.xs,
-  },
-  divider: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: Theme.glassEdge },
-  dividerText: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 11,
-    color: Theme.textMuted,
-    letterSpacing: 1.5,
   },
   footer: { marginTop: "auto", paddingTop: Spacing.xl, alignItems: "center" },
   link: {
