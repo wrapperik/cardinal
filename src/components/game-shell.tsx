@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -18,6 +17,7 @@ import {
   PullTab,
 } from "@/components/pull-tab";
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
+import { useRecapRunner } from "@/features/recap/runner";
 
 /** How far the exit tab pokes into the screen while it is closed. */
 const TAB_PEEK = PULL_TAB_WIDTH;
@@ -51,7 +51,7 @@ interface GameShellProps {
  */
 export function GameShell({ step, total, children }: GameShellProps) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const runner = useRecapRunner();
   const { width: screenW } = useWindowDimensions();
 
   // 0 = only the tab peeking in at the right edge, 1 = home has covered the game.
@@ -68,7 +68,7 @@ export function GameShell({ step, total, children }: GameShellProps) {
   }, [entryProgress]);
 
   function leaveGame() {
-    router.back();
+    runner.abandon();
   }
 
   const exitDrag = Gesture.Pan()

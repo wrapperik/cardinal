@@ -1,5 +1,4 @@
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -18,6 +17,7 @@ import { GAME_HEADER_H, GameShell } from "@/components/game-shell";
 import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
 import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import type { MatchPair, MatchRound } from "@/features/match/rounds";
+import { useRecapRunner } from "@/features/recap/runner";
 import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
 
@@ -57,7 +57,7 @@ const PASS_FOLLOW_DAMPING = 0.4;
  */
 export default function Match() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const runner = useRecapRunner();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const [roundIndex, setRoundIndex] = useState(0);
@@ -106,6 +106,12 @@ export default function Match() {
   // is still holding on screen.
   const committing = useRef(false);
   const advanceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set the moment any drop lands on the wrong zone, cleared on the next
+  // round. A round the player fumbled before completing is not a clean
+  // recall, so it is reported once as 'incorrect' rather than 'correct' —
+  // mirroring how quiz and true-false score the wrong pick itself, not the
+  // retry that follows it.
+  const fumbled = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -125,7 +131,7 @@ export default function Match() {
 
   function advanceRound() {
     if (roundIndex + 1 >= total) {
-      router.back();
+      runner.finishLeg();
       return;
     }
     setRoundIndex((i) => i + 1);
@@ -139,10 +145,16 @@ export default function Match() {
     });
   }
 
+  function handleWrong() {
+    fumbled.current = true;
+  }
+
   // Dragged, not tapped — skips with no verdict, same as true-false's Pass.
   function skipRound() {
     if (committing.current) return;
+    runner.report("passed");
     resetZoneVisuals();
+    fumbled.current = false;
     setMatchedAt([null, null, null]);
     advanceRound();
   }
@@ -154,7 +166,9 @@ export default function Match() {
       committing.current = true;
       advanceTimeout.current = setTimeout(() => {
         committing.current = false;
+        runner.report(fumbled.current ? "incorrect" : "correct");
         resetZoneVisuals();
+        fumbled.current = false;
         setMatchedAt([null, null, null]);
         advanceRound();
       }, ROUND_HOLD_MS);
@@ -206,7 +220,7 @@ export default function Match() {
   });
 
   return (
-    <GameShell step={roundIndex + 1} total={total}>
+    <GameShell step={runner.step(roundIndex)} total={runner.total(total)}>
       <Text style={[styles.prompt, { top: promptTop }]}>{round.prompt}</Text>
 
       {[0, 1, 2].map((i) => (
@@ -242,6 +256,7 @@ export default function Match() {
           wrongFlags={wrongFlags}
           hoverZone={hoverZone}
           onCorrect={handleCorrect}
+          onWrong={handleWrong}
         />
       )}
 
@@ -376,6 +391,7 @@ interface DraggableTermProps {
   wrongFlags: SharedValue<boolean>[];
   hoverZone: SharedValue<number>;
   onCorrect: (zonePos: number, pairIndex: number) => void;
+  onWrong: () => void;
 }
 
 /**
@@ -398,6 +414,7 @@ function DraggableTerm({
   wrongFlags,
   hoverZone,
   onCorrect,
+  onWrong,
 }: DraggableTermProps) {
   const dx = useSharedValue(0);
   const dy = useSharedValue(0);
@@ -422,6 +439,7 @@ function DraggableTerm({
       dx.value = withSpring(0, SETTLE_SPRING);
       dy.value = withSpring(0, SETTLE_SPRING);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      onWrong();
       setTimeout(() => {
         wrongFlags[zonePos].value = false;
       }, WRONG_FLASH_MS);

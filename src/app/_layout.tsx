@@ -61,6 +61,10 @@ export default function RootLayout() {
               <Stack.Screen name="true-false" options={GAME_SCREEN} />
               <Stack.Screen name="sequence" options={GAME_SCREEN} />
               <Stack.Screen name="match" options={GAME_SCREEN} />
+              {/* Dispatcher only — it replaces itself before anything would
+                  ever be visible to animate, so it rides the same no-animation
+                  options as the games it hands off to. */}
+              <Stack.Screen name="recap" options={GAME_SCREEN} />
             </Stack>
             <AuthGate />
           </View>

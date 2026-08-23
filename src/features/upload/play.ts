@@ -14,8 +14,10 @@
  */
 
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
+import { runAt } from '@/features/recap/recap-rules';
+import { getActiveRecap } from '@/features/recap/session';
 import { selectCards, useDecks } from '@/features/upload/decks';
 import { SAMPLE_ROUNDS as SAMPLE_MATCH_ROUNDS, type MatchRound } from '@/features/match/rounds';
 import { SAMPLE_QUESTIONS, type CompassQuestion } from '@/features/quiz/questions';
@@ -24,21 +26,56 @@ import { SAMPLE_STATEMENTS, type TrueFalseStatement } from '@/features/true-fals
 import type { CardContent, GameType } from '@/types/cardinal';
 
 /**
- * The cards a game screen should play. Subscribing to the deck store rather
- * than reading it once matters on the home backdrop, where a save lands while
- * the screen is already mounted.
+ * The current run's cards when a recap is driving this screen — captured
+ * ONCE, at mount, and never recomputed. `getActiveRecap()` (the plain
+ * getter, not the reactive `useActiveRecap()`) is read inside the lazy
+ * `useState` initializer for exactly that reason: it runs a single time.
+ *
+ * It has to stay frozen for the screen's whole lifetime, because the screen's
+ * own local round index also starts at 0 and counts up through THIS array.
+ * If the array were re-derived from the live recap index on every report
+ * instead, it would shrink by one card at the same moment the local index
+ * grows by one — a double shift that silently skips a card on every single
+ * answer. `runAt` merging same-gameType legs into one run is what guarantees
+ * this screen only ever mounts once per run, so "once at mount" really does
+ * mean "for this whole run."
+ *
+ * Null means no recap is driving this screen — the caller falls through to
+ * `selectCards`.
  */
-function useCards(gameType: GameType): CardContent[] {
-  const { courseId } = useLocalSearchParams<{ courseId?: string }>();
+function useRecapRunCards(gameType: GameType, inRecap: boolean): CardContent[] | null {
+  const [cards] = useState<CardContent[] | null>(() => {
+    if (!inRecap) return null;
+    const active = getActiveRecap();
+    if (!active) return null;
+    const run = runAt(active.plan, active.index);
+    return run && run.gameType === gameType ? run.cards : [];
+  });
+  return cards;
+}
+
+/**
+ * The cards a game screen should play, and whether they came from an active
+ * recap. Subscribing to the deck store rather than reading it once matters on
+ * the home backdrop, where a save lands while the screen is already mounted —
+ * that only applies to the non-recap path, since a recap's cards are frozen
+ * for the reason in useRecapRunCards above.
+ */
+function useCards(gameType: GameType): { cards: CardContent[]; isRecap: boolean } {
+  const { courseId, recap } = useLocalSearchParams<{ courseId?: string; recap?: string }>();
   const decks = useDecks();
-  return useMemo(
-    () => (courseId ? selectCards(decks, courseId, gameType) : []),
-    [decks, courseId, gameType],
+  const recapCards = useRecapRunCards(gameType, recap === '1');
+
+  const cards = useMemo(
+    () => recapCards ?? (courseId ? selectCards(decks, courseId, gameType) : []),
+    [recapCards, decks, courseId, gameType],
   );
+
+  return { cards, isRecap: recapCards !== null };
 }
 
 export function useQuizQuestions(): CompassQuestion[] {
-  const cards = useCards('compassQuiz');
+  const { cards, isRecap } = useCards('compassQuiz');
   return useMemo(() => {
     const mapped = cards.flatMap((card) => {
       if (card.gameType !== 'compassQuiz') return [];
@@ -50,22 +87,29 @@ export function useQuizQuestions(): CompassQuestion[] {
       const triple: [string, string, string] = [choices[0], choices[1], choices[2]];
       return [{ prompt: question, choices: triple, correctIndex }];
     });
+    // A recap plays real cards only — falling back to the shipped fixtures
+    // here would silently inject unrelated content mid-recap. Only the
+    // standalone path keeps this fallback, which is what makes every game
+    // playable on a fresh install.
+    if (isRecap) return mapped;
     return mapped.length > 0 ? mapped : SAMPLE_QUESTIONS;
-  }, [cards]);
+  }, [cards, isRecap]);
 }
 
 export function useTrueFalseStatements(): TrueFalseStatement[] {
-  const cards = useCards('trueFalseDuel');
+  const { cards, isRecap } = useCards('trueFalseDuel');
   return useMemo(() => {
     const mapped = cards.flatMap((card) =>
       card.gameType === 'trueFalseDuel' ? [{ ...card.payload }] : [],
     );
+    // See useQuizQuestions: a recap never falls back to fixtures.
+    if (isRecap) return mapped;
     return mapped.length > 0 ? mapped : SAMPLE_STATEMENTS;
-  }, [cards]);
+  }, [cards, isRecap]);
 }
 
 export function useSequenceRounds(): SequenceRound[] {
-  const cards = useCards('sequenceSwipe');
+  const { cards, isRecap } = useCards('sequenceSwipe');
   return useMemo(() => {
     const mapped = cards.flatMap((card) => {
       if (card.gameType !== 'sequenceSwipe') return [];
@@ -73,12 +117,14 @@ export function useSequenceRounds(): SequenceRound[] {
       if (card.payload.orderedItems.length !== 4) return [];
       return [{ ...card.payload }];
     });
+    // See useQuizQuestions: a recap never falls back to fixtures.
+    if (isRecap) return mapped;
     return mapped.length > 0 ? mapped : SAMPLE_SEQUENCE_ROUNDS;
-  }, [cards]);
+  }, [cards, isRecap]);
 }
 
 export function useMatchRounds(): MatchRound[] {
-  const cards = useCards('matchRelease');
+  const { cards, isRecap } = useCards('matchRelease');
   return useMemo(() => {
     const mapped = cards.flatMap((card) => {
       if (card.gameType !== 'matchRelease') return [];
@@ -86,6 +132,8 @@ export function useMatchRounds(): MatchRound[] {
       if (card.payload.pairs.length !== 3) return [];
       return [{ ...card.payload }];
     });
+    // See useQuizQuestions: a recap never falls back to fixtures.
+    if (isRecap) return mapped;
     return mapped.length > 0 ? mapped : SAMPLE_MATCH_ROUNDS;
-  }, [cards]);
+  }, [cards, isRecap]);
 }

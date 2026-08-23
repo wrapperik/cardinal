@@ -43,9 +43,14 @@ export function rotate<T>(list: T[], by: number): T[] {
  *
  * A missing courseId is the honest signal for "no particular course": the
  * screens fall back to their shipped fixtures.
+ *
+ * `recap` carries the flag a recap in progress needs on every leg it routes
+ * to — see useRecapRunner. Threaded through this one function rather than
+ * given a second switch of its own, so the route-per-gameType mapping stays
+ * declared in exactly one place.
  */
-export function gameHref(gameType: GameType, courseId?: string): Href {
-  const params = courseId ? { courseId } : undefined;
+export function gameHref(gameType: GameType, courseId?: string, recap?: boolean): Href {
+  const params = courseId ? (recap ? { courseId, recap: '1' } : { courseId }) : undefined;
   switch (gameType) {
     case 'compassQuiz':
       return { pathname: '/quiz', params };

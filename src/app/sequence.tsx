@@ -1,5 +1,4 @@
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -17,6 +16,7 @@ import Svg, { Path } from "react-native-svg";
 import { GameShell, GAME_HEADER_H } from "@/components/game-shell";
 import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
 import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
 import { useSequenceRounds } from "@/features/upload/play";
 
@@ -79,7 +79,7 @@ function clamp(value: number, min: number, max: number) {
  */
 export default function Sequence() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const runner = useRecapRunner();
 
   // The uploaded deck for whichever course was opened, or the shipped fixtures
   // when this was reached without one.
@@ -141,7 +141,7 @@ export default function Sequence() {
 
   function advanceRound() {
     if (roundIndex + 1 >= rounds.length) {
-      router.back();
+      runner.finishLeg();
       return;
     }
     setRoundIndex((i) => i + 1);
@@ -164,6 +164,7 @@ export default function Sequence() {
 
   function skipRound() {
     if (committing.current) return;
+    runner.report("passed");
     advanceRound();
   }
 
@@ -186,6 +187,7 @@ export default function Sequence() {
 
     resolveTimeout.current = setTimeout(() => {
       committing.current = false;
+      runner.report("correct");
       advanceRound();
     }, RESOLVE_HOLD_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,7 +214,7 @@ export default function Sequence() {
   }));
 
   return (
-    <GameShell step={roundIndex + 1} total={rounds.length}>
+    <GameShell step={runner.step(roundIndex)} total={runner.total(rounds.length)}>
       <View style={styles.fill}>
         <View style={{ height: insets.top + GAME_HEADER_H }} />
 

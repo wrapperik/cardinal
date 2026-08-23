@@ -9,8 +9,9 @@
 // runtime dependency this pure file has must be resolvable on its own. See
 // the equivalent note in extract/parse.ts.
 import { GAME_TYPE_ORDER } from "../upload/course-stats";
+import { recordAnswer, type SessionTally } from "../sessions/session-rules";
 import type { LocalDeck } from "@/features/upload/types";
-import type { CardContent, GameType } from "@/types/cardinal";
+import type { AnswerResult, CardContent, GameType } from "@/types/cardinal";
 
 export interface RecapLeg {
   gameType: GameType;
@@ -111,6 +112,34 @@ export function legAt(
   return null;
 }
 
+/**
+ * The maximal run of same-gameType cards starting at `index` — exactly what
+ * one game screen plays in one visit.
+ *
+ * Distinct from `legAt` on purpose: a leg is a (topic, gameType) pair, and
+ * two consecutive legs can share a gameType across a topic boundary (RIVERS
+ * matchRelease followed directly by MOUNTAINS matchRelease, say). Routing to
+ * the same game route twice in a row would `replace()` a screen that never
+ * remounts, so its `useState(0)` round index would keep pointing into the
+ * PREVIOUS leg's rounds array instead of resetting for the new one. Grouping
+ * by contiguous gameType instead of by leg guarantees the next screen is
+ * always a different route, so a fresh mount — and a fresh index — is the
+ * only way to reach it. `legAt` remains for the course detail screen's topic
+ * display, where the topic boundary is exactly what needs to show.
+ */
+export function runAt(
+  plan: RecapPlan,
+  index: number,
+): { gameType: GameType; cards: CardContent[]; start: number } | null {
+  if (index < 0 || index >= plan.cards.length) return null;
+
+  const gameType = plan.cards[index].gameType;
+  let end = index + 1;
+  while (end < plan.cards.length && plan.cards[end].gameType === gameType) end++;
+
+  return { gameType, cards: plan.cards.slice(index, end), start: index };
+}
+
 export interface Checkpoint {
   /** Cards already answered — equivalently, the index of the next card to play. */
   index: number;
@@ -169,4 +198,38 @@ export function resumeIndex(checkpoint: Checkpoint | undefined, plan: RecapPlan)
   if (checkpoint.total !== plan.cards.length) return 0;
   if (checkpoint.index < 0 || checkpoint.index >= plan.cards.length) return 0;
   return checkpoint.index;
+}
+
+export interface RecapState {
+  courseId: string;
+  plan: RecapPlan;
+  /** Cards already answered; indexes into plan.cards. */
+  index: number;
+  sessionId: string;
+  tally: SessionTally;
+}
+
+/**
+ * Immutable. Folds one answer in: tallies it against the CURRENT card's
+ * gameType, then steps the index.
+ *
+ * Reads `plan.cards[state.index]` BEFORE stepping — the tally belongs to the
+ * card just answered, not whatever the index points at afterward. If the
+ * index is already past the end this is a no-op instead of stepping again: a
+ * verdict `setTimeout` can still fire after the player has already left the
+ * last card behind, and that late call must not push the index (or the
+ * tally) past the end a second time.
+ */
+export function advanceRecap(state: RecapState, result: AnswerResult): RecapState {
+  if (isRecapComplete(state)) return state;
+  const gameType = state.plan.cards[state.index].gameType;
+  return {
+    ...state,
+    index: state.index + 1,
+    tally: recordAnswer(state.tally, result, gameType),
+  };
+}
+
+export function isRecapComplete(state: RecapState): boolean {
+  return state.index >= state.plan.cards.length;
 }

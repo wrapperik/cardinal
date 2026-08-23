@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  advanceRecap,
   buildRecapPlan,
+  isRecapComplete,
   legAt,
   resumeIndex,
+  runAt,
   sanitiseCheckpoints,
   type Checkpoint,
   type RecapPlan,
+  type RecapState,
 } from "./recap-rules";
+import { emptyTally } from "../sessions/session-rules";
 import type { LocalDeck } from "@/features/upload/types";
 import type { CardContent, GameType } from "@/types/cardinal";
 
@@ -212,6 +217,155 @@ describe("legAt", () => {
   it("resolves the last index to the last leg", () => {
     const result = legAt(plan, plan.cards.length - 1);
     expect(result?.legIndex).toBe(plan.legs.length - 1);
+  });
+});
+
+describe("runAt", () => {
+  it("returns null for an empty plan", () => {
+    expect(runAt(buildRecapPlan([], "geography"), 0)).toBeNull();
+  });
+
+  it("returns null for a negative index", () => {
+    const decks = [deck("geography", [card("compassQuiz", "RIVERS", "r1")])];
+    const plan = buildRecapPlan(decks, "geography");
+    expect(runAt(plan, -1)).toBeNull();
+  });
+
+  it("returns null for an index at or past the end", () => {
+    const decks = [deck("geography", [card("compassQuiz", "RIVERS", "r1")])];
+    const plan = buildRecapPlan(decks, "geography");
+    expect(runAt(plan, plan.cards.length)).toBeNull();
+    expect(runAt(plan, plan.cards.length + 5)).toBeNull();
+  });
+
+  it("returns the remaining cards of the run starting at index, not the whole run", () => {
+    const decks = [
+      deck("geography", [
+        card("compassQuiz", "RIVERS", "cq1"),
+        card("compassQuiz", "RIVERS", "cq2"),
+        card("compassQuiz", "RIVERS", "cq3"),
+      ]),
+    ];
+    const plan = buildRecapPlan(decks, "geography");
+    const run = runAt(plan, 1);
+    expect(run?.cards.map(tagOf)).toEqual(["cq2", "cq3"]);
+  });
+
+  it("sets start to the index passed in, not the run's own beginning", () => {
+    const decks = [
+      deck("geography", [
+        card("compassQuiz", "RIVERS", "cq1"),
+        card("compassQuiz", "RIVERS", "cq2"),
+      ]),
+    ];
+    const plan = buildRecapPlan(decks, "geography");
+    expect(runAt(plan, 1)?.start).toBe(1);
+  });
+
+  it("stops at the first gameType change", () => {
+    const decks = [
+      deck("geography", [
+        card("compassQuiz", "RIVERS", "cq1"),
+        card("trueFalseDuel", "RIVERS", "tf1"),
+      ]),
+    ];
+    const plan = buildRecapPlan(decks, "geography");
+    const run = runAt(plan, 0);
+    expect(run?.gameType).toBe("compassQuiz");
+    expect(run?.cards.map(tagOf)).toEqual(["cq1"]);
+  });
+
+  it("merges two consecutive same-gameType legs that straddle a topic boundary into one run", () => {
+    const decks = [
+      deck("geography", [
+        // RIVERS carries only matchRelease, MOUNTAINS carries only
+        // matchRelease too, so the two legs sit back to back in plan.cards
+        // with nothing of a different gameType between them.
+        card("matchRelease", "RIVERS", "mr-r"),
+        card("matchRelease", "MOUNTAINS", "mr-m"),
+      ]),
+    ];
+    const plan = buildRecapPlan(decks, "geography");
+    expect(plan.legs).toHaveLength(2);
+
+    const run = runAt(plan, 0);
+    expect(run?.cards.map(tagOf)).toEqual(["mr-r", "mr-m"]);
+  });
+});
+
+describe("advanceRecap", () => {
+  const decks = [
+    deck("geography", [
+      card("compassQuiz", "RIVERS", "cq1"),
+      card("trueFalseDuel", "RIVERS", "tf1"),
+    ]),
+  ];
+  const plan = buildRecapPlan(decks, "geography");
+
+  function state(index: number): RecapState {
+    return {
+      courseId: "geography",
+      plan,
+      index,
+      sessionId: "session-1",
+      tally: emptyTally(),
+    };
+  }
+
+  it("does not mutate the state passed in", () => {
+    const before = state(0);
+    const snapshot = { ...before, tally: { ...before.tally } };
+    advanceRecap(before, "correct");
+    expect(before).toEqual(snapshot);
+  });
+
+  it("tallies against the card just answered, not the one the index moves to", () => {
+    const next = advanceRecap(state(0), "correct");
+    // Index 0 is the compassQuiz card — a tally against trueFalseDuel would
+    // mean the wrong card got credited.
+    expect(next.tally.gameTypesPlayed).toEqual(["compassQuiz"]);
+    expect(next.tally.correctCount).toBe(1);
+  });
+
+  it("steps the index by one", () => {
+    expect(advanceRecap(state(0), "correct").index).toBe(1);
+  });
+
+  it("a passed result still steps the index", () => {
+    const next = advanceRecap(state(0), "passed");
+    expect(next.index).toBe(1);
+    expect(next.tally.passedCount).toBe(1);
+  });
+
+  it("returns the state unchanged when already complete", () => {
+    const complete = state(plan.cards.length);
+    expect(advanceRecap(complete, "correct")).toBe(complete);
+  });
+});
+
+describe("isRecapComplete", () => {
+  const decks = [
+    deck("geography", [
+      card("compassQuiz", "RIVERS", "cq1"),
+      card("compassQuiz", "RIVERS", "cq2"),
+    ]),
+  ];
+  const plan = buildRecapPlan(decks, "geography");
+
+  it("is false mid-plan", () => {
+    const state: RecapState = { courseId: "geography", plan, index: 1, sessionId: "s", tally: emptyTally() };
+    expect(isRecapComplete(state)).toBe(false);
+  });
+
+  it("is true once the index reaches the end", () => {
+    const state: RecapState = {
+      courseId: "geography",
+      plan,
+      index: plan.cards.length,
+      sessionId: "s",
+      tally: emptyTally(),
+    };
+    expect(isRecapComplete(state)).toBe(true);
   });
 });
 

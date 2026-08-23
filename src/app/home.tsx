@@ -9,7 +9,7 @@ import { Colors, Fonts, Spacing } from "@/constants/theme";
 import { PillMenu } from "@/features/home/pill-menu";
 import { PillRow } from "@/features/home/pill-row";
 import { SettingsPanel } from "@/features/home/settings-panel";
-import { gameHref, rotate, type Topic } from "@/features/home/topics";
+import { rotate, type Topic } from "@/features/home/topics";
 import { useCourses } from "@/features/upload/courses";
 import {
   UploadSheet,
@@ -59,7 +59,11 @@ export default function Home() {
     // construction — the course store folds a duplicate into the original.
     const course = courses.find((c) => c.title === chosen.title);
     if (index === 1) {
-      router.push(gameHref(chosen.gameType, course?.id));
+      // Temporary entry point: the course rows replace this pill menu as the
+      // way in next chunk. Routed through the recap dispatcher rather than
+      // straight to gameHref so the recap runtime is reachable and testable
+      // now, ahead of that.
+      router.push({ pathname: "/recap", params: course?.id ? { courseId: course.id } : undefined });
       return;
     }
     if (index === 2) upload.current?.open(course?.id);

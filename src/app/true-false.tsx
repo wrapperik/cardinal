@@ -1,5 +1,4 @@
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -33,6 +32,7 @@ import {
   PullTab,
 } from "@/components/pull-tab";
 import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { useRecapRunner } from "@/features/recap/runner";
 import { useTrueFalseStatements } from "@/features/upload/play";
 import type { TrueFalseStatement } from "@/features/true-false/statements";
 
@@ -75,7 +75,7 @@ const VERDICT_WRONG_MS = 1100;
  */
 export default function TrueFalse() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const runner = useRecapRunner();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Roughly two thirds of the width, per the reference. The card wants dark
@@ -123,12 +123,12 @@ export default function TrueFalse() {
   }, []);
 
   function leaveTrueFalse() {
-    router.back();
+    runner.abandon();
   }
 
   function advanceStatement() {
     if (index + 1 >= statements.length) {
-      router.back();
+      runner.finishLeg();
       return;
     }
     setIndex((i) => i + 1);
@@ -140,6 +140,7 @@ export default function TrueFalse() {
     if (committing.current) return;
 
     if (answer === -1) {
+      runner.report("passed");
       advanceStatement();
       return;
     }
@@ -161,6 +162,9 @@ export default function TrueFalse() {
         verdictActive.value = false;
         revealSide.value = -1;
         committing.current = false;
+        // Reported here, not at the top of commit() — the card is only
+        // truly answered once its verdict has actually played out on screen.
+        runner.report(correct ? "correct" : "incorrect");
         advanceStatement();
       },
       correct ? VERDICT_MS : VERDICT_WRONG_MS,
@@ -313,8 +317,8 @@ export default function TrueFalse() {
     ],
   }));
 
-  const total = statements.length;
-  const progressLabel = `${String(index + 1).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
+  const total = runner.total(statements.length);
+  const progressLabel = `${String(runner.step(index)).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (
     <View style={styles.root}>

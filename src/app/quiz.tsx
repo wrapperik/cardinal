@@ -1,5 +1,4 @@
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -32,6 +31,7 @@ import {
   TrailDark,
 } from "@/constants/theme";
 import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
+import { useRecapRunner } from "@/features/recap/runner";
 import { useQuizQuestions } from "@/features/upload/play";
 
 /** The draggable puck at the compass centre. */
@@ -85,7 +85,7 @@ const boxAt = (c: { x: number; y: number }, size: number) => ({
  */
 export default function Quiz() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const runner = useRecapRunner();
   const { width: screenW, height: screenH } = useWindowDimensions();
   // const { equippedId } = useCharacter();
   const equippedId = DEFAULT_CHARACTER_ID;
@@ -141,12 +141,12 @@ export default function Quiz() {
   }, []);
 
   function leaveQuiz() {
-    router.back();
+    runner.abandon();
   }
 
   function advanceQuestion() {
     if (index + 1 >= questions.length) {
-      router.back();
+      runner.finishLeg();
       return;
     }
     setIndex((i) => i + 1);
@@ -158,6 +158,7 @@ export default function Quiz() {
     if (committing.current) return;
 
     if (answer === -1) {
+      runner.report("passed");
       advanceQuestion();
       return;
     }
@@ -178,6 +179,9 @@ export default function Quiz() {
         verdictIndex.value = -1;
         revealCorrect.value = -1;
         committing.current = false;
+        // Reported here, not at the top of commit() — the card is only
+        // truly answered once its verdict has actually played out on screen.
+        runner.report(correct ? "correct" : "incorrect");
         advanceQuestion();
       },
       correct ? VERDICT_MS : VERDICT_WRONG_MS,
@@ -308,8 +312,8 @@ export default function Quiz() {
     ],
   }));
 
-  const total = questions.length;
-  const progressLabel = `${String(index + 1).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
+  const total = runner.total(questions.length);
+  const progressLabel = `${String(runner.step(index)).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (
     <View style={styles.root}>
