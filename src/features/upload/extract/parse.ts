@@ -35,6 +35,14 @@ const CARD_TEMPLATES: readonly GameType[] = [
 const TRUE_FALSE_MAX_LENGTH = 60;
 
 /**
+ * Long enough for a real sub-area name, short enough that a model rambling
+ * a whole sentence into "topic" instead of a label does not blow up the
+ * grouping UI. Cut quietly rather than dropped: a truncated topic is still a
+ * usable grouping key, just not the model's exact wording.
+ */
+const TOPIC_MAX_LENGTH = 40;
+
+/**
  * Models routinely wrap JSON in ```json fences or lead with a sentence of
  * preamble despite being told not to. Slicing from the first { to the last }
  * survives both without needing a real parser for the surrounding prose.
@@ -61,6 +69,21 @@ function upper(value: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/**
+ * A card with no topic, a garbage topic, or a whitespace-only topic is still
+ * a perfectly good card — grouping is a nicety, not a validity condition —
+ * so this yields undefined rather than joining the parseX functions in
+ * rejecting the card outright.
+ */
+function parseTopic(value: unknown): string | undefined {
+  // Collapsed and re-trimmed after the cut because this string is a grouping
+  // key rather than display text: "CELL  BIOLOGY" arriving alongside "CELL
+  // BIOLOGY", or a 40-character cut landing on a space, would each split one
+  // topic into two on the study screen.
+  const topic = upper(value).replace(/\s+/g, " ").slice(0, TOPIC_MAX_LENGTH).trim();
+  return topic || undefined;
 }
 
 function parseCompass(payload: Record<string, unknown>, difficulty: number): CardContent | null {
@@ -122,16 +145,29 @@ function parseCard(raw: unknown, template: TemplateChoice): CardContent | null {
   if (!isRecord(raw.payload)) return null;
   const difficulty = clampFinite(raw.difficulty, 1, 3, 2);
 
+  let card: CardContent | null;
   switch (gameType as GameType) {
     case "compassQuiz":
-      return parseCompass(raw.payload, difficulty);
+      card = parseCompass(raw.payload, difficulty);
+      break;
     case "trueFalseDuel":
-      return parseTrueFalse(raw.payload, difficulty);
+      card = parseTrueFalse(raw.payload, difficulty);
+      break;
     case "sequenceSwipe":
-      return parseSequence(raw.payload, difficulty);
+      card = parseSequence(raw.payload, difficulty);
+      break;
     case "matchRelease":
-      return parseMatch(raw.payload, difficulty);
+      card = parseMatch(raw.payload, difficulty);
+      break;
   }
+  if (!card) return null;
+
+  // Applied once here rather than threaded through each parseX function —
+  // topic sits alongside gameType/difficulty on the raw card, not inside
+  // payload, and every template treats it identically, so there is no
+  // reason to touch four signatures for one field.
+  const topic = parseTopic(raw.topic);
+  return topic ? { ...card, topic } : card;
 }
 
 export function parseExtractionResponse(raw: string, ctx: ParseContext): ExtractionOutcome {

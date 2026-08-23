@@ -194,4 +194,63 @@ describe("parseExtractionResponse", () => {
     if (!outcome.ok) return;
     expect(outcome.result.provider).toBe("groq");
   });
+
+  it("uppercases and trims a valid topic", () => {
+    const withTopic = { ...compassCard, topic: "  ancient rome  " };
+    const outcome = parseExtractionResponse(body([withTopic]), ctx);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.cards[0].topic).toBe("ANCIENT ROME");
+  });
+
+  it("leaves topic undefined when it is missing, and still parses the card", () => {
+    const outcome = parseExtractionResponse(body([compassCard]), ctx);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.cards[0].topic).toBeUndefined();
+  });
+
+  it("leaves topic undefined for a non-string value, and still parses the card", () => {
+    for (const bad of [42, { nested: true }, null]) {
+      const withTopic = { ...compassCard, topic: bad };
+      const outcome = parseExtractionResponse(body([withTopic]), ctx);
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) continue;
+      expect(outcome.result.cards[0].topic).toBeUndefined();
+    }
+  });
+
+  it("caps an over-long topic at 40 characters", () => {
+    const withTopic = { ...compassCard, topic: "x".repeat(60) };
+    const outcome = parseExtractionResponse(body([withTopic]), ctx);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.cards[0].topic).toBe("X".repeat(40));
+  });
+
+  it("leaves topic undefined for a whitespace-only value", () => {
+    const withTopic = { ...compassCard, topic: "   " };
+    const outcome = parseExtractionResponse(body([withTopic]), ctx);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.cards[0].topic).toBeUndefined();
+  });
+
+  it("collapses internal whitespace so one topic cannot group as two", () => {
+    const withTopic = { ...compassCard, topic: "CELL\t\tBIOLOGY" };
+    const outcome = parseExtractionResponse(body([withTopic]), ctx);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.cards[0].topic).toBe("CELL BIOLOGY");
+  });
+
+  it("leaves no trailing space when the cap lands mid-gap", () => {
+    // 39 characters then a space, so the 40-character cut lands exactly on
+    // the gap and would otherwise leave it dangling on the end of the key.
+    const withTopic = { ...compassCard, topic: `${"X".repeat(39)} TRAILING` };
+    const outcome = parseExtractionResponse(body([withTopic]), ctx);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.cards[0].topic).toBe("X".repeat(39));
+  });
 });

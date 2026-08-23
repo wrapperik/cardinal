@@ -32,7 +32,7 @@ No prose, no markdown, no code fences — nothing before the first { or after th
 
 Output shape:
 {
-  "cards": [ { "gameType": "compassQuiz" | "trueFalseDuel" | "sequenceSwipe" | "matchRelease", "difficulty": 1 | 2 | 3, "payload": { ... } } ],
+  "cards": [ { "gameType": "compassQuiz" | "trueFalseDuel" | "sequenceSwipe" | "matchRelease", "difficulty": 1 | 2 | 3, "topic": "SUB-AREA LABEL", "payload": { ... } } ],
   "suggestedCourse": "COURSE TITLE",
   "confidence": 0.0
 }
@@ -43,8 +43,14 @@ ${TEMPLATE_RULES}
 ${templateInstruction}
 
 Every string of card text (questions, choices, statements, prompts, items,
-terms, definitions) MUST be UPPERCASE. The app renders these strings exactly
-as given, with no casing applied on the client.
+terms, definitions, and topic labels) MUST be UPPERCASE. The app renders
+these strings exactly as given, with no casing applied on the client.
+
+"topic" names the sub-area of the course this card covers — a few words at
+most, e.g. "CELL BIOLOGY" or "WORLD WAR 1". Cards covering the same sub-area
+MUST reuse the SAME label verbatim so they group together; aim for a small
+handful of distinct topics across the whole batch rather than a unique one
+per card.
 
 "suggestedCourse" is the course this material belongs under. If one of the
 existing courses listed below clearly fits, return that title verbatim;

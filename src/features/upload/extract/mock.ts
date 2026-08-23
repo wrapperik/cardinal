@@ -41,33 +41,50 @@ function guessCourseTitle(filename: string): string {
   return hit ? hit[1] : "NEW MATERIAL";
 }
 
+/**
+ * Three labels, not one per card, so the fixture path actually exercises
+ * grouping — a real extraction clusters cards into a handful of sub-areas,
+ * and a demo where every card gets its own topic would never surface a bug
+ * in that grouping. Assigned by index rather than drawn at random so the
+ * fixture stays deterministic across runs.
+ */
+const MOCK_TOPICS = ["OVERVIEW", "KEY CONCEPTS", "DETAILS"];
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function buildCard(gameType: GameType, index: number): CardContent {
+  const topic = MOCK_TOPICS[index % MOCK_TOPICS.length];
   switch (gameType) {
     case "compassQuiz": {
       const source = SAMPLE_QUESTIONS[index % SAMPLE_QUESTIONS.length];
       return {
         gameType,
         difficulty: 2,
+        topic,
         payload: { question: source.prompt, choices: [...source.choices], correctIndex: source.correctIndex },
       };
     }
     case "trueFalseDuel": {
       const source = SAMPLE_STATEMENTS[index % SAMPLE_STATEMENTS.length];
-      return { gameType, difficulty: 2, payload: { statement: source.statement, isTrue: source.isTrue } };
+      return { gameType, difficulty: 2, topic, payload: { statement: source.statement, isTrue: source.isTrue } };
     }
     case "sequenceSwipe": {
       const source = SEQUENCE_ROUNDS[index % SEQUENCE_ROUNDS.length];
-      return { gameType, difficulty: 2, payload: { prompt: source.prompt, orderedItems: [...source.orderedItems] } };
+      return {
+        gameType,
+        difficulty: 2,
+        topic,
+        payload: { prompt: source.prompt, orderedItems: [...source.orderedItems] },
+      };
     }
     case "matchRelease": {
       const source = MATCH_ROUNDS[index % MATCH_ROUNDS.length];
       return {
         gameType,
         difficulty: 2,
+        topic,
         payload: { prompt: source.prompt, pairs: source.pairs.map((pair) => ({ ...pair })) },
       };
     }

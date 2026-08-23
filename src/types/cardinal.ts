@@ -125,7 +125,12 @@ export interface CourseDoc {
   ownerId: string;
   /** Uppercase, normalised. Titles are what de-duplicate a course, not ids. */
   title: string;
-  /** The template new material defaults to when the model has no opinion. */
+  /**
+   * ONLY an extraction default — the template new material defaults to when
+   * the model has no opinion. It does not determine what the course plays:
+   * a course's playable games are derived from the game types its cards
+   * actually carry.
+   */
   gameType: GameType;
   seeded: boolean;
   createdAt: Timestamp;
@@ -180,12 +185,19 @@ export interface MatchReleasePayload {
  * therefore before a cardId or deckId exists. Keeping it separate from CardDoc
  * is what stops those ids having to be invented early or typed as optional
  * everywhere they are read.
+ *
+ * `topic` is the sub-area of the course a card covers — uppercase, like every
+ * other card string. It is optional because older cards and hand-written
+ * fixtures predate it and have none, and it exists so a course's material can
+ * be grouped for study (e.g. by chapter or theme) rather than treated as one
+ * flat pile. Repeated per-member rather than factored out, matching how
+ * `difficulty` is already repeated across all four.
  */
 export type CardContent =
-  | { gameType: 'compassQuiz'; difficulty: number; payload: CompassQuizPayload }
-  | { gameType: 'trueFalseDuel'; difficulty: number; payload: TrueFalsePayload }
-  | { gameType: 'sequenceSwipe'; difficulty: number; payload: SequencePayload }
-  | { gameType: 'matchRelease'; difficulty: number; payload: MatchReleasePayload };
+  | { gameType: 'compassQuiz'; difficulty: number; topic?: string; payload: CompassQuizPayload }
+  | { gameType: 'trueFalseDuel'; difficulty: number; topic?: string; payload: TrueFalsePayload }
+  | { gameType: 'sequenceSwipe'; difficulty: number; topic?: string; payload: SequencePayload }
+  | { gameType: 'matchRelease'; difficulty: number; topic?: string; payload: MatchReleasePayload };
 
 /**
  * A stored card: its content, plus where it lives and where it came from.

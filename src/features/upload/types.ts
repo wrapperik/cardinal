@@ -65,7 +65,12 @@ export interface Course {
   id: string;
   /** Display form: uppercase, since every surface renders it that way. */
   title: string;
-  /** The template new material defaults to when the model has no opinion. */
+  /**
+   * ONLY an extraction default — the template new material defaults to when
+   * the model has no opinion. It does not determine what the course plays:
+   * a course's playable games are derived from the game types its cards
+   * actually carry.
+   */
   gameType: GameType;
   seeded: boolean;
   createdAt: number;
