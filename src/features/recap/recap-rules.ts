@@ -1,0 +1,172 @@
+/**
+ * Pure rules for building a recap queue and validating where a player left
+ * off in it. No React Native imports on purpose — exercised directly by
+ * vitest under node, same reasoning as course-rules.ts and course-stats.ts.
+ */
+
+// Relative, not "@/features/upload/course-stats": this module is loaded
+// directly by vitest, which has no alias resolution configured, so the one
+// runtime dependency this pure file has must be resolvable on its own. See
+// the equivalent note in extract/parse.ts.
+import { GAME_TYPE_ORDER } from "../upload/course-stats";
+import type { LocalDeck } from "@/features/upload/types";
+import type { CardContent, GameType } from "@/types/cardinal";
+
+export interface RecapLeg {
+  gameType: GameType;
+  /** Undefined for the trailing group of cards that carry no topic. */
+  topic?: string;
+  /** Position in the full queue of this leg's first card. */
+  start: number;
+  cards: CardContent[];
+}
+
+export interface RecapPlan {
+  courseId: string;
+  /** Every card in play order. A checkpoint indexes into this. */
+  cards: CardContent[];
+  legs: RecapLeg[];
+}
+
+/**
+ * Groups a course's cards by topic (first-seen order, untopiced cards last —
+ * matching `courseStats.topics`), then sorts each group by `GAME_TYPE_ORDER`
+ * so the recap moves through one game at a time per topic rather than
+ * flipping templates on every card. The sort relies on `Array.prototype.sort`
+ * being stable (guaranteed since ES2019): two cards of the same game type in
+ * the same topic must keep the order they were uploaded in, or a re-run of
+ * this function against the same decks could silently reshuffle a queue a
+ * checkpoint already points into.
+ *
+ * Each (topic, gameType) pair becomes exactly one leg, because the sort
+ * above makes every such pair a contiguous run within its topic group.
+ */
+export function buildRecapPlan(decks: LocalDeck[], courseId: string): RecapPlan {
+  const raw = decks
+    .filter((deck) => deck.courseId === courseId)
+    .flatMap((deck) => deck.cards);
+
+  // Map preserves first-seen key order, including the `undefined` key for
+  // untopiced cards — but that group has to land last regardless of when it
+  // was first seen, so it is pulled out and re-appended below rather than
+  // left wherever it happened to fall.
+  const groups = new Map<string | undefined, CardContent[]>();
+  for (const card of raw) {
+    // An empty-string topic counts as no topic, matching how courseStats
+    // filters falsy topics out. parseTopic never emits one, but a hand-built
+    // fixture can, and it must not become a phantom group of its own that
+    // sorts ahead of the real ones.
+    const key = card.topic || undefined;
+    const existing = groups.get(key);
+    if (existing) existing.push(card);
+    else groups.set(key, [card]);
+  }
+  const noTopic = groups.get(undefined);
+  groups.delete(undefined);
+  const orderedGroups = [...groups.entries()];
+  if (noTopic) orderedGroups.push([undefined, noTopic]);
+
+  const cards: CardContent[] = [];
+  const legs: RecapLeg[] = [];
+
+  for (const [topic, groupCards] of orderedGroups) {
+    const sorted = [...groupCards].sort(
+      (a, b) => GAME_TYPE_ORDER.indexOf(a.gameType) - GAME_TYPE_ORDER.indexOf(b.gameType),
+    );
+
+    let i = 0;
+    while (i < sorted.length) {
+      const gameType = sorted[i].gameType;
+      let j = i + 1;
+      while (j < sorted.length && sorted[j].gameType === gameType) j++;
+      const legCards = sorted.slice(i, j);
+      legs.push({ gameType, topic, start: cards.length, cards: legCards });
+      cards.push(...legCards);
+      i = j;
+    }
+  }
+
+  return { courseId, cards, legs };
+}
+
+/**
+ * Resolves a checkpoint index to where play should resume. Null for a
+ * negative index, an index at or past the end, or an empty plan — all of
+ * which mean "nothing here to resume into" rather than a specific card.
+ */
+export function legAt(
+  plan: RecapPlan,
+  index: number,
+): { leg: RecapLeg; legIndex: number; offsetInLeg: number } | null {
+  if (index < 0 || index >= plan.cards.length) return null;
+
+  for (let legIndex = 0; legIndex < plan.legs.length; legIndex++) {
+    const leg = plan.legs[legIndex];
+    if (index < leg.start + leg.cards.length) {
+      return { leg, legIndex, offsetInLeg: index - leg.start };
+    }
+  }
+  // Unreachable: legs partition [0, plan.cards.length) completely, and the
+  // guard above already rejected anything outside that range.
+  return null;
+}
+
+export interface Checkpoint {
+  /** Cards already answered — equivalently, the index of the next card to play. */
+  index: number;
+  /** The queue length this was taken against — see `resumeIndex` for why. */
+  total: number;
+  updatedAt: number;
+}
+
+export function isCheckpoint(value: unknown): value is Checkpoint {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<Checkpoint>;
+  // Integers, not merely numbers — stricter than `isCourse` in
+  // course-rules.ts is about its own numeric field, and deliberately so.
+  // A course's `createdAt` only ever feeds a sort, where a junk value is
+  // harmless; these two are array positions. A fractional index reaches
+  // `legAt` and indexes a leg's cards to `undefined`, and a NaN one slips
+  // through every comparison in `resumeIndex` to be returned as-is.
+  return (
+    Number.isInteger(candidate.index) &&
+    Number.isInteger(candidate.total) &&
+    Number.isFinite(candidate.updatedAt)
+  );
+}
+
+/** Validates a hydrated `Record<courseId, Checkpoint>`, dropping anything malformed. */
+export function sanitiseCheckpoints(value: unknown): Record<string, Checkpoint> {
+  if (!value || typeof value !== "object") return {};
+
+  const result: Record<string, Checkpoint> = {};
+  for (const [courseId, candidate] of Object.entries(value as Record<string, unknown>)) {
+    if (isCheckpoint(candidate)) result[courseId] = candidate;
+  }
+  return result;
+}
+
+/**
+ * A checkpoint is only resumable against the plan it was taken from.
+ *
+ * The checkpoint itself is nothing but a bare index into a generated queue —
+ * it does not name a card. Upload one more deck into the course, or delete
+ * one, and the same index now points somewhere else entirely, so resuming
+ * blindly would drop the player into an unrelated card rather than back
+ * where they stopped.
+ *
+ * Comparing `checkpoint.total` to the freshly-built plan's length is a
+ * deliberately cheap guard rather than an exact one: it catches every add or
+ * remove, since either changes the count. What it does not catch is a
+ * same-length swap — one card removed and a different one added back in the
+ * same topic and game type — but the cost of that rare miss is one
+ * mis-placed resume, not corruption, and an exact guard would mean hashing
+ * the plan's content and storing that hash alongside the index. Not worth
+ * the bytes for a mistake this cheap.
+ */
+export function resumeIndex(checkpoint: Checkpoint | undefined, plan: RecapPlan): number {
+  if (!checkpoint) return 0;
+  if (checkpoint.total !== plan.cards.length) return 0;
+  if (checkpoint.index < 0 || checkpoint.index >= plan.cards.length) return 0;
+  return checkpoint.index;
+}

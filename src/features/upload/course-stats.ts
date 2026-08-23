@@ -11,8 +11,13 @@ import type { GameType } from "@/types/cardinal";
  * Declaration order, not first-seen order — `gameTypes` is sorted against
  * this so the UI does not reorder itself every time a card of a new template
  * gets added to a course.
+ *
+ * Exported because the recap plan orders cards by this exact same sequence
+ * within a topic — a second, independently-declared copy of this order would
+ * only need to drift once for a recap leg to stop matching what the home
+ * screen calls "next".
  */
-const GAME_TYPE_ORDER: readonly GameType[] = [
+export const GAME_TYPE_ORDER: readonly GameType[] = [
   "compassQuiz",
   "trueFalseDuel",
   "sequenceSwipe",
