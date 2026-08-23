@@ -1,73 +1,48 @@
-import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { useSharedValue } from "react-native-reanimated";
+import { useMemo, useRef } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BOTTOM_TAB_HEIGHT } from "@/components/bottom-pull-tab";
 import { Colors, Fonts, Spacing } from "@/constants/theme";
-import { PillMenu } from "@/features/home/pill-menu";
+import { CourseRow } from "@/features/home/course-row";
 import { PillRow } from "@/features/home/pill-row";
 import { SettingsPanel } from "@/features/home/settings-panel";
-import { rotate, type Topic } from "@/features/home/topics";
 import { useCourses } from "@/features/upload/courses";
+import { courseStats } from "@/features/upload/course-stats";
+import { useDecks } from "@/features/upload/decks";
 import {
   UploadSheet,
   type UploadSheetHandle,
 } from "@/features/upload/upload-sheet";
-import type { GameType } from "@/types/cardinal";
+
+const PILL_ROW_HEIGHT = 68;
 
 /**
- * The home screen. Nothing here is tappable — the pill rows are pure
- * ambience and the only interaction is dragging the settings tab in from
- * the right edge, in keeping with the gesture-only premise.
+ * The home screen. The wordmark and a single decorative pill row sit up top
+ * — ambience, nothing underneath them responds to touch — and everything
+ * below is the actual content: one swipeable row per course, right for a
+ * quick recap and left for its detail screen. Settings still lives behind
+ * the tab dragged in from the right edge.
  */
 export default function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { height: screenH } = useWindowDimensions();
 
-  // The pills are the course list itself, so a course created from an upload
-  // shows up here without a second source of truth to keep in step.
+  // The pill row and the course list are the same data, so a course created
+  // from an upload shows up in both without a second source of truth to
+  // keep in step.
   const courses = useCourses();
-  const rowTwo = useMemo(() => rotate(courses, 2), [courses]);
-
-  // The held pill, kept whole rather than as a title: committing needs its
-  // gameType to know which template to open.
-  const [activeTopic, setActiveTopic] = useState<Topic | null>(null);
+  const decks = useDecks();
   const upload = useRef<UploadSheetHandle>(null);
-  const paused = useSharedValue(0);
-  const selection = useSharedValue(0);
 
-  const handleOpen = (title: string, gameType: GameType) => {
-    // A second finger on the other row must not steal the open menu.
-    if (activeTopic !== null) return;
-    setActiveTopic({ title, gameType });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  };
-
-  // TODO(week5): route the recap and scores rows once those screens exist.
-  const handleCommit = (index: number) => {
-    // Read before clearing — the state is gone by the time we navigate.
-    const chosen = activeTopic;
-    setActiveTopic(null);
-    // A cancelled hold arrives as -1 and must never navigate anywhere.
-    if (index < 0 || chosen === null) return;
-    Haptics.selectionAsync();
-    // Matched by title rather than threaded through the pill: only primitives
-    // cross the worklet boundary on touch, and titles are unique by
-    // construction — the course store folds a duplicate into the original.
-    const course = courses.find((c) => c.title === chosen.title);
-    if (index === 1) {
-      // Temporary entry point: the course rows replace this pill menu as the
-      // way in next chunk. Routed through the recap dispatcher rather than
-      // straight to gameHref so the recap runtime is reachable and testable
-      // now, ahead of that.
-      router.push({ pathname: "/recap", params: course?.id ? { courseId: course.id } : undefined });
-      return;
-    }
-    if (index === 2) upload.current?.open(course?.id);
-  };
+  // Computed once per courses/decks change rather than per row: courseStats
+  // walks every deck, and doing that inside each CourseRow would repeat the
+  // same full scan once per course instead of once for the screen.
+  const stats = useMemo(
+    () => new Map(courses.map((course) => [course.id, courseStats(decks, course.id)])),
+    [courses, decks],
+  );
 
   return (
     <View style={styles.container}>
@@ -75,26 +50,43 @@ export default function Home() {
         CARDINAL
       </Text>
 
-      {/* Padded at the foot rather than centred outright: the design sits the
-          rows above the middle of the screen, not in it. */}
-      <View style={[styles.pillBlock, { paddingBottom: screenH * 0.28 }]}>
-        <PillRow
-          topics={courses}
-          direction={1}
-          paused={paused}
-          selection={selection}
-          onOpen={handleOpen}
-          onCommit={handleCommit}
-        />
-        <PillRow
-          topics={rowTwo}
-          direction={-1}
-          paused={paused}
-          selection={selection}
-          onOpen={handleOpen}
-          onCommit={handleCommit}
-        />
+      <View style={styles.pillBand}>
+        <PillRow topics={courses} direction={1} />
       </View>
+
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={[
+          styles.listContent,
+          // flexGrow + flex-end bottom-aligns the rows while the list is
+          // shorter than the viewport, and gets out of the way the moment
+          // there are enough courses to actually scroll.
+          styles.listBottomAligned,
+          // Clears both the corner dots and the upload tab peeking up from
+          // the bottom edge, so the last row is never sitting under either.
+          { paddingBottom: BOTTOM_TAB_HEIGHT + DOT_SIZE * 2 + DOT_GAP + insets.bottom + Spacing.lg },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {courses.map((course) => {
+          const courseStatsEntry = stats.get(course.id);
+          return (
+            <CourseRow
+              key={course.id}
+              title={course.title}
+              cardCount={courseStatsEntry?.cardCount ?? 0}
+              gameCount={courseStatsEntry?.gameTypes.length ?? 0}
+              seeded={course.seeded}
+              onPlay={() =>
+                router.push({ pathname: "/recap", params: { courseId: course.id } })
+              }
+              onDetail={() =>
+                router.push({ pathname: "/course/[id]", params: { id: course.id } })
+              }
+            />
+          );
+        })}
+      </ScrollView>
 
       <View
         style={[
@@ -106,10 +98,6 @@ export default function Home() {
         <View style={[styles.dot, styles.dotBottomLeft]} />
         <View style={[styles.dot, styles.dotBottomRight]} />
       </View>
-
-      {activeTopic !== null && (
-        <PillMenu title={activeTopic.title} selection={selection} />
-      )}
 
       <UploadSheet ref={upload} />
       <SettingsPanel />
@@ -133,10 +121,22 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontSize: 40,
   },
-  pillBlock: {
-    flex: 1,
+  pillBand: {
+    height: PILL_ROW_HEIGHT,
     justifyContent: "center",
+    marginTop: Spacing.lg,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
     gap: Spacing.md,
+  },
+  listBottomAligned: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
   },
   dots: {
     position: "absolute",

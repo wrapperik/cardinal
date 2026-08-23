@@ -61,8 +61,9 @@ screen, the upload flow and all four game templates are built and wired together
 - Firebase Authentication: email and password sign-up, sign-in and password reset.
   Sessions persist across launches, and a route gate keeps signed-out users off
   protected screens.
-- The home screen: two drifting marquee rows of courses, a hold-and-slide menu on
-  each pill, and a settings panel dragged in from the right edge.
+- The home screen: a drifting marquee row of courses as ambience, a swipeable course
+  row per course — right for a recap, left for its detail screen — and a settings
+  panel dragged in from the right edge.
 - The upload flow: pick a PDF, text or Markdown file, choose a template, watch
   extraction run, review the result, and save it as a deck under a course.
 - All four MVP game templates, each fed either by an uploaded deck or by the
@@ -233,7 +234,8 @@ src/
     index.tsx                onboarding, the pipe and ball screen
     sign-in.tsx              email, password and password reset
     sign-up.tsx              account creation
-    home.tsx                 course marquee, settings tab, upload tab
+    home.tsx                 pill row, course list, settings tab, upload tab
+    course/[id].tsx          course detail: stats, topics, back tab
     quiz.tsx                 Compass Quiz
     true-false.tsx           True/False Duel
     sequence.tsx             Sequence Swipe
@@ -252,7 +254,7 @@ src/
   features/
     auth/                    provider, service, route gate, validation, errors
     character/roster.ts      the playable puck shapes
-    home/                    pill row, pill menu, settings panel, topics
+    home/                    pill row, course row, settings panel, topics
     onboarding/path.ts       arc-length pipe geometry, pure and worklet safe
     quiz/                    Compass Quiz fixtures
     true-false/              True/False fixtures
@@ -407,25 +409,22 @@ never shown again.
 
 ## Home and navigation
 
-Nothing on the home screen is tappable. Two rows of course pills drift in opposite
-directions as pure ambience, and every interaction is a hold or a drag.
+One row of course pills drifts beneath the wordmark as pure ambience — nothing in it
+responds to touch. Below it, a scrollable list of course rows is the actual content,
+and every interaction is a swipe.
 
-- **Hold a pill** and a menu opens beneath your finger: QUICK RECAP, START QUIZ,
-  UPLOAD MATERIAL, PAST SCORES. Slide up or down to highlight a row and release to
-  commit. Releasing outside the menu cancels, and a second finger on the other row
-  cannot steal an open menu.
-- **START QUIZ** routes to whichever template that course is set to, carrying the
+- **Swipe a course row right** to fire a quick recap: it routes through the recap
+  dispatcher, which resumes an in-progress recap or starts a new one, carrying the
   course id so the game deals that course's cards.
-- **UPLOAD MATERIAL** opens the upload sheet with the course pre-selected as its
-  destination.
+- **Swipe a course row left** to open that course's detail screen — its stats and
+  the topics its uploaded material actually covers.
 - **The settings panel** is dragged in from a tab on the right edge. It shows the
   signed-in account, the accessibility toggle, and a sign-out control that is itself
   a swipe.
 - **The upload sheet** is dragged up from a tab at the bottom edge.
 
-The pill rows are the course list itself, so a course created by an upload appears on
-the home screen without a second source of truth to keep in step. The second row is a
-computed rotation of the first, so the two never line up.
+The pill row and the course list are the same data, so a course created by an upload
+appears on the home screen without a second source of truth to keep in step.
 
 ---
 

@@ -1,7 +1,5 @@
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useDerivedValue,
   useFrameCallback,
@@ -10,48 +8,32 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
-import { MENU_ITEMS, type Topic } from '@/features/home/topics';
-import type { GameType } from '@/types/cardinal';
+import type { Topic } from '@/features/home/topics';
 
 const REPEATS = 3;
 /** Pixels per second the pills drift. Slow — this is ambience, not motion. */
 const MARQUEE_SPEED = 28;
 
-/** Finger travel per menu item. */
-export const ITEM_STEP = 56;
-
 interface PillRowProps {
   topics: Topic[];
   /** +1 drifts left, -1 drifts right. */
   direction: 1 | -1;
-  /** 1 = frozen. Set while a pill is held so the menu underneath holds still. */
-  paused: SharedValue<number>;
-  /** Index of the currently highlighted menu row while a pill is held. */
-  selection: SharedValue<number>;
-  /** Two plain strings rather than the Topic itself: this crosses the worklet
-   *  boundary via runOnJS on every touch, and primitives cost nothing to pass. */
-  onOpen: (title: string, gameType: GameType) => void;
-  onCommit: (index: number) => void;
 }
 
 /**
  * An infinitely looping horizontal marquee of topic pills. The topic list is
  * rendered REPEATS times so there is always a full set covering the visible
  * track while the offset wraps, giving the illusion of endless scroll.
+ *
+ * Pure ambience: nothing here responds to touch. The course rows below are
+ * what the player actually touches — this row exists to make the screen
+ * feel alive above them, nothing more.
  */
-export function PillRow({
-  topics,
-  direction,
-  paused,
-  selection,
-  onOpen,
-  onCommit,
-}: PillRowProps) {
+export function PillRow({ topics, direction }: PillRowProps) {
   const offset = useSharedValue(0);
   const setWidth = useSharedValue(0);
 
   useFrameCallback((frame) => {
-    if (paused.value === 1) return;
     const dt = (frame.timeSincePreviousFrame ?? 16) / 1000;
     if (setWidth.value === 0) return;
     offset.value = (offset.value + MARQUEE_SPEED * dt) % setWidth.value;
@@ -78,14 +60,9 @@ export function PillRow({
             <Pill
               key={`${r}-${i}`}
               title={topic.title}
-              gameType={topic.gameType}
               trackX={offset}
               setWidth={setWidth}
               direction={direction}
-              paused={paused}
-              selection={selection}
-              onOpen={onOpen}
-              onCommit={onCommit}
             />
           )),
         )}
@@ -96,30 +73,18 @@ export function PillRow({
 
 function Pill({
   title,
-  gameType,
   trackX,
   setWidth,
   direction,
-  paused,
-  selection,
-  onOpen,
-  onCommit,
 }: {
   title: string;
-  gameType: GameType;
   trackX: SharedValue<number>;
   setWidth: SharedValue<number>;
   direction: 1 | -1;
-  paused: SharedValue<number>;
-  selection: SharedValue<number>;
-  onOpen: (title: string, gameType: GameType) => void;
-  onCommit: (index: number) => void;
 }) {
   const { width: screenW } = useWindowDimensions();
   const x = useSharedValue(0);
   const w = useSharedValue(0);
-  /** Distinguishes a real release from a cancelled gesture. */
-  const ended = useSharedValue(0);
 
   // 1 when the screen's centre line falls within this pill's own bounds, 0
   // otherwise. This guarantees exactly one filled pill per row and a clean
@@ -144,47 +109,18 @@ function Pill({
     color: filled.value === 1 ? Colors.rust : Colors.bone,
   }));
 
-  const press = Gesture.Pan()
-    .minDistance(0)
-    .shouldCancelWhenOutside(false)
-    .onBegin(() => {
-      paused.value = 1;
-      selection.value = 0;
-      runOnJS(onOpen)(title, gameType);
-    })
-    .onChange((e) => {
-      // translationY is cumulative from the touch-down point, which is what a
-      // continuous hold-and-slide selection needs.
-      const raw = Math.round(e.translationY / ITEM_STEP);
-      // The clamp must derive from the data or the two silently drift apart.
-      selection.value = Math.min(MENU_ITEMS.length - 1, Math.max(0, raw));
-    })
-    .onEnd(() => {
-      // Only a clean release counts as a choice.
-      ended.value = 1;
-    })
-    .onFinalize(() => {
-      paused.value = 0;
-      // onFinalize also runs when the gesture is cancelled or interrupted, which
-      // must dismiss the menu without selecting anything — hence the -1.
-      runOnJS(onCommit)(ended.value === 1 ? selection.value : -1);
-      ended.value = 0;
-    });
-
   return (
-    <GestureDetector gesture={press}>
-      <Animated.View
-        style={[styles.pill, boxStyle]}
-        onLayout={(e) => {
-          x.value = e.nativeEvent.layout.x;
-          w.value = e.nativeEvent.layout.width;
-        }}
-      >
-        <Animated.Text style={[styles.pillText, textStyle]}>
-          {title}
-        </Animated.Text>
-      </Animated.View>
-    </GestureDetector>
+    <Animated.View
+      style={[styles.pill, boxStyle]}
+      onLayout={(e) => {
+        x.value = e.nativeEvent.layout.x;
+        w.value = e.nativeEvent.layout.width;
+      }}
+    >
+      <Animated.Text style={[styles.pillText, textStyle]}>
+        {title}
+      </Animated.Text>
+    </Animated.View>
   );
 }
 

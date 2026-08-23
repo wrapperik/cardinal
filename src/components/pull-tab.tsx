@@ -16,12 +16,19 @@ interface PullTabProps extends ViewProps {
   /** Extra width tacked on past the label, invisible until something needs
    *  to tuck under an adjacent surface without showing a seam. */
   extraWidth?: number;
+  /** Which screen edge the tab hangs off — named for where the tab lives,
+   *  not for which corner rounds, because that's how callers think about it.
+   *  Default 'right' is exactly today's behaviour, so every existing caller
+   *  is unaffected. */
+  edge?: 'left' | 'right';
 }
 
 /**
- * Visual chrome for an edge pull-tab: chevron + label, rounded on the left,
- * flush on the right. Purely presentational — every tab drags differently,
- * so callers own the GestureDetector and the positioning.
+ * Visual chrome for an edge pull-tab: chevron + label. Right edge (default)
+ * rounds on the left and sits flush right; left edge is a clean mirror —
+ * rounds on the right, sits flush left, chevron and label swap sides. Purely
+ * presentational — every tab drags differently, so callers own the
+ * GestureDetector and the positioning.
  *
  * Extends ViewProps and spreads the rest onto the View deliberately: a
  * GestureDetector clones its child with `collapsable: false` so the native
@@ -29,18 +36,28 @@ interface PullTabProps extends ViewProps {
  * Swallow that prop and the gesture silently binds to nothing.
  */
 export const PullTab = forwardRef<View, PullTabProps>(function PullTab(
-  { label, backgroundColor, extraWidth = 0, style, ...rest },
+  { label, backgroundColor, extraWidth = 0, edge = 'right', style, ...rest },
   ref,
 ) {
+  const onLeft = edge === 'left';
   return (
     <View
       ref={ref}
       {...rest}
-      style={[styles.tab, { width: PULL_TAB_WIDTH + extraWidth, backgroundColor }, style]}
+      style={[
+        styles.tab,
+        onLeft ? styles.tabLeft : styles.tabRight,
+        { width: PULL_TAB_WIDTH + extraWidth, backgroundColor },
+        style,
+      ]}
     >
-      <Svg width={14} height={24} style={styles.chevron}>
+      <Svg width={14} height={24} style={onLeft ? styles.chevronLeft : styles.chevronRight}>
         <Path
-          d="M11 3 L3 12 L11 21"
+          // The chevron always points the way you drag, so it has to flip
+          // with the edge rather than staying decorative: a right-edge tab
+          // drags left to open (point left), a left-edge tab drags right
+          // (point right).
+          d={onLeft ? 'M3 3 L11 12 L3 21' : 'M11 3 L3 12 L11 21'}
           stroke={Colors.bone}
           strokeWidth={2.5}
           strokeLinecap="round"
@@ -61,11 +78,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
+  },
+  tabRight: {
     borderTopLeftRadius: 999,
     borderBottomLeftRadius: 999,
   },
-  chevron: {
+  tabLeft: {
+    // row-reverse rather than a mirrored `justifyContent`: it also flips
+    // which side the chevron's margin needs to land on, so label and
+    // chevron swap sides together instead of the chevron overlapping the
+    // label's edge.
+    flexDirection: 'row-reverse',
+    borderTopRightRadius: 999,
+    borderBottomRightRadius: 999,
+  },
+  chevronRight: {
     marginRight: Spacing.xs,
+  },
+  chevronLeft: {
+    marginLeft: Spacing.xs,
   },
   label: {
     fontFamily: Fonts.bodyBold,
