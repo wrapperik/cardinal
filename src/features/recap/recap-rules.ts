@@ -10,8 +10,12 @@
 // the equivalent note in extract/parse.ts.
 import { GAME_TYPE_ORDER } from "../upload/course-stats";
 import { recordAnswer, type SessionTally } from "../sessions/session-rules";
-import type { LocalDeck } from "@/features/upload/types";
-import type { AnswerResult, CardContent, GameType } from "@/types/cardinal";
+import type { ProgressRecord } from "@/features/progress/progress";
+import type { LocalCard, LocalDeck } from "@/features/upload/types";
+import type { AnswerResult, GameType } from "@/types/cardinal";
+
+/** A persisted card enriched with the deck needed to update its schedule. */
+export type RecapCard = LocalCard & { deckId: string };
 
 export interface RecapLeg {
   gameType: GameType;
@@ -19,71 +23,83 @@ export interface RecapLeg {
   topic?: string;
   /** Position in the full queue of this leg's first card. */
   start: number;
-  cards: CardContent[];
+  cards: RecapCard[];
 }
 
 export interface RecapPlan {
   courseId: string;
   /** Every card in play order. A checkpoint indexes into this. */
-  cards: CardContent[];
+  cards: RecapCard[];
   legs: RecapLeg[];
 }
 
 /**
- * Groups a course's cards by topic (first-seen order, untopiced cards last —
- * matching `courseStats.topics`), then sorts each group by `GAME_TYPE_ORDER`
- * so the recap moves through one game at a time per topic rather than
- * flipping templates on every card. The sort relies on `Array.prototype.sort`
- * being stable (guaranteed since ES2019): two cards of the same game type in
- * the same topic must keep the order they were uploaded in, or a re-run of
- * this function against the same decks could silently reshuffle a queue a
- * checkpoint already points into.
+ * Puts due cards ahead of new or future cards, then groups each priority
+ * section by topic (first-seen order, untopiced cards last — matching
+ * `courseStats.topics`) and game type. The sort relies on
+ * `Array.prototype.sort` being stable (guaranteed since ES2019), so cards
+ * tied on priority, topic, and game type keep upload order.
  *
- * Each (topic, gameType) pair becomes exactly one leg, because the sort
- * above makes every such pair a contiguous run within its topic group.
+ * Each (priority, topic, gameType) group becomes one leg because the sort
+ * makes every such group a contiguous run.
  */
-export function buildRecapPlan(decks: LocalDeck[], courseId: string): RecapPlan {
+export function buildRecapPlan(
+  decks: LocalDeck[],
+  courseId: string,
+  progress: readonly ProgressRecord[] = [],
+  now = Date.now(),
+): RecapPlan {
   const raw = decks
     .filter((deck) => deck.courseId === courseId)
-    .flatMap((deck) => deck.cards);
+    .flatMap((deck) => deck.cards.map((card) => ({ ...card, deckId: deck.id })));
 
-  // Map preserves first-seen key order, including the `undefined` key for
-  // untopiced cards — but that group has to land last regardless of when it
-  // was first seen, so it is pulled out and re-appended below rather than
-  // left wherever it happened to fall.
-  const groups = new Map<string | undefined, CardContent[]>();
-  for (const card of raw) {
-    // An empty-string topic counts as no topic, matching how courseStats
-    // filters falsy topics out. parseTopic never emits one, but a hand-built
-    // fixture can, and it must not become a phantom group of its own that
-    // sorts ahead of the real ones.
-    const key = card.topic || undefined;
-    const existing = groups.get(key);
-    if (existing) existing.push(card);
-    else groups.set(key, [card]);
-  }
-  const noTopic = groups.get(undefined);
-  groups.delete(undefined);
-  const orderedGroups = [...groups.entries()];
-  if (noTopic) orderedGroups.push([undefined, noTopic]);
+  const dueCardIds = new Set(
+    progress.filter((record) => record.dueDate <= now).map((record) => record.id),
+  );
+  const prioritySections = [
+    raw.filter((card) => dueCardIds.has(card.cardId)),
+    raw.filter((card) => !dueCardIds.has(card.cardId)),
+  ];
 
-  const cards: CardContent[] = [];
+  const cards: RecapCard[] = [];
   const legs: RecapLeg[] = [];
 
-  for (const [topic, groupCards] of orderedGroups) {
-    const sorted = [...groupCards].sort(
-      (a, b) => GAME_TYPE_ORDER.indexOf(a.gameType) - GAME_TYPE_ORDER.indexOf(b.gameType),
-    );
+  for (const section of prioritySections) {
+    // Map preserves first-seen key order, including the `undefined` key for
+    // untopiced cards — but that group has to land last regardless of when it
+    // was first seen, so it is pulled out and re-appended below rather than
+    // left wherever it happened to fall.
+    const groups = new Map<string | undefined, RecapCard[]>();
+    for (const card of section) {
+      // An empty-string topic counts as no topic, matching how courseStats
+      // filters falsy topics out. parseTopic never emits one, but a hand-built
+      // fixture can, and it must not become a phantom group of its own that
+      // sorts ahead of the real ones.
+      const key = card.topic || undefined;
+      const existing = groups.get(key);
+      if (existing) existing.push(card);
+      else groups.set(key, [card]);
+    }
+    const noTopic = groups.get(undefined);
+    groups.delete(undefined);
+    const orderedGroups = [...groups.entries()];
+    if (noTopic) orderedGroups.push([undefined, noTopic]);
 
-    let i = 0;
-    while (i < sorted.length) {
-      const gameType = sorted[i].gameType;
-      let j = i + 1;
-      while (j < sorted.length && sorted[j].gameType === gameType) j++;
-      const legCards = sorted.slice(i, j);
-      legs.push({ gameType, topic, start: cards.length, cards: legCards });
-      cards.push(...legCards);
-      i = j;
+    for (const [topic, groupCards] of orderedGroups) {
+      const sorted = [...groupCards].sort(
+        (a, b) => GAME_TYPE_ORDER.indexOf(a.gameType) - GAME_TYPE_ORDER.indexOf(b.gameType),
+      );
+
+      let i = 0;
+      while (i < sorted.length) {
+        const gameType = sorted[i].gameType;
+        let j = i + 1;
+        while (j < sorted.length && sorted[j].gameType === gameType) j++;
+        const legCards = sorted.slice(i, j);
+        legs.push({ gameType, topic, start: cards.length, cards: legCards });
+        cards.push(...legCards);
+        i = j;
+      }
     }
   }
 
@@ -130,7 +146,7 @@ export function legAt(
 export function runAt(
   plan: RecapPlan,
   index: number,
-): { gameType: GameType; cards: CardContent[]; start: number } | null {
+): { gameType: GameType; cards: RecapCard[]; start: number } | null {
   if (index < 0 || index >= plan.cards.length) return null;
 
   const gameType = plan.cards[index].gameType;

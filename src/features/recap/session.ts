@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { clearCheckpoint, getCheckpoint, saveCheckpoint } from "@/features/recap/checkpoints";
+import { getProgress, recordProgress } from "@/features/progress/progress";
 import {
   advanceRecap,
   buildRecapPlan,
@@ -63,7 +64,7 @@ export function beginRecap(decks: LocalDeck[], courseId: string): RecapState | n
   // invisible to summariseSessions forever.
   if (snapshot) endRecap();
 
-  const plan = buildRecapPlan(decks, courseId);
+  const plan = buildRecapPlan(decks, courseId, getProgress());
   if (plan.cards.length === 0) return null;
 
   const index = resumeIndex(getCheckpoint(courseId), plan);
@@ -80,6 +81,10 @@ export function beginRecap(decks: LocalDeck[], courseId: string): RecapState | n
  */
 export function reportRecapAnswer(result: AnswerResult): void {
   if (!snapshot) return;
+  const card = snapshot.plan.cards[snapshot.index];
+  if (!card) return;
+
+  recordProgress(card, result);
   const next = advanceRecap(snapshot, result);
   // Self-clears at completion — saveCheckpoint drops the entry rather than
   // storing a terminal index once `index` reaches the plan's end.

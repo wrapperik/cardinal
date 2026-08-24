@@ -15,6 +15,7 @@ import {
   type RecapState,
 } from "./recap-rules";
 import { emptyTally } from "../sessions/session-rules";
+import type { ProgressRecord } from "@/features/progress/progress";
 import type { LocalDeck } from "@/features/upload/types";
 import type { CardContent, GameType } from "@/types/cardinal";
 
@@ -172,6 +173,58 @@ describe("buildRecapPlan", () => {
     ];
     const plan = buildRecapPlan(decks, "geography");
     expect(plan.cards.map(tagOf)).toEqual(["a", "b"]);
+  });
+
+  it("puts due cards first while retaining topic and game grouping within each priority section", () => {
+    const decks = [
+      deck("geography", [
+        card("matchRelease", "RIVERS", "future"),
+        card("trueFalseDuel", "MOUNTAINS", "due-mountain"),
+        card("compassQuiz", "RIVERS", "due-river"),
+        card("compassQuiz", "RIVERS", "new"),
+      ]),
+    ];
+    const [deckRecord] = decks;
+    const progress: ProgressRecord[] = [
+      {
+        id: deckRecord.cards[0].cardId,
+        deckId: deckRecord.id,
+        easeFactor: 2.5,
+        interval: 3,
+        repetitions: 2,
+        lapses: 0,
+        dueDate: 2_001,
+        lastReviewedAt: 0,
+        lastQuality: 5,
+      },
+      {
+        id: deckRecord.cards[1].cardId,
+        deckId: deckRecord.id,
+        easeFactor: 2.5,
+        interval: 1,
+        repetitions: 1,
+        lapses: 0,
+        dueDate: 2_000,
+        lastReviewedAt: 0,
+        lastQuality: 5,
+      },
+      {
+        id: deckRecord.cards[2].cardId,
+        deckId: deckRecord.id,
+        easeFactor: 2.5,
+        interval: 1,
+        repetitions: 1,
+        lapses: 0,
+        dueDate: 1_999,
+        lastReviewedAt: 0,
+        lastQuality: 5,
+      },
+    ];
+
+    const plan = buildRecapPlan(decks, "geography", progress, 2_000);
+
+    expect(plan.cards.map(tagOf)).toEqual(["due-mountain", "due-river", "new", "future"]);
+    expect(plan.cards.every((card) => card.deckId === deckRecord.id)).toBe(true);
   });
 });
 
