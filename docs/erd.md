@@ -136,14 +136,16 @@ erDiagram
 | PREFERENCES | `users/{userId}/preferences/settings` | subcollection, fixed document id |
 | PROGRESS | `users/{userId}/progress/{cardId}` | subcollection |
 | SESSIONS | `users/{userId}/sessions/{sessionId}` | subcollection |
-| COURSES | `courses/{courseId}` | root |
+| COURSES | `users/{userId}/courses/{courseId}` | subcollection |
 | DECKS | `decks/{deckId}` | root |
 | CARDS | `decks/{deckId}/cards/{cardId}` | subcollection |
 | UPLOADS | `uploads/{uploadId}` | root |
 
 Progress and sessions are nested under the user because they are private and are always
-read for one user at a time. Decks and cards are root-level so a deck can later be shared
-without moving the documents.
+read for one user at a time. Courses are nested too, but for a different reason: seeded
+course ids are the bare slug with no random suffix, so every account's starter courses
+share an id, and only a per-user path keeps two accounts' `biology` from colliding. Decks
+and cards stay root-level so a deck can later be shared without moving the documents.
 
 ## Payload variants
 

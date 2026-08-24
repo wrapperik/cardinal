@@ -26,6 +26,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
@@ -365,16 +366,16 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
     it('creates a course owned by the caller', async () => {
       await assertSucceeds(
         setDoc(
-          doc(as(ALICE), 'courses', 'course-1'),
+          doc(as(ALICE), 'users', ALICE, 'courses', 'course-1'),
           validCourse('course-1', ALICE),
         ),
       );
     });
 
-    it('denies creating a course owned by someone else', async () => {
+    it("denies creating a course under another user's path", async () => {
       await assertFails(
         setDoc(
-          doc(as(BOB), 'courses', 'course-1'),
+          doc(as(BOB), 'users', ALICE, 'courses', 'course-1'),
           validCourse('course-1', ALICE),
         ),
       );
@@ -382,7 +383,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
 
     it('rejects a title that is not uppercase', async () => {
       await assertFails(
-        setDoc(doc(as(ALICE), 'courses', 'course-1'), {
+        setDoc(doc(as(ALICE), 'users', ALICE, 'courses', 'course-1'), {
           ...validCourse('course-1', ALICE),
           title: 'Biology',
         }),
@@ -391,7 +392,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
 
     it('rejects an unknown game type', async () => {
       await assertFails(
-        setDoc(doc(as(ALICE), 'courses', 'course-1'), {
+        setDoc(doc(as(ALICE), 'users', ALICE, 'courses', 'course-1'), {
           ...validCourse('course-1', ALICE),
           gameType: 'flashcards',
         }),
@@ -401,27 +402,54 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
     it('denies handing a course to another user', async () => {
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(
-          doc(ctx.firestore(), 'courses', 'course-1'),
+          doc(ctx.firestore(), 'users', ALICE, 'courses', 'course-1'),
           validCourse('course-1', ALICE),
         );
       });
       await assertFails(
-        updateDoc(doc(as(ALICE), 'courses', 'course-1'), { ownerId: BOB }),
+        updateDoc(doc(as(ALICE), 'users', ALICE, 'courses', 'course-1'), {
+          ownerId: BOB,
+        }),
       );
     });
 
     it('protects a seeded course from being renamed or deleted', async () => {
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        await setDoc(doc(ctx.firestore(), 'courses', 'course-seed'), {
-          ...validCourse('course-seed', ALICE),
-          seeded: true,
-        });
+        await setDoc(
+          doc(ctx.firestore(), 'users', ALICE, 'courses', 'course-seed'),
+          { ...validCourse('course-seed', ALICE), seeded: true },
+        );
       });
       const db = as(ALICE);
       await assertFails(
-        updateDoc(doc(db, 'courses', 'course-seed'), { title: 'CHEMISTRY' }),
+        updateDoc(doc(db, 'users', ALICE, 'courses', 'course-seed'), {
+          title: 'CHEMISTRY',
+        }),
       );
-      await assertFails(deleteDoc(doc(db, 'courses', 'course-seed')));
+      await assertFails(
+        deleteDoc(doc(db, 'users', ALICE, 'courses', 'course-seed')),
+      );
+    });
+
+    // Seeded course ids are the bare slug with no random suffix (see
+    // seedCourses in course-rules.ts), so every account's "biology" seed
+    // carries the exact same id. This is the whole reason courses moved
+    // under users/{userId}: in a root-level collection, the second user to
+    // sync would hit `allow update` against a document owned by the first
+    // and lose the course to a permission error.
+    it('lets two different users each hold their own biology course without collision', async () => {
+      await assertSucceeds(
+        setDoc(
+          doc(as(ALICE), 'users', ALICE, 'courses', 'biology'),
+          validCourse('biology', ALICE),
+        ),
+      );
+      await assertSucceeds(
+        setDoc(
+          doc(as(BOB), 'users', BOB, 'courses', 'biology'),
+          validCourse('biology', BOB),
+        ),
+      );
     });
   });
 
@@ -508,6 +536,47 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
         }),
       );
     });
+
+    /**
+     * Settles the question of whether a deck and its first card can be
+     * created in one writeBatch. They cannot: Firestore evaluates every
+     * write in a batch against the state as it stood before the batch
+     * started, not against the sibling writes committing alongside it. The
+     * card rule's `deckOwner()` calls `get()` on the parent deck, and at
+     * evaluation time that deck does not exist yet — the batch has not
+     * committed — so the get() resolves to a non-existent document and the
+     * card write is denied, which fails the whole (atomic) batch, deck
+     * included.
+     *
+     * The consequence for the client: a deck and its cards can never be
+     * created in a single batch. The deck write has to be sent and awaited
+     * first, and only once it has committed can the cards — batched or not
+     * — be written, because that is the only order in which `deckOwner()`
+     * has anything to read.
+     */
+    it('denies a card created in the same writeBatch as its brand-new parent deck', async () => {
+      const db = as(ALICE);
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'decks', 'deck-batch'), validDeck('deck-batch', ALICE));
+      batch.set(
+        doc(db, 'decks', 'deck-batch', 'cards', 'card-1'),
+        validCard('card-1', 'deck-batch'),
+      );
+      await assertFails(batch.commit());
+    });
+
+    it('succeeds when the deck is created and awaited before the card is written', async () => {
+      const db = as(ALICE);
+      await assertSucceeds(
+        setDoc(doc(db, 'decks', 'deck-seq'), validDeck('deck-seq', ALICE)),
+      );
+      await assertSucceeds(
+        setDoc(
+          doc(db, 'decks', 'deck-seq', 'cards', 'card-1'),
+          validCard('card-1', 'deck-seq'),
+        ),
+      );
+    });
   });
 
   describe('uploads', () => {
@@ -555,7 +624,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
     it('is denied everywhere', async () => {
       const db = testEnv.unauthenticatedContext().firestore();
       await assertFails(getDoc(doc(db, 'users', ALICE)));
-      await assertFails(getDoc(doc(db, 'courses', 'course-1')));
+      await assertFails(getDoc(doc(db, 'users', ALICE, 'courses', 'course-1')));
       await assertFails(getDoc(doc(db, 'decks', 'deck-1')));
       await assertFails(getDoc(doc(db, 'uploads', 'upload-1')));
     });

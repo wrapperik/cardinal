@@ -198,23 +198,32 @@ service cloud.firestore {
     }
 
     /* ---------------------------------------------------------------- */
-    /* courses/{courseId}                                                */
+    /* users/{userId}/courses/{courseId}                                 */
     /* ---------------------------------------------------------------- */
 
     /**
-     * Root-level, per the ERD, so a course can later be shared without the
-     * documents moving. Until it can be, ownerId is the whole access story.
+     * Nested under the user rather than root-level as the pitch ERD had it.
+     * Seeded course ids are the bare slug with no random suffix (see
+     * `seedCourses` in course-rules.ts), so every account's starter courses —
+     * `biology`, `history`, `geography`, `visual-culture` — carry identical
+     * ids. In a root-level collection the second user to sync would collide
+     * with the first: their seeded write would hit `allow update` against a
+     * document they do not own and be denied, silently losing the course on
+     * that device. Namespacing the path by uid removes the collision outright
+     * and needs no id rewriting, at the cost of the future-sharing story the
+     * flat layout was chosen for — nothing shares a course yet, so that cost
+     * is free for now.
      *
-     * `read` covering `list` means a query is only allowed when Firestore can
-     * prove statically that it returns nothing else — in practice the client
-     * must always filter on `where('ownerId', '==', uid)`. An unfiltered
-     * collection read fails rather than leaking.
+     * `ownerId` stays on the document even though the path already encodes
+     * it: CourseDoc and the ERD both declare the field, and asserting it here
+     * costs nothing while keeping the shape consistent with every other
+     * owned document.
      */
-    match /courses/{courseId} {
-      allow read: if owns(existing());
+    match /users/{userId}/courses/{courseId} {
+      allow read: if isUser(userId);
 
-      allow create: if signedIn()
-                    && owns(incoming())
+      allow create: if isUser(userId)
+                    && incoming().ownerId == userId
                     && incoming().courseId == courseId
                     && isGameType(incoming().gameType)
                     && incoming().seeded is bool
@@ -225,8 +234,8 @@ service cloud.firestore {
                     && incoming().title == incoming().title.upper()
                     && isServerTime('createdAt');
 
-      allow update: if owns(existing())
-                    && owns(incoming())
+      allow update: if isUser(userId)
+                    && incoming().ownerId == userId
                     && unchanged('courseId')
                     && unchanged('createdAt')
                     && unchanged('seeded')
@@ -236,7 +245,7 @@ service cloud.firestore {
                     // titles cannot be renamed out from under them.
                     && (!existing().seeded || unchanged('title'));
 
-      allow delete: if owns(existing()) && !existing().seeded;
+      allow delete: if isUser(userId) && !existing().seeded;
     }
 
     /* ---------------------------------------------------------------- */

@@ -7,7 +7,7 @@
  *   users/{userId}/preferences/settings
  *   users/{userId}/progress/{cardId}
  *   users/{userId}/sessions/{sessionId}
- *   courses/{courseId}
+ *   users/{userId}/courses/{courseId}
  *   decks/{deckId}
  *   decks/{deckId}/cards/{cardId}
  *   uploads/{uploadId}
@@ -119,6 +119,12 @@ export interface SessionDoc {
 /**
  * The subject heading a deck is filed under, and what the home screen's pills
  * actually are. Four are seeded with the app; the rest arrive with uploads.
+ *
+ * Stored at `users/{userId}/courses/{courseId}` rather than root-level: seed
+ * ids are the bare slug (see `seedCourses`), so every account's starter
+ * courses share the same id, and only a per-user path keeps two accounts'
+ * `biology` from colliding. `ownerId` is kept anyway, matching every other
+ * owned document and letting rules assert it without a second lookup.
  */
 export interface CourseDoc {
   courseId: string;

@@ -1,14 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "courses",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "ownerId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "decks",
       "queryScope": "COLLECTION",
       "fields": [

@@ -44,17 +44,17 @@ describe("isValidTitle", () => {
 
 describe("makeCourseId", () => {
   it("kebab-cases the normalised title", () => {
-    expect(makeCourseId("Visual Culture")).toMatch(/^visual-culture-[a-z0-9]+$/);
+    expect(makeCourseId("Visual Culture")).toBe("visual-culture");
   });
 
-  it("never collides for the same title", () => {
+  it("converges to the same id for the same title, so a second device lands on the course the first already created instead of duplicating it", () => {
     const first = makeCourseId("History");
     const second = makeCourseId("History");
-    expect(first).not.toBe(second);
+    expect(first).toBe(second);
   });
 
   it("falls back to a placeholder slug when the title has no letters or digits", () => {
-    expect(makeCourseId("!!!")).toMatch(/^course-[a-z0-9]+$/);
+    expect(makeCourseId("!!!")).toBe("course");
   });
 });
 

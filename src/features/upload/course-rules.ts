@@ -40,14 +40,18 @@ function slugify(title: string): string {
 }
 
 /**
- * Random suffix keeps two courses named the same from colliding — titles are
- * user input and "HISTORY" is exactly the kind of thing two people upload
- * under independently. Not cryptographic; collision cost here is a mis-filed
- * deck, not a security incident.
+ * Bare slug, no random suffix. A suffix used to guard against two courses
+ * named the same colliding, on the theory that "HISTORY" is what two people
+ * upload independently — but courses now live at
+ * `users/{userId}/courses/{courseId}`, so two people can never collide; only
+ * two devices of the same account can. Between those, convergence is the
+ * point: `addCourse`'s `findCourseByTitle` check already treats a matching
+ * title as the same course, so a second device creating its own HISTORY
+ * should land on the id the first device already wrote, not mint a
+ * duplicate the two can never reconcile.
  */
 export function makeCourseId(title: string): string {
-  const suffix = Math.random().toString(36).slice(2, 8);
-  return `${slugify(normaliseTitle(title))}-${suffix}`;
+  return slugify(normaliseTitle(title));
 }
 
 /**
