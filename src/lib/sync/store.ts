@@ -74,6 +74,15 @@ export interface SyncedStoreConfig<T extends { id: string }> {
   remoteRevision?: (record: T) => number;
   /** Validates and drops anything malformed, in the style of isCourse/isSession. */
   isValid: (value: unknown) => value is T;
+  /**
+   * Optionally expands a Firestore document into the complete local record
+   * before validation. Decks use this to read their cards subcollection: the
+   * root document alone intentionally does not contain playable card data.
+   */
+  hydrateRemote?: (input: {
+    id: string;
+    data: Record<string, unknown>;
+  }) => T | null | Promise<T | null>;
   /** Present for stores that ship with fixed starter content, e.g. courses. */
   seeds?: T[];
   /** Reconciles freshly-hydrated local records against seeds, in the style of mergeCourses. Defaults to "seeds first, then non-seed survivors" keyed on id. */
@@ -282,37 +291,54 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
       ? query(ref)
       : query(ref, where(config.field.ownerIdField ?? "ownerId", "==", uid));
 
+    let snapshotVersion = 0;
     firestoreUnsubscribe = onSnapshot(q, (snap) => {
-      const remoteRecords: RemoteEntry<T>[] = [];
-      for (const docSnap of snap.docs) {
-        const record = fromFirestorePayload<T>(docSnap.id, docSnap.data(), config.field);
-        if (!config.isValid(record)) continue;
-        const updatedAt = config.remoteRevision
-          ? config.remoteRevision(record)
-          : (record as unknown as Record<string, unknown>)[config.remoteUpdatedAtField];
-        if (typeof updatedAt !== "number") continue;
-        remoteRecords.push({ record, updatedAt });
-      }
+      const version = ++snapshotVersion;
+      void (async () => {
+        const entries = await Promise.all(
+          snap.docs.map(async (docSnap): Promise<RemoteEntry<T> | null> => {
+            try {
+              const data = docSnap.data();
+              const record = config.hydrateRemote
+                ? await config.hydrateRemote({ id: docSnap.id, data })
+                : fromFirestorePayload<T>(docSnap.id, data, config.field);
+              if (!record || !config.isValid(record)) return null;
+              const updatedAt = config.remoteRevision
+                ? config.remoteRevision(record)
+                : (record as unknown as Record<string, unknown>)[config.remoteUpdatedAtField];
+              return typeof updatedAt === "number" ? { record, updatedAt } : null;
+            } catch (error) {
+              console.warn(`[sync:${config.name}] could not hydrate remote ${docSnap.id}`, error);
+              return null;
+            }
+          }),
+        );
 
-      const result = reconcile(snapshot, meta, remoteRecords);
-      let nextMeta = result.meta;
-      let nextOutbox = outbox;
-      for (const record of result.toUpload) {
-        if (!nextMeta[record.id]) {
-          nextMeta = {
-            ...nextMeta,
-            [record.id]: { updatedAt: Date.now(), dirty: true, remoteConfirmed: false },
-          };
+        // A newer snapshot may have arrived while a child collection was
+        // loading. Applying the older one afterwards would roll local state
+        // back, so only the latest completed snapshot may reconcile.
+        if (version !== snapshotVersion) return;
+        const remoteRecords = entries.filter((entry): entry is RemoteEntry<T> => entry !== null);
+        const result = reconcile(snapshot, meta, remoteRecords);
+        let nextMeta = result.meta;
+        let nextOutbox = outbox;
+        for (const record of result.toUpload) {
+          if (!nextMeta[record.id]) {
+            nextMeta = {
+              ...nextMeta,
+              [record.id]: { updatedAt: Date.now(), dirty: true, remoteConfirmed: false },
+            };
+          }
+          nextOutbox = enqueueOps(nextOutbox, record, nextMeta);
         }
-        nextOutbox = enqueueOps(nextOutbox, record, nextMeta);
-      }
 
-      commitRecords(result.records);
-      commitMeta(nextMeta);
-      if (nextOutbox !== outbox) commitOutbox(nextOutbox);
-      listenerReady = true;
-      refreshSyncStatus();
-      scheduleDrain();
+        commitRecords(result.records);
+        commitMeta(nextMeta);
+        if (nextOutbox !== outbox) commitOutbox(nextOutbox);
+        listenerReady = true;
+        refreshSyncStatus();
+        scheduleDrain();
+      })();
     }, () => {
       listenerReady = false;
       listenerFailed = true;

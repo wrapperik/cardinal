@@ -1,5 +1,8 @@
+import { collection, getDocs } from "firebase/firestore";
+
 import {
   backfillDeck,
+  deckFromFirestoreDocuments,
   DECK_FIELD,
   expandDeck,
   isLocalDeck,
@@ -7,8 +10,18 @@ import {
   makeDeckId,
 } from "@/features/upload/deck-rules";
 import type { LocalDeck } from "@/features/upload/types";
+import { db } from "@/lib/firebase";
 import { createSyncedStore, type SyncedStoreConfig } from "@/lib/sync/store";
 import type { CardContent, GameType } from "@/types/cardinal";
+
+async function hydrateRemoteDeck(input: { id: string; data: Record<string, unknown> }): Promise<LocalDeck | null> {
+  const cards = await getDocs(collection(db, "decks", input.id, "cards"));
+  return deckFromFirestoreDocuments({
+    deckId: input.id,
+    deck: input.data,
+    cards: cards.docs.map((card) => ({ id: card.id, data: card.data() })),
+  });
+}
 
 const deckSyncConfig: SyncedStoreConfig<LocalDeck> = {
   name: "decks",
@@ -20,6 +33,7 @@ const deckSyncConfig: SyncedStoreConfig<LocalDeck> = {
   migrateLegacyKey: "cardinal.decks",
   backfill: backfillDeck,
   expand: expandDeck,
+  hydrateRemote: hydrateRemoteDeck,
 };
 
 const store = createSyncedStore<LocalDeck>(deckSyncConfig);

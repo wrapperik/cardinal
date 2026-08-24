@@ -11,7 +11,7 @@
 
 import { isGameType } from "@/features/upload/course-rules";
 import type { LocalCard, LocalDeck } from "@/features/upload/types";
-import { toFirestorePayload, type FieldAdapterConfig } from "@/lib/sync/adapter";
+import { fromFirestorePayload, toFirestorePayload, type FieldAdapterConfig } from "@/lib/sync/adapter";
 import type { ExpandedOp, MetaMap } from "@/lib/sync/types";
 
 /**
@@ -74,6 +74,58 @@ export function isLocalDeck(value: unknown): value is LocalDeck {
       ? candidate.uploadId === null
       : typeof candidate.uploadId === "string")
   );
+}
+
+export interface FirestoreDeckDocuments {
+  deckId: string;
+  deck: Record<string, unknown>;
+  cards: { id: string; data: Record<string, unknown> }[];
+}
+
+function isExtractionProvider(value: unknown): value is LocalDeck["provider"] {
+  return value === "mock" || value === "gemini" || value === "groq";
+}
+
+/**
+ * Rebuilds the local deck shape from a root deck document and its cards
+ * subcollection. Older cloud records lack the local display-only fields, so
+ * they receive stable fallbacks rather than disappearing on a new device.
+ */
+export function deckFromFirestoreDocuments(input: FirestoreDeckDocuments): LocalDeck | null {
+  const remoteDeck = fromFirestorePayload<Record<string, unknown> & { id: string }>(
+    input.deckId,
+    input.deck,
+    DECK_FIELD,
+  );
+  const cardCount = remoteDeck.cardCount;
+  if (typeof cardCount !== "number" || !Number.isInteger(cardCount) || cardCount < 0) return null;
+
+  const cards = input.cards.map(({ id, data }) => {
+    const remoteCard = fromFirestorePayload<Record<string, unknown> & { id: string }>(
+      id,
+      data,
+      CARD_FIELD,
+    );
+    if (remoteCard.deckId !== input.deckId) return null;
+    const { id: _id, deckId: _deckId, createdAt: _createdAt, ...content } = remoteCard;
+    const card = { ...content, cardId: id };
+    return isLocalCard(card) ? card : null;
+  });
+  if (cards.some((card) => card === null) || cards.length !== cardCount) return null;
+
+  const { cardCount: _cardCount, ...fields } = remoteDeck;
+  const sourceName = typeof fields.sourceName === "string"
+    ? fields.sourceName
+    : typeof fields.title === "string"
+      ? fields.title
+      : "UNTITLED DECK";
+  const provider = isExtractionProvider(fields.provider)
+    ? fields.provider
+    : fields.sourceType === "upload"
+      ? "gemini"
+      : "mock";
+  const candidate = { ...fields, sourceName, provider, cards };
+  return isLocalDeck(candidate) ? candidate : null;
 }
 
 /**

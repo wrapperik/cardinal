@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import * as deckRules from "./deck-rules";
 import { backfillDeck, expandDeck, isLocalDeck } from "./deck-rules";
 import { saveDeck } from "./decks";
 import type { LocalDeck } from "./types";
@@ -91,6 +92,89 @@ describe("deck local behavior", () => {
 
   it("accepts a deck produced by Gemini", () => {
     expect(isLocalDeck({ ...validDeck(), provider: "gemini" })).toBe(true);
+  });
+
+  it("rebuilds an existing uploaded deck from its cloud card documents", () => {
+    type Hydrator = (input: {
+      deckId: string;
+      deck: Record<string, unknown>;
+      cards: { id: string; data: Record<string, unknown> }[];
+    }) => LocalDeck | null;
+    const hydrate = (deckRules as { deckFromFirestoreDocuments?: Hydrator })
+      .deckFromFirestoreDocuments;
+
+    // A deck written before this repair has no sourceName or provider on its
+    // root document. A new browser must still rebuild its playable cards.
+    expect(hydrate).toBeTypeOf("function");
+    if (!hydrate) return;
+
+    const deck = hydrate({
+      deckId: "deck-cloud",
+      deck: {
+        deckId: "deck-cloud",
+        ownerId: "owner-1",
+        courseId: "physics",
+        title: "NEWTON'S SECOND LAW",
+        sourceType: "upload",
+        uploadId: "upload-1",
+        cardCount: 2,
+        createdAt: 10,
+        updatedAt: 20,
+      },
+      cards: [
+        {
+          id: "card-1",
+          data: {
+            cardId: "card-1",
+            deckId: "deck-cloud",
+            gameType: "trueFalseDuel",
+            difficulty: 1,
+            payload: { statement: "Force equals mass times acceleration.", isTrue: true },
+            createdAt: 11,
+          },
+        },
+        {
+          id: "card-2",
+          data: {
+            cardId: "card-2",
+            deckId: "deck-cloud",
+            gameType: "compassQuiz",
+            difficulty: 2,
+            payload: {
+              question: "What is the SI unit of force?",
+              choices: ["Newton", "Joule", "Watt"],
+              correctIndex: 0,
+            },
+            createdAt: 12,
+          },
+        },
+      ],
+    });
+
+    expect(deck).toMatchObject({
+      id: "deck-cloud",
+      courseId: "physics",
+      sourceName: "NEWTON'S SECOND LAW",
+      provider: "gemini",
+    });
+    expect(deck?.cards).toEqual([
+      {
+        cardId: "card-1",
+        gameType: "trueFalseDuel",
+        difficulty: 1,
+        payload: { statement: "Force equals mass times acceleration.", isTrue: true },
+      },
+      {
+        cardId: "card-2",
+        gameType: "compassQuiz",
+        difficulty: 2,
+        payload: {
+          question: "What is the SI unit of force?",
+          choices: ["Newton", "Joule", "Watt"],
+          correctIndex: 0,
+        },
+      },
+    ]);
   });
 });
 
