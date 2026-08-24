@@ -375,6 +375,13 @@ service cloud.firestore {
                     && incoming().uploadId == uploadId
                     && incoming().fileName is string
                     && incoming().fileType in ['pdf', 'text']
+                    && (incoming().template == 'auto' || isGameType(incoming().template))
+                    // The upload sheet asks for 20 cards, so jobs stay in
+                    // the same positive 1–20 range rather than letting a
+                    // client turn one document into an unbounded workload.
+                    && incoming().cardTarget is int
+                    && incoming().cardTarget >= 1
+                    && incoming().cardTarget <= 20
                     // The exact object path storage.rules allows: one object
                     // per job, named after it. Firebase uids and these ids are
                     // alphanumeric, so the pattern needs no escaping.

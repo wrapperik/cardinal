@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": "..",
+    "outDir": "lib",
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["src/*"],
+      "firebase/firestore": ["functions/src/types/firebase-firestore"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "../src/features/upload/course-rules.ts",
+    "../src/features/upload/types.ts",
+    "../src/features/upload/extract/parse.ts",
+    "../src/features/upload/extract/prompt.ts",
+    "../src/types/cardinal.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
+}

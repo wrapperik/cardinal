@@ -66,7 +66,11 @@ export function isLocalDeck(value: unknown): value is LocalDeck {
     candidate.cards.every(isLocalCard) &&
     typeof candidate.createdAt === "number" &&
     typeof candidate.updatedAt === "number" &&
-    (candidate.provider === "mock" || candidate.provider === "groq")
+    (candidate.provider === "mock" || candidate.provider === "groq") &&
+    (candidate.sourceType === "manual" || candidate.sourceType === "upload") &&
+    (candidate.sourceType === "manual"
+      ? candidate.uploadId === null
+      : typeof candidate.uploadId === "string")
   );
 }
 
@@ -105,7 +109,16 @@ export function backfillDeck(value: unknown): unknown {
   const updatedAt =
     typeof candidate.updatedAt === "number" ? candidate.updatedAt : candidate.createdAt;
 
-  return { ...candidate, cards, updatedAt };
+  const hasUploadProvenance =
+    candidate.sourceType === "upload" && typeof candidate.uploadId === "string";
+
+  return {
+    ...candidate,
+    cards,
+    updatedAt,
+    sourceType: hasUploadProvenance ? "upload" : "manual",
+    uploadId: hasUploadProvenance ? candidate.uploadId : null,
+  };
 }
 
 /**
@@ -146,10 +159,9 @@ export const CARD_FIELD: FieldAdapterConfig = {
  * turns "return them in order" into "send them in order" — this function
  * itself does no scheduling.
  *
- * `cardCount`/`sourceType`/`uploadId` are not LocalDeck fields — they are
- * derived or fixed at write time: `cardCount` from `deck.cards.length`,
- * `sourceType` always 'manual' and `uploadId` always null, since nothing
- * before upload sync creates a deck any other way. A card carries no local
+ * `cardCount` is derived at write time from `deck.cards.length`. Provenance
+ * already belongs to LocalDeck so manual saves and canonical uploaded decks
+ * retain their real source. A card carries no local
  * `createdAt` (CardContent has none — see its doc comment in
  * cardinal.ts), so `createdAt: 0` is added purely as the placeholder
  * toFirestorePayload's 'onCreate' handling expects to override, the same
@@ -158,7 +170,7 @@ export const CARD_FIELD: FieldAdapterConfig = {
 export function expandDeck(deck: LocalDeck, uid: string, meta: MetaMap): ExpandedOp[] {
   const deckKind: "set" | "update" = meta[deck.id]?.remoteConfirmed ? "update" : "set";
   const deckPayload = toFirestorePayload(
-    { ...deck, cardCount: deck.cards.length, sourceType: "manual" as const, uploadId: null },
+    { ...deck, cardCount: deck.cards.length },
     deckKind,
     uid,
     DECK_FIELD,

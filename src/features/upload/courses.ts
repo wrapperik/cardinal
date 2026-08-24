@@ -103,6 +103,11 @@ export function getCourses(): Course[] {
   return store.getRecords();
 }
 
+/** Adopts a Function-created course before the normal listener catches up. */
+export function adoptRemoteCourse(course: Course): void {
+  store.adoptRemote(course, course.createdAt);
+}
+
 export function courseById(id: string): Course | undefined {
   return store.getRecords().find((course) => course.id === id);
 }

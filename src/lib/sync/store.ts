@@ -138,6 +138,12 @@ export interface SyncedStore<T extends { id: string }> {
   getRecords(): T[];
   /** Applies a create or edit immediately and syncs it in the background. */
   put(record: T): void;
+  /**
+   * Saves a record already confirmed by Firestore without queuing a client
+   * write. Used when a server-owned workflow creates the canonical record
+   * before the regular collection listener has delivered it locally.
+   */
+  adoptRemote(record: T, revision: number): void;
   remove(id: string): void;
 }
 
@@ -460,6 +466,18 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     }
   }
 
+  function adoptRemote(record: T, revision: number) {
+    const nextRecords = snapshot.some((existing) => existing.id === record.id)
+      ? snapshot.map((existing) => (existing.id === record.id ? record : existing))
+      : [...snapshot, record];
+
+    commitRecords(nextRecords);
+    commitMeta({
+      ...meta,
+      [record.id]: { updatedAt: revision, dirty: false, remoteConfirmed: true },
+    });
+  }
+
   function remove(id: string) {
     if (!snapshot.some((record) => record.id === id)) return;
     commitRecords(snapshot.filter((record) => record.id !== id));
@@ -496,6 +514,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     useRecords: () => useSyncExternalStore(subscribe, getSnapshot),
     getRecords: () => snapshot,
     put,
+    adoptRemote,
     remove,
   };
 }

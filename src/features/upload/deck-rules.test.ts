@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { backfillDeck } from "./deck-rules";
+import { backfillDeck, expandDeck } from "./deck-rules";
 import { saveDeck } from "./decks";
 import type { LocalDeck } from "./types";
 import { createSyncedStore } from "@/lib/sync/store";
@@ -67,6 +67,8 @@ function validDeck(overrides: Partial<LocalDeck> = {}): LocalDeck {
     createdAt: 10,
     updatedAt: 10,
     provider: "mock",
+    sourceType: "manual",
+    uploadId: null,
     ...overrides,
   };
 }
@@ -101,6 +103,32 @@ describe("backfillDeck", () => {
     expect(result.cards[1].cardId).toMatch(/^card-/);
     expect(result.cards[1].cardId).not.toBe("card-1");
   });
+
+  it("marks legacy decks as manual with no upload provenance", () => {
+    const result = backfillDeck({
+      ...validDeck(),
+      sourceType: undefined,
+      uploadId: undefined,
+    }) as LocalDeck & { sourceType: string; uploadId: string | null };
+
+    expect(result.sourceType).toBe("manual");
+    expect(result.uploadId).toBeNull();
+  });
+});
+
+describe("expandDeck", () => {
+  it("writes a canonical upload deck's real provenance", () => {
+    const deck = {
+      ...validDeck(),
+      sourceType: "upload" as const,
+      uploadId: "upload-1",
+    } as LocalDeck & { sourceType: "upload"; uploadId: string };
+
+    const [operation] = expandDeck(deck, "owner-1", {});
+
+    expect(operation.payload.sourceType).toBe("upload");
+    expect(operation.payload.uploadId).toBe("upload-1");
+  });
 });
 
 describe("createSyncedStore backfill", () => {
@@ -129,6 +157,33 @@ describe("createSyncedStore backfill", () => {
     expect(platform.setItem).toHaveBeenCalledWith(
       "cardinal.user-1.hydration",
       JSON.stringify([{ id: "record-1", recovered: true }]),
+    );
+  });
+
+  it("adopts a server-confirmed record without creating an outbox write", async () => {
+    platform.values.clear();
+    platform.setItem.mockClear();
+
+    const store = createSyncedStore<{ id: string; updatedAt: number }>({
+      name: "remote-adoption",
+      collectionPath: () => "records",
+      pathIsOwnerScoped: false,
+      field: { idField: "recordId", ownerIdField: "ownerId", timestampFields: ["updatedAt"] },
+      remoteUpdatedAtField: "updatedAt",
+      isValid: (value): value is { id: string; updatedAt: number } =>
+        !!value && typeof value === "object" && "id" in value && "updatedAt" in value,
+    });
+
+    platform.authListeners.at(-1)?.({ uid: "user-1" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    store.adoptRemote({ id: "deck-server", updatedAt: 20 }, 20);
+
+    expect(store.getRecords()).toEqual([{ id: "deck-server", updatedAt: 20 }]);
+    expect(platform.setItem).toHaveBeenCalledWith(
+      "cardinal.user-1.remote-adoption",
+      JSON.stringify([{ id: "deck-server", updatedAt: 20 }]),
     );
   });
 });

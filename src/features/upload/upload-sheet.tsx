@@ -7,8 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BOTTOM_TAB_HEIGHT, BOTTOM_TAB_WIDTH, BottomPullTab } from '@/components/bottom-pull-tab';
 import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
-import { addCourse, courseById, useCourses } from '@/features/upload/courses';
-import { saveDeck } from '@/features/upload/decks';
+import { addCourse, adoptRemoteCourse, courseById, useCourses } from '@/features/upload/courses';
+import { adoptRemoteDeck, saveDeck } from '@/features/upload/decks';
 import { DestinationPicker } from '@/features/upload/destination-picker';
 import { activeProvider, extractCards } from '@/features/upload/extract';
 import { formatBytes, pickDocument } from '@/features/upload/picker';
@@ -258,6 +258,27 @@ export const UploadSheet = forwardRef<UploadSheetHandle, object>(function Upload
 
   function handleSave() {
     if (!state.result) return;
+
+    if (state.result.provider === 'groq') {
+      const { canonicalDeck, canonicalCourse } = state.result;
+      if (!canonicalDeck || !canonicalCourse) {
+        dispatch({ type: 'extractFailed', message: "THE CLOUD DECK WASN'T READY" });
+        return;
+      }
+      dispatch({ type: 'saveStart' });
+      // The Function has already written these records. Adopting them gives
+      // the app an immediate local view without sending a second deck back
+      // through the sync outbox.
+      adoptRemoteCourse(canonicalCourse);
+      adoptRemoteDeck(canonicalDeck);
+      dispatch({
+        type: 'saveSuccess',
+        courseTitle: canonicalCourse.title,
+        count: canonicalDeck.cards.length,
+      });
+      return;
+    }
+
     dispatch({ type: 'saveStart' });
 
     const chosenId = state.destinationId ?? state.result.suggestedCourseId;
@@ -487,10 +508,15 @@ function ReviewStage({
   onDiscard: () => void;
 }) {
   const breakdown = countByTemplate(result.cards);
+  const isCanonical = result.provider === 'groq' && !!result.canonicalDeck;
   // Falls back to the model's own suggestion so the picker shows a filled
   // row even before the user has touched it — "preselected", not "empty".
-  const chosenId = destinationId ?? result.suggestedCourseId;
-  const chosenCourse = chosenId ? courseById(chosenId) : undefined;
+  const chosenId = isCanonical ? result.canonicalDeck!.courseId : destinationId ?? result.suggestedCourseId;
+  const chosenCourse = isCanonical
+    ? result.canonicalCourse
+    : chosenId
+      ? courseById(chosenId)
+      : undefined;
   const saveLabel = `SAVE TO ${(chosenCourse?.title ?? result.suggestedTitle).toUpperCase()}`;
 
   return (
@@ -511,13 +537,17 @@ function ReviewStage({
         {result.confidence > 0 ? `  ·  ${Math.round(result.confidence * 100)}%` : ''}
       </Text>
 
-      <DestinationPicker
-        courses={courses}
-        selectedId={chosenId}
-        suggestedId={result.suggestedCourseId}
-        onSelect={onDestinationSelect}
-        onCreate={onDestinationCreate}
-      />
+      {isCanonical ? (
+        <Text style={styles.note}>CLOUD DESTINATION: {chosenCourse?.title ?? result.suggestedTitle}</Text>
+      ) : (
+        <DestinationPicker
+          courses={courses}
+          selectedId={chosenId}
+          suggestedId={result.suggestedCourseId}
+          onSelect={onDestinationSelect}
+          onCreate={onDestinationCreate}
+        />
+      )}
 
       <SwipeAction label={saveLabel} hint="SWIPE RIGHT" tone="accent" onConfirm={onSave} />
       <SwipeAction label="DISCARD" hint="SWIPE RIGHT" onConfirm={onDiscard} />

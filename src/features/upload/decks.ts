@@ -24,7 +24,10 @@ const deckSyncConfig: SyncedStoreConfig<LocalDeck> = {
 
 const store = createSyncedStore<LocalDeck>(deckSyncConfig);
 
-export type SaveDeckInput = Omit<LocalDeck, "id" | "createdAt" | "updatedAt" | "cards"> & {
+export type SaveDeckInput = Omit<
+  LocalDeck,
+  "id" | "createdAt" | "updatedAt" | "cards" | "sourceType" | "uploadId"
+> & {
   cards: CardContent[];
 };
 
@@ -34,6 +37,11 @@ export function useDecks(): LocalDeck[] {
 
 export function getDecks(): LocalDeck[] {
   return store.getRecords();
+}
+
+/** Adopts the Function-created deck without echoing it back through the outbox. */
+export function adoptRemoteDeck(deck: LocalDeck): void {
+  store.adoptRemote(deck, deck.updatedAt);
 }
 
 export function decksForCourse(courseId: string): LocalDeck[] {
@@ -48,6 +56,8 @@ export function saveDeck(input: SaveDeckInput): LocalDeck {
     cards: input.cards.map((card) => ({ ...card, cardId: makeCardId() })),
     createdAt: now,
     updatedAt: now,
+    sourceType: "manual",
+    uploadId: null,
   };
   store.put(deck);
   return deck;

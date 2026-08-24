@@ -39,6 +39,8 @@ function deck(courseId: string, cards: CardContent[], id = `deck-${courseId}-${c
     createdAt: 0,
     updatedAt: 0,
     provider: "mock",
+    sourceType: "manual",
+    uploadId: null,
   };
 }
 

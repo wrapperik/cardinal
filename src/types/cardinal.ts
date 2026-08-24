@@ -241,6 +241,10 @@ export interface UploadDoc {
   fileType: 'pdf' | 'text';
   /** Path within the Storage bucket, not a download URL. */
   storagePath: string;
+  /** The requested template; `auto` lets extraction choose per card. */
+  template: GameType | 'auto';
+  /** Bounded card target supplied with the extraction job. */
+  cardTarget: number;
   status: UploadStatus;
   /** Set only when status is 'failed'. */
   errorMessage: string | null;

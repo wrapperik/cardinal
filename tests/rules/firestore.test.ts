@@ -198,6 +198,8 @@ function deckForSyncProof(): LocalDeck {
     createdAt: 0,
     updatedAt: 0,
     provider: 'mock',
+    sourceType: 'manual',
+    uploadId: null,
   };
 }
 
@@ -217,6 +219,8 @@ function validUpload(uploadId: string, ownerId: string) {
     fileName: 'revision-notes.pdf',
     fileType: 'pdf',
     storagePath: `uploads/${ownerId}/${uploadId}`,
+    template: 'auto',
+    cardTarget: 20,
     status: 'processing',
     errorMessage: null,
     deckId: null,
@@ -916,6 +920,43 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
           status: 'done',
           deckId: 'deck-1',
           cardsGenerated: 20,
+        }),
+      );
+    });
+
+    it('accepts an explicit game template and bounded positive card target', async () => {
+      await assertSucceeds(
+        setDoc(doc(as(ALICE), 'uploads', 'upload-1'), {
+          ...validUpload('upload-1', ALICE),
+          template: 'matchRelease',
+          cardTarget: 1,
+        }),
+      );
+    });
+
+    it('denies an unknown template or card target outside the upload limit', async () => {
+      await assertFails(
+        setDoc(doc(as(ALICE), 'uploads', 'upload-unknown-template'), {
+          ...validUpload('upload-unknown-template', ALICE),
+          template: 'madeUpTemplate',
+        }),
+      );
+      await assertFails(
+        setDoc(doc(as(ALICE), 'uploads', 'upload-zero-cards'), {
+          ...validUpload('upload-zero-cards', ALICE),
+          cardTarget: 0,
+        }),
+      );
+      await assertFails(
+        setDoc(doc(as(ALICE), 'uploads', 'upload-too-many-cards'), {
+          ...validUpload('upload-too-many-cards', ALICE),
+          cardTarget: 21,
+        }),
+      );
+      await assertFails(
+        setDoc(doc(as(ALICE), 'uploads', 'upload-fractional-cards'), {
+          ...validUpload('upload-fractional-cards', ALICE),
+          cardTarget: 1.5,
         }),
       );
     });

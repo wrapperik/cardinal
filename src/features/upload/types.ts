@@ -8,7 +8,7 @@
  * card payloads are already the ones declared in @/types/cardinal.
  */
 
-import type { CardContent, GameType } from '@/types/cardinal';
+import type { CardContent, GameType, SourceType } from '@/types/cardinal';
 
 /* -------------------------------------------------------------------------- */
 /* Picking                                                                     */
@@ -103,6 +103,10 @@ export interface ExtractionResult {
   /** 0–1. Drives how strongly the review screen pushes the suggestion. */
   confidence: number;
   provider: ExtractionProviderId;
+  /** Server-created deck for an authenticated extraction job, when present. */
+  canonicalDeck?: LocalDeck;
+  /** The server-selected course paired with `canonicalDeck`. */
+  canonicalCourse?: Course;
 }
 
 export type ExtractionFailure =
@@ -171,6 +175,9 @@ export interface LocalDeck {
    */
   updatedAt: number;
   provider: ExtractionProviderId;
+  /** Manual decks have no upload job; server-generated decks retain theirs. */
+  sourceType: SourceType;
+  uploadId: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
