@@ -90,6 +90,7 @@ function validPreferences(uid: string) {
     dailyReminderEnabled: false,
     reminderTime: '19:30',
     theme: 'default',
+    updatedAt: serverTimestamp(),
   };
 }
 
@@ -340,6 +341,15 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
         setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
           ...validPreferences(ALICE),
           reminderTime: '7pm',
+        }),
+      );
+    });
+
+    it('requires a server timestamp so devices can reconcile settings', async () => {
+      await assertFails(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
+          ...validPreferences(ALICE),
+          updatedAt: new Date('2026-08-24'),
         }),
       );
     });

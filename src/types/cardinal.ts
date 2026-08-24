@@ -84,6 +84,8 @@ export interface PreferencesDoc {
   /** 24-hour local time, "HH:MM". */
   reminderTime: string;
   theme: string;
+  /** Pinned to server time on every write for cross-device reconciliation. */
+  updatedAt: Timestamp;
 }
 
 /** SM-2 scheduling state, one document per card per user. */

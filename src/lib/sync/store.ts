@@ -136,6 +136,8 @@ export interface SyncedStoreConfig<T extends { id: string }> {
 export interface SyncedStore<T extends { id: string }> {
   useRecords(): T[];
   getRecords(): T[];
+  /** Listener readiness and queued writes, for concise live sync UI. */
+  useSyncStatus(): SyncStatus;
   /** Applies a create or edit immediately and syncs it in the background. */
   put(record: T): void;
   /**
@@ -146,6 +148,8 @@ export interface SyncedStore<T extends { id: string }> {
   adoptRemote(record: T, revision: number): void;
   remove(id: string): void;
 }
+
+export type SyncStatus = "offline" | "syncing" | "synced";
 
 function defaultMergeWithSeeds<T extends { id: string }>(stored: T[], seeds: T[]): T[] {
   const seedIds = new Set(seeds.map((seed) => seed.id));
@@ -165,9 +169,30 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   let firestoreUnsubscribe: Unsubscribe | null = null;
   let drainTimer: ReturnType<typeof setTimeout> | null = null;
   let draining = false;
+  let listenerReady = false;
+  let listenerFailed = false;
+  let syncStatus: SyncStatus = "offline";
 
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((listener) => listener());
+
+  function setSyncStatus(next: SyncStatus) {
+    if (syncStatus === next) return;
+    syncStatus = next;
+    notify();
+  }
+
+  function refreshSyncStatus() {
+    if (!uid || listenerFailed) {
+      setSyncStatus("offline");
+      return;
+    }
+    if (!listenerReady || outbox.length > 0) {
+      setSyncStatus("syncing");
+      return;
+    }
+    setSyncStatus("synced");
+  }
 
   function keys() {
     return syncStorageKeys(config.name, uid);
@@ -190,6 +215,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   function commitOutbox(next: OutboxOp[]) {
     outbox = next;
     AsyncStorage.setItem(keys().outbox, JSON.stringify(next)).catch(() => {});
+    refreshSyncStatus();
   }
 
   /** Builds and enqueues the write for one record, choosing `set` vs `update` from whether Firestore has ever acknowledged this id — see the RecordMeta.remoteConfirmed comment in ./types. */
@@ -247,6 +273,9 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     firestoreUnsubscribe?.();
     firestoreUnsubscribe = null;
     if (!uid) return;
+    listenerReady = false;
+    listenerFailed = false;
+    refreshSyncStatus();
 
     const ref = collection(db, config.collectionPath(uid));
     const q = config.pathIsOwnerScoped
@@ -281,7 +310,13 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
       commitRecords(result.records);
       commitMeta(nextMeta);
       if (nextOutbox !== outbox) commitOutbox(nextOutbox);
+      listenerReady = true;
+      refreshSyncStatus();
       scheduleDrain();
+    }, () => {
+      listenerReady = false;
+      listenerFailed = true;
+      setSyncStatus("offline");
     });
   }
 
@@ -369,6 +404,9 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   async function hydrate(nextUid: string | null) {
     const token = ++hydrationToken;
     uid = nextUid;
+    listenerReady = false;
+    listenerFailed = false;
+    refreshSyncStatus();
     const k = keys();
 
     const [rawRecords, rawMeta, rawOutbox] = await Promise.all([
@@ -427,6 +465,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     notify();
 
     attachFirestoreListener();
+    refreshSyncStatus();
     scheduleDrain();
   }
 
@@ -513,6 +552,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   return {
     useRecords: () => useSyncExternalStore(subscribe, getSnapshot),
     getRecords: () => snapshot,
+    useSyncStatus: () => useSyncExternalStore(subscribe, () => syncStatus),
     put,
     adoptRemote,
     remove,

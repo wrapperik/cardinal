@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "test": "vitest run src/upload/helpers.test.ts",
+    "test": "vitest run src/**/*.test.ts",
     "lint": "tsc --noEmit --project tsconfig.json",
     "check": "npm run build && npm run test"
   },

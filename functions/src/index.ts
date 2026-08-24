@@ -1,11 +1,12 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 
 import { DEFAULT_GROQ_MODEL, safeUploadError } from "./upload/helpers";
 import { defaultBucket, parseProcessingUploadJob, processUploadJob } from "./upload/processor";
+import { refreshUserStats } from "./stats/refresh";
 
 if (getApps().length === 0) initializeApp();
 
@@ -46,5 +47,20 @@ export const processUpload = onDocumentCreated(
         completedAt: FieldValue.serverTimestamp(),
       });
     }
+  },
+);
+
+/** Both source collections refresh the same derived summary after every write. */
+export const refreshStatsFromSession = onDocumentWritten(
+  "users/{userId}/sessions/{sessionId}",
+  async (event) => {
+    await refreshUserStats(getFirestore(), event.params.userId);
+  },
+);
+
+export const refreshStatsFromProgress = onDocumentWritten(
+  "users/{userId}/progress/{cardId}",
+  async (event) => {
+    await refreshUserStats(getFirestore(), event.params.userId);
   },
 );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -13,6 +13,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PULL_TAB_WIDTH, PullTab } from "@/components/pull-tab";
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-provider";
+import {
+  syncStatusLabel,
+  updatePreferences,
+  usePreferences,
+  usePreferencesSyncStatus,
+} from "@/features/preferences/preferences";
 
 /** How far the tab pokes into the screen when the panel is closed. */
 const TAB_PEEK = PULL_TAB_WIDTH;
@@ -35,6 +41,8 @@ export function SettingsPanel() {
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const { signOutUser, user } = useAuth();
+  const preferences = usePreferences();
+  const syncStatus = usePreferencesSyncStatus();
 
   // 0 = closed, 1 = open.
   const progress = useSharedValue(0);
@@ -94,11 +102,14 @@ export function SettingsPanel() {
             <Text style={styles.sectionLabel}>ACCOUNT</Text>
             <InfoRow label="NAME" value={user?.displayName ?? "STUDENT"} />
             <InfoRow label="EMAIL" value={user?.email ?? "—"} />
-            <InfoRow label="SYNC" value="ON" />
+            <InfoRow label="SYNC" value={syncStatusLabel(syncStatus)} />
             <SignOutRow onSignOut={signOutUser} />
 
             <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
-            <AccessibilityRow />
+            <AccessibilityRow
+              tapZones={preferences.accessibilityTapZones}
+              onChange={(accessibilityTapZones) => updatePreferences({ accessibilityTapZones })}
+            />
             {/* TODO(week7): wire to the real tap-zone overlay when the accessibility mode ships. */}
 
             <Text style={styles.sectionLabel}>ABOUT</Text>
@@ -176,9 +187,22 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
  * EDGE TAP ZONES toggle. A drag-only switch — the knob follows the finger
  * and releasing snaps it to the nearer side, matching the no-tap premise.
  */
-function AccessibilityRow() {
-  const [tapZones, setTapZones] = useState(false);
-  const knob = useSharedValue(0); // 0 = off, 1 = on
+function AccessibilityRow({
+  tapZones,
+  onChange,
+}: {
+  tapZones: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const knob = useSharedValue(tapZones ? 1 : 0); // 0 = off, 1 = on
+
+  useEffect(() => {
+    knob.value = withSpring(tapZones ? 1 : 0, {
+      damping: 18,
+      stiffness: 220,
+      mass: 0.7,
+    });
+  }, [knob, tapZones]);
 
   // The child toggle's GestureDetector takes precedence over the panel's
   // close-drag automatically (innermost first), so this never fights the sled.
@@ -194,7 +218,7 @@ function AccessibilityRow() {
         stiffness: 220,
         mass: 0.7,
       });
-      runOnJS(setTapZones)(on);
+      runOnJS(onChange)(on);
     });
 
   const trackStyle = useAnimatedStyle(() => ({
