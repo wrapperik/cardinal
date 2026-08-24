@@ -83,7 +83,8 @@ export interface Course {
 /** 'auto' hands the choice of template to the model, per card. */
 export type TemplateChoice = GameType | 'auto';
 
-export type ExtractionProviderId = 'mock' | 'groq';
+/** `groq` remains readable so decks saved before the provider switch survive hydration. */
+export type ExtractionProviderId = 'mock' | 'gemini' | 'groq';
 
 export interface ExtractionRequest {
   file: PickedFile;
@@ -122,7 +123,7 @@ export type ExtractionOutcome =
 
 /**
  * One extraction boundary behind one call. The temporary mock and the future
- * Groq Cloud Function share this contract, so the UI does not know where card
+ * Gemini Cloud Function share this contract, so the UI does not know where card
  * generation runs.
  */
 export interface ExtractionProvider {

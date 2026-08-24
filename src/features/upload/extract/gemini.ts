@@ -40,9 +40,11 @@ function asMap(value: unknown): DataMap | null {
 function timestampMillis(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (value && typeof value === "object" && "toMillis" in value) {
-    const toMillis = (value as { toMillis?: unknown }).toMillis;
-    if (typeof toMillis === "function") {
-      const millis = toMillis();
+    const timestamp = value as { toMillis?: unknown };
+    if (typeof timestamp.toMillis === "function") {
+      // Firestore's Timestamp method reads its instance fields, so invoke it
+      // as a method instead of detaching it and losing its receiver.
+      const millis = timestamp.toMillis();
       return typeof millis === "number" && Number.isFinite(millis) ? millis : null;
     }
   }
@@ -199,7 +201,7 @@ export function canonicalResultFromDocuments(input: CanonicalDocuments): Extract
     cards,
     createdAt,
     updatedAt,
-    provider: "groq",
+    provider: "gemini",
     sourceType: "upload",
     uploadId: input.uploadId,
   };
@@ -211,7 +213,7 @@ export function canonicalResultFromDocuments(input: CanonicalDocuments): Extract
       suggestedTitle: course.title,
       suggestedCourseId: course.id,
       confidence: 1,
-      provider: "groq",
+      provider: "gemini",
       canonicalDeck,
       canonicalCourse: course,
     },
@@ -237,7 +239,7 @@ export function mapFirebaseFailure(error: unknown): Failure {
 
 function firebaseIsConfigured(): boolean {
   return Boolean(
-    process.env.EXPO_PUBLIC_ENABLE_GROQ_EXTRACTION === "1" &&
+    process.env.EXPO_PUBLIC_ENABLE_GEMINI_EXTRACTION === "1" &&
       process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID &&
       process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET &&
       auth.currentUser,
@@ -404,8 +406,8 @@ async function extract(
   }
 }
 
-export const groqProvider: ExtractionProvider = {
-  id: "groq",
+export const geminiProvider: ExtractionProvider = {
+  id: "gemini",
   label: "CLOUD EXTRACTOR",
   isConfigured: firebaseIsConfigured,
   extract,

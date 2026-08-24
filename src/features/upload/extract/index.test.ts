@@ -7,14 +7,14 @@ vi.mock("./mock", () => ({
   mockProvider: { id: "mock", isConfigured: () => true },
 }));
 
-vi.mock("./groq", () => ({
-  groqProvider: { id: "groq", isConfigured: () => providers.configured },
+vi.mock("./gemini", () => ({
+  geminiProvider: { id: "gemini", isConfigured: () => providers.configured },
 }));
 
 describe("activeProvider", () => {
   it("uses the cloud provider when its non-secret configuration is available", () => {
     providers.configured = true;
-    expect(activeProvider().id).toBe("groq");
+    expect(activeProvider().id).toBe("gemini");
   });
 
   it("keeps the demo flow available only when cloud extraction is unavailable", () => {

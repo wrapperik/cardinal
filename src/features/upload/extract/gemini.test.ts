@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { canonicalResultFromDocuments, mapFirebaseFailure } from "./groq";
+import { canonicalResultFromDocuments, mapFirebaseFailure } from "./gemini";
 
 vi.mock("@/lib/firebase", () => ({ auth: { currentUser: null }, db: {}, storage: {} }));
 
 const timestamp = (millis: number) => ({ toMillis: () => millis });
+const receiverTimestamp = (millis: number) => ({
+  millis,
+  toMillis() {
+    return this.millis;
+  },
+});
 
 describe("canonicalResultFromDocuments", () => {
   it("keeps server deck and card identities with upload provenance", () => {
@@ -67,6 +73,43 @@ describe("canonicalResultFromDocuments", () => {
       seeded: false,
       createdAt: 5,
     });
+  });
+
+  it("reads Firestore Timestamp methods with their receiver intact", () => {
+    const outcome = canonicalResultFromDocuments({
+      uid: "owner-1",
+      uploadId: "upload-1",
+      fileName: "cells.pdf",
+      job: { cardsGenerated: 1 },
+      deckId: "deck-server",
+      deck: {
+        ownerId: "owner-1",
+        courseId: "biology",
+        title: "CELL DIVISION",
+        sourceType: "upload",
+        uploadId: "upload-1",
+        cardCount: 1,
+        createdAt: receiverTimestamp(10),
+        updatedAt: receiverTimestamp(20),
+      },
+      cards: [{
+        id: "card-server",
+        data: {
+          deckId: "deck-server",
+          gameType: "trueFalseDuel",
+          difficulty: 1,
+          payload: { statement: "Cells divide.", isTrue: true },
+        },
+      }],
+      course: {
+        title: "BIOLOGY",
+        gameType: "compassQuiz",
+        seeded: false,
+        createdAt: receiverTimestamp(5),
+      },
+    });
+
+    expect(outcome).toMatchObject({ ok: true });
   });
 
   it("rejects a deck whose upload provenance does not match the job", () => {

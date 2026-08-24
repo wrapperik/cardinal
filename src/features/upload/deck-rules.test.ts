@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { backfillDeck, expandDeck } from "./deck-rules";
+import { backfillDeck, expandDeck, isLocalDeck } from "./deck-rules";
 import { saveDeck } from "./decks";
 import type { LocalDeck } from "./types";
 import { createSyncedStore } from "@/lib/sync/store";
 import type { CardContent } from "@/types/cardinal";
 
 const platform = vi.hoisted(() => {
+  Object.defineProperty(globalThis, "window", { value: {}, configurable: true });
   const values = new Map<string, string>();
   const authListeners: ((user: { uid: string } | null) => void)[] = [];
   return {
@@ -86,6 +87,10 @@ describe("deck local behavior", () => {
     const cardIds = deck.cards.map((card) => card.cardId);
     expect(cardIds).toEqual([expect.stringMatching(/^card-/), expect.stringMatching(/^card-/)]);
     expect(new Set(cardIds).size).toBe(2);
+  });
+
+  it("accepts a deck produced by Gemini", () => {
+    expect(isLocalDeck({ ...validDeck(), provider: "gemini" })).toBe(true);
   });
 });
 

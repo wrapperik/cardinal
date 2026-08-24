@@ -66,7 +66,9 @@ export function isLocalDeck(value: unknown): value is LocalDeck {
     candidate.cards.every(isLocalCard) &&
     typeof candidate.createdAt === "number" &&
     typeof candidate.updatedAt === "number" &&
-    (candidate.provider === "mock" || candidate.provider === "groq") &&
+    (candidate.provider === "mock" ||
+      candidate.provider === "gemini" ||
+      candidate.provider === "groq") &&
     (candidate.sourceType === "manual" || candidate.sourceType === "upload") &&
     (candidate.sourceType === "manual"
       ? candidate.uploadId === null

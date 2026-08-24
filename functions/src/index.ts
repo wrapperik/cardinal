@@ -4,20 +4,25 @@ import { logger } from "firebase-functions";
 import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 
-import { DEFAULT_GROQ_MODEL, safeUploadError } from "./upload/helpers";
-import { defaultBucket, parseProcessingUploadJob, processUploadJob } from "./upload/processor";
+import { DEFAULT_GEMINI_MODEL, safeUploadError } from "./upload/helpers";
+import {
+  defaultBucket,
+  parseProcessingUploadJob,
+  processUploadJob,
+  PROCESS_UPLOAD_TIMEOUT_SECONDS,
+} from "./upload/processor";
 import { refreshUserStats } from "./stats/refresh";
 
 if (getApps().length === 0) initializeApp();
 
-const groqApiKey = defineSecret("GROQ_API_KEY");
-const groqModel = process.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+const geminiModel = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 
 export const processUpload = onDocumentCreated(
   {
     document: "uploads/{uploadId}",
-    secrets: [groqApiKey],
-    timeoutSeconds: 540,
+    secrets: [geminiApiKey],
+    timeoutSeconds: PROCESS_UPLOAD_TIMEOUT_SECONDS,
     memory: "1GiB",
   },
   async (event) => {
@@ -34,8 +39,8 @@ export const processUpload = onDocumentCreated(
       await processUploadJob(snapshot.ref, job, {
         db: getFirestore(),
         bucket: defaultBucket(),
-        apiKey: groqApiKey.value(),
-        model: groqModel,
+        apiKey: geminiApiKey.value(),
+        model: geminiModel,
       });
     } catch (error) {
       logger.error("Upload extraction failed", { uploadId: job.uploadId, error });

@@ -2,7 +2,7 @@
  * The default provider: no key, no network, never fails. It exists so the
  * whole upload flow — pick, extract, review, save — is demoable from a
  * clean checkout, and so the review screen has something real to render
- * until the server-side Groq extraction function is connected.
+ * until the server-side Gemini extraction function is connected.
  */
 
 import { findCourseByTitle } from "@/features/upload/course-rules";

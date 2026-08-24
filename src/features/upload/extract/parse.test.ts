@@ -189,10 +189,10 @@ describe("parseExtractionResponse", () => {
   });
 
   it("carries the provider through onto the result", () => {
-    const outcome = parseExtractionResponse(body([compassCard]), { ...ctx, provider: "groq" });
+    const outcome = parseExtractionResponse(body([compassCard]), { ...ctx, provider: "gemini" });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
-    expect(outcome.result.provider).toBe("groq");
+    expect(outcome.result.provider).toBe("gemini");
   });
 
   it("uppercases and trims a valid topic", () => {

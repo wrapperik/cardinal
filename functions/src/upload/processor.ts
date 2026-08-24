@@ -1,3 +1,4 @@
+import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
 import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 import type { Bucket } from "@google-cloud/storage";
@@ -8,21 +9,40 @@ import { parseExtractionResponse } from "../../../src/features/upload/extract/pa
 import { buildExtractionPrompt } from "../../../src/features/upload/extract/prompt";
 import type { CardContent } from "../../../src/types/cardinal";
 import {
+  buildGeminiRequest,
   buildUploadCardPayload,
   buildUploadDeckPayload,
-  extractGroqCompletion,
+  extractGeminiCompletion,
   isTemplateChoice,
   majorityGameType,
   makeUploadCardId,
   makeUploadDeckId,
-  mapGroqHttpError,
+  mapGeminiHttpError,
+  mergeExtractedCards,
+  splitSourceText,
   normaliseFileType,
   UploadProcessingError,
   type TemplateChoice,
   type UploadFileType,
 } from "./helpers";
 
-const MAX_SOURCE_CHARACTERS = 100_000;
+// Gemini's context window removes Groq's 8000-token request ceiling. Chunks are
+// retained only to keep coverage balanced across long material: each piece is
+// asked for its share of the final deck, then the results are interleaved.
+const MAX_CHUNK_CHARACTERS = 50_000;
+const MAX_SOURCE_CHUNKS = 4;
+const MAX_TOTAL_CHARACTERS = MAX_CHUNK_CHARACTERS * MAX_SOURCE_CHUNKS;
+const RATE_LIMIT_RETRIES = 3;
+const REQUEST_TIMEOUT_MS = 90_000;
+const PROCESSING_SAFETY_MARGIN_MS = 30_000;
+const PERSISTENCE_RESERVE_MS = 10_000;
+export const PROCESS_UPLOAD_TIMEOUT_SECONDS = 540;
+const PROCESSING_BUDGET_MS = PROCESS_UPLOAD_TIMEOUT_SECONDS * 1_000 - PROCESSING_SAFETY_MARGIN_MS;
+
+/** Leaves room for Gemini's thinking tokens and the full structured card set. */
+function outputTokenBudget(cardTarget: number): number {
+  return Math.min(Math.max(cardTarget * 400 + 1_000, 4_000), 12_000);
+}
 const CARD_BATCH_SIZE = 400;
 
 export interface ProcessingUploadJob {
@@ -102,6 +122,10 @@ export async function processUploadJob(
   job: ProcessingUploadJob,
   dependencies: ProcessUploadDependencies,
 ): Promise<void> {
+  // Every chunk shares one deadline. The margin leaves enough time to persist
+  // a completed deck or mark the upload failed before Cloud Functions stops it.
+  const deadlineMs = Date.now() + PROCESSING_BUDGET_MS;
+
   if (!dependencies.apiKey.trim()) {
     throw new UploadProcessingError("THE EXTRACTION SERVICE IS NOT CONFIGURED");
   }
@@ -112,6 +136,23 @@ export async function processUploadJob(
   }
 
   const courses = await listCourses(dependencies.db, job.ownerId);
+  const chunks = splitSourceText(
+    sourceText.slice(0, MAX_TOTAL_CHARACTERS),
+    MAX_CHUNK_CHARACTERS,
+    MAX_SOURCE_CHUNKS,
+  );
+
+  // Reachable when the leading MAX_TOTAL_CHARACTERS are all whitespace even
+  // though the document as a whole is not, which would otherwise divide the
+  // card target by zero and prompt for Infinity cards across no requests.
+  if (chunks.length === 0) {
+    throw new UploadProcessingError("THE FILE DIDN'T CONTAIN ANY READABLE TEXT");
+  }
+
+  // Each chunk is asked for its own share of the target. Asking every chunk for
+  // the full target would return four near-identical opening-topic sets and
+  // waste the token budget the document is already fighting for.
+  const perChunkTarget = Math.max(1, Math.ceil(job.cardTarget / chunks.length));
   const prompt = buildExtractionPrompt({
     file: {
       uri: job.storagePath,
@@ -120,25 +161,73 @@ export async function processUploadJob(
     },
     template: job.template,
     courses,
-    cardTarget: job.cardTarget,
-  });
-  const completion = await requestGroqCompletion({
-    apiKey: dependencies.apiKey,
-    model: dependencies.model,
-    system: prompt.system,
-    user: `${prompt.user}\n\nStudy material:\n${sourceText.slice(0, MAX_SOURCE_CHARACTERS)}`,
-    fetchImpl: dependencies.fetchImpl ?? fetch,
-  });
-  const outcome = parseExtractionResponse(completion, {
-    courses,
-    provider: "groq",
-    template: job.template,
+    cardTarget: perChunkTarget,
   });
 
-  if (!outcome.ok) throw new UploadProcessingError(outcome.message);
+  const groups: CardContent[][] = [];
+  const failures: string[] = [];
+  let suggestion: { title: string; confidence: number } | null = null;
 
-  const cards = outcome.result.cards;
-  const courseId = await resolveCourse(dependencies.db, job, courses, outcome.result.suggestedTitle, cards);
+  for (const [index, chunk] of chunks.entries()) {
+    try {
+      const completion = await requestGeminiCompletion({
+        apiKey: dependencies.apiKey,
+        model: dependencies.model,
+        system: prompt.system,
+        user: `${prompt.user}\n\nStudy material:\n${chunk}`,
+        maxOutputTokens: outputTokenBudget(perChunkTarget),
+        fetchImpl: dependencies.fetchImpl ?? fetch,
+        deadlineMs,
+      });
+      const outcome = parseExtractionResponse(completion, {
+        courses,
+        provider: "gemini",
+        template: job.template,
+      });
+
+      if (!outcome.ok) {
+        failures.push(outcome.message);
+        continue;
+      }
+
+      groups.push(outcome.result.cards);
+      // The course is a property of the document, not of the chunk, so the
+      // chunk that was surest about it wins rather than simply the last one.
+      if (!suggestion || outcome.result.confidence > suggestion.confidence) {
+        suggestion = { title: outcome.result.suggestedTitle, confidence: outcome.result.confidence };
+      }
+    } catch (error) {
+      // One chunk failing is survivable — a deck built from the rest still
+      // beats discarding the document — but a non-extraction fault is not ours
+      // to swallow, so only the pipeline's own error type is caught here.
+      if (!(error instanceof UploadProcessingError)) throw error;
+      logger.warn("Skipping a chunk that failed to extract", {
+        uploadId: job.uploadId,
+        chunk: index + 1,
+        of: chunks.length,
+        reason: error.message,
+      });
+      failures.push(error.message);
+    }
+  }
+
+  if (groups.length === 0) {
+    throw new UploadProcessingError(failures[0] ?? "NO USABLE CARDS CAME BACK — TRY A DIFFERENT FILE");
+  }
+  if (failures.length > 0) {
+    logger.warn("Built a deck from a partial extraction", {
+      uploadId: job.uploadId,
+      succeeded: groups.length,
+      failed: failures.length,
+    });
+  }
+
+  const cards = mergeExtractedCards(groups, job.cardTarget);
+  const suggestedTitle = suggestion?.title ?? "NEW MATERIAL";
+  // Do not begin a multi-document Firestore write unless there is still time
+  // to finish it, plus the outer safety margin for the terminal status update.
+  ensurePersistenceBudget(deadlineMs);
+  const courseId = await resolveCourse(dependencies.db, job, courses, suggestedTitle, cards);
   const deckId = makeUploadDeckId(job.uploadId);
   const deckRef = dependencies.db.collection("decks").doc(deckId);
   const deckTimestamp = FieldValue.serverTimestamp();
@@ -150,7 +239,7 @@ export async function processUploadJob(
       deckId,
       ownerId: job.ownerId,
       courseId,
-      title: outcome.result.suggestedTitle,
+      title: suggestedTitle,
       uploadId: job.uploadId,
       cards,
       timestamp: deckTimestamp,
@@ -258,43 +347,106 @@ async function writeCards(db: Firestore, deckId: string, uploadId: string, cards
   }
 }
 
-async function requestGroqCompletion(input: {
+export async function requestGeminiCompletion(input: {
   apiKey: string;
   model: string;
   system: string;
   user: string;
+  maxOutputTokens: number;
   fetchImpl: typeof fetch;
+  deadlineMs: number;
 }): Promise<string> {
-  let response: Response;
-  try {
-    response = await input.fetchImpl("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+  const request = buildGeminiRequest({
+    apiKey: input.apiKey,
+    model: input.model,
+    system: input.system,
+    user: input.user,
+    maxOutputTokens: input.maxOutputTokens,
+  });
+
+  // Free-tier quotas can briefly reject otherwise valid calls. Respect the
+  // provider's retry delay while staying inside the whole job's deadline.
+  for (let attempt = 0; ; attempt += 1) {
+    const remainingMs = input.deadlineMs - Date.now();
+    if (remainingMs <= 0) {
+      throw new UploadProcessingError("THE EXTRACTION SERVICE IS BUSY — TRY AGAIN SOON");
+    }
+
+    const abortController = new AbortController();
+    const requestTimeout = setTimeout(
+      () => abortController.abort(),
+      Math.min(REQUEST_TIMEOUT_MS, remainingMs),
+    );
+    let response: Response;
+    try {
+      response = await input.fetchImpl(request.url, {
+        ...request.init,
+        signal: abortController.signal,
+      });
+
+      if (response.ok) {
+        let responseBody: unknown;
+        try {
+          // Keep the abort timer alive until the streamed body is fully read.
+          responseBody = await response.json();
+        } catch {
+          if (abortController.signal.aborted) {
+            const message = Date.now() >= input.deadlineMs
+              ? "THE EXTRACTION SERVICE IS BUSY — TRY AGAIN SOON"
+              : "THE EXTRACTION SERVICE COULDN'T BE REACHED";
+            throw new UploadProcessingError(message);
+          }
+          throw new UploadProcessingError("THE EXTRACTION SERVICE RETURNED AN INVALID RESPONSE");
+        }
+        return extractGeminiCompletion(responseBody);
+      }
+    } catch (error) {
+      if (error instanceof UploadProcessingError) throw error;
+      if (Date.now() >= input.deadlineMs) {
+        throw new UploadProcessingError("THE EXTRACTION SERVICE IS BUSY — TRY AGAIN SOON");
+      }
+      throw new UploadProcessingError("THE EXTRACTION SERVICE COULDN'T BE REACHED");
+    } finally {
+      clearTimeout(requestTimeout);
+    }
+
+    const retryable = response.status === 429 || response.status === 408 || response.status >= 500;
+    if (!retryable || attempt >= RATE_LIMIT_RETRIES) {
+      logger.error("Gemini rejected the extraction request", {
+        status: response.status,
         model: input.model,
-        messages: [
-          { role: "system", content: input.system },
-          { role: "user", content: input.user },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-        max_completion_tokens: 6000,
-      }),
+        attempts: attempt + 1,
+      });
+      throw new UploadProcessingError(mapGeminiHttpError(response.status));
+    }
+
+    const waitSeconds = retryAfterSeconds(response.headers.get("retry-after"), attempt);
+    if (waitSeconds * 1_000 >= input.deadlineMs - Date.now()) {
+      logger.warn("Gemini retry skipped because the upload deadline is near", {
+        status: response.status,
+        attempt: attempt + 1,
+      });
+      throw new UploadProcessingError("THE EXTRACTION SERVICE IS BUSY — TRY AGAIN SOON");
+    }
+    logger.warn("Gemini rate limited the extraction request; waiting", {
+      status: response.status,
+      attempt: attempt + 1,
+      waitSeconds,
     });
-  } catch {
-    throw new UploadProcessingError("THE EXTRACTION SERVICE COULDN'T BE REACHED");
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
   }
+}
 
-  if (!response.ok) throw new UploadProcessingError(mapGroqHttpError(response.status));
+/** Provider retry hints win; the doubling fallback covers 5xx and 408. */
+function retryAfterSeconds(header: string | null, attempt: number): number {
+  const advertised = header === null ? Number.NaN : Number.parseFloat(header);
+  const seconds = Number.isFinite(advertised) ? advertised : 2 ** attempt * 5;
+  return Math.min(Math.max(seconds, 1), 60) + 1;
+}
 
-  try {
-    return extractGroqCompletion(await response.json());
-  } catch (error) {
-    if (error instanceof UploadProcessingError) throw error;
-    throw new UploadProcessingError("THE EXTRACTION SERVICE RETURNED AN INVALID RESPONSE");
+function ensurePersistenceBudget(deadlineMs: number): void {
+  if (deadlineMs - Date.now() < PERSISTENCE_RESERVE_MS) {
+    throw new UploadProcessingError("THE EXTRACTION SERVICE IS BUSY — TRY AGAIN SOON");
   }
 }
 

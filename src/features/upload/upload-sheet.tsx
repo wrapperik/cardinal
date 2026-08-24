@@ -259,7 +259,7 @@ export const UploadSheet = forwardRef<UploadSheetHandle, object>(function Upload
   function handleSave() {
     if (!state.result) return;
 
-    if (state.result.provider === 'groq') {
+    if (state.result.provider === 'gemini') {
       const { canonicalDeck, canonicalCourse } = state.result;
       if (!canonicalDeck || !canonicalCourse) {
         dispatch({ type: 'extractFailed', message: "THE CLOUD DECK WASN'T READY" });
@@ -508,7 +508,7 @@ function ReviewStage({
   onDiscard: () => void;
 }) {
   const breakdown = countByTemplate(result.cards);
-  const isCanonical = result.provider === 'groq' && !!result.canonicalDeck;
+  const isCanonical = result.provider === 'gemini' && !!result.canonicalDeck;
   // Falls back to the model's own suggestion so the picker shows a filled
   // row even before the user has touched it — "preselected", not "empty".
   const chosenId = isCanonical ? result.canonicalDeck!.courseId : destinationId ?? result.suggestedCourseId;
