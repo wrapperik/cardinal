@@ -480,9 +480,11 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   // signed-out-then-signed-in flicker, and until it fires the seeds/empty
   // fallback below is the same "no loading state" behaviour every other
   // store already relies on.
-  onAuthStateChanged(auth, (user) => {
-    void hydrate(user?.uid ?? null);
-  });
+  if (typeof window !== "undefined") {
+    onAuthStateChanged(auth, (user) => {
+      void hydrate(user?.uid ?? null);
+    });
+  }
 
   function put(record: T) {
     const now = Date.now();

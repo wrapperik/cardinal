@@ -36,8 +36,11 @@ type CardinalGlobal = typeof globalThis & {
   __cardinalEmulatorsConnected?: boolean;
 };
 const cardinalGlobal = globalThis as CardinalGlobal;
+const useFirebaseEmulator = ["1", "true"].includes(
+  process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR?.toLowerCase() ?? "",
+);
 
-if (process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR && !cardinalGlobal.__cardinalEmulatorsConnected) {
+if (useFirebaseEmulator && !cardinalGlobal.__cardinalEmulatorsConnected) {
   const host = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || 'localhost';
   try {
     connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });

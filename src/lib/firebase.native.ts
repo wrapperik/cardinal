@@ -48,8 +48,11 @@ type CardinalGlobal = typeof globalThis & {
   __cardinalEmulatorsConnected?: boolean;
 };
 const cardinalGlobal = globalThis as CardinalGlobal;
+const useFirebaseEmulator = ["1", "true"].includes(
+  process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR?.toLowerCase() ?? "",
+);
 
-if (process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR && !cardinalGlobal.__cardinalEmulatorsConnected) {
+if (useFirebaseEmulator && !cardinalGlobal.__cardinalEmulatorsConnected) {
   // The Android emulator's `localhost` is its own loopback, not the host
   // machine running the Firebase emulators, so it needs the documented
   // alias instead. iOS simulators and physical devices sharing the Mac's
