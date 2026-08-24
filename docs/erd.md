@@ -211,7 +211,7 @@ collection changes. The client only listens to the summary document.
 | USERS | Created by the email/password sign-up flow; email/password is the only implemented sign-in method. |
 | COURSES | Local-first seeded and user-created records, reconciled with `users/{uid}/courses`. |
 | DECKS, CARDS | Local-first records; a deck write synchronizes its root document, then its card subcollection. |
-| UPLOADS | With Groq extraction enabled, the client creates the processing job and Storage object; the `processUpload` Function creates the course/deck/cards and finishes or fails the job. |
+| UPLOADS | With Gemini extraction enabled, the client creates the processing job and Storage object; the `processUpload` Function creates the course/deck/cards and finishes or fails the job. |
 | PROGRESS | The app records SM-2 state locally on each answer, then synchronizes `users/{uid}/progress/{cardId}`. |
 | SESSIONS | Local-first session tally, synchronized under the current user. |
 | CHECKPOINTS | Local-first recap resume position, synchronized per user and course. |

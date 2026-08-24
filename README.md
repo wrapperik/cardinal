@@ -39,7 +39,7 @@ down again without the session ever feeling like a chore.
 - [Home and navigation](#home-and-navigation)
 - [The four game templates](#the-four-game-templates)
 - [The upload flow](#the-upload-flow)
-- [AI extraction with Groq](#ai-extraction-with-groq)
+- [AI extraction with Gemini](#ai-extraction-with-gemini)
 - [Firestore schema](#firestore-schema)
 - [Authentication](#authentication)
 - [Accessibility](#accessibility)
@@ -72,9 +72,9 @@ screen, the upload flow and all four game templates are built and wired together
 
 **What is not built yet**
 
-- The Groq Cloud Function. Extraction currently runs through a bundled demo provider
-  so the flow is complete from a clean checkout. See
-  [AI extraction with Groq](#ai-extraction-with-groq).
+- Gemini extraction requires a deployed Cloud Function and its server-side API key.
+  Without those, the upload flow falls back to the bundled demo provider. See
+  [AI extraction with Gemini](#ai-extraction-with-gemini).
 - SM-2 spaced repetition. The document shape is declared in
   [`src/types/cardinal.ts`](src/types/cardinal.ts), but nothing schedules against it
   yet.
@@ -99,8 +99,8 @@ screen, the upload flow and all four game templates are built and wired together
 | Auth | **Firebase Authentication** | Email and password, with sessions that persist |
 | Database | **Cloud Firestore** | User documents today, decks, cards and progress next |
 | File storage | **Firebase Storage** | Uploaded PDF and text source files |
-| Server logic | **Firebase Cloud Functions** | Holds the Groq key, runs extraction, and will validate SM-2 scheduling server side |
-| AI extraction | **Groq API** | Fast inference with strict JSON output, called only from a Cloud Function |
+| Server logic | **Firebase Cloud Functions** | Holds the Gemini key, runs extraction, and validates server-owned results |
+| AI extraction | **Gemini API** | Structured JSON extraction, called only from a Cloud Function |
 | Feedback | **expo-haptics** | Haptic confirmation on every commit |
 | Uploads | **expo-document-picker**, **expo-file-system** | Bring your own study material |
 | Local state | **AsyncStorage** | Courses, decks and the onboarding flag |
@@ -505,15 +505,16 @@ game playable on a fresh install.
 
 ---
 
-## AI extraction with Groq
+## AI extraction with Gemini
 
-Uploaded material is turned into structured cards by the **Groq API**, called from a
-**Firebase Cloud Function**. The model tags each card with the game template it suits.
+Uploaded material is turned into structured cards by the **Gemini API**, called from a
+**Firebase Cloud Function**. The default model is `gemini-3.5-flash`; the model tags
+each card with the game template it suits.
 
 ### Why the key lives on the server
 
 Anything prefixed `EXPO_PUBLIC_` is inlined into the JS bundle, and a bundle is not a
-secret store. `GROQ_API_KEY` is therefore held as a Cloud Functions secret and never
+secret store. `GEMINI_API_KEY` is therefore held as a Cloud Functions secret and never
 reaches the client. The client's only job is to call an authenticated function and
 validate what comes back.
 
@@ -524,32 +525,33 @@ validate what comes back.
 `isConfigured()` check and an `extract()` call. The UI knows nothing about where card
 generation runs.
 
-Today [`extract/index.ts`](src/features/upload/extract/index.ts) returns the demo
-provider, which produces cards from the shipped fixtures on a simulated delay. It
-exists so the whole flow is demoable from a clean checkout, and it never fails.
-`ExtractionProviderId` already includes `'groq'`, so connecting the real one is an
-additive change.
+[`extract/index.ts`](src/features/upload/extract/index.ts) selects the Gemini job
+provider when Firebase, authentication and `EXPO_PUBLIC_ENABLE_GEMINI_EXTRACTION=1`
+are available. Otherwise it returns the demo provider, so a clean checkout remains
+usable without a cloud key.
 
-### Connecting the real pipeline
+### Configuration and deployment
 
-1. Create an API key at [console.groq.com](https://console.groq.com).
-2. Initialise functions in the project and store the key as a secret:
+1. Create a Gemini API key in [Google AI Studio](https://aistudio.google.com/app/apikey).
+2. Store it in Firebase Secret Manager from the repository root:
 
    ```bash
-   firebase functions:secrets:set GROQ_API_KEY
+   npx firebase-tools functions:secrets:set GEMINI_API_KEY
    ```
 
-3. Write a callable function that verifies the caller's ID token, reads the source
-   file, extracts its text (Groq's chat endpoint takes text, not PDFs, so a PDF must
-   be converted server side), sends the prompt to a JSON-capable model such as
-   `llama-3.3-70b-versatile`, and returns the raw completion. Requesting a JSON
-   response format where the model supports it removes most of the prose the parser
-   would otherwise have to strip.
-4. Add `src/features/upload/extract/groq.ts` implementing `ExtractionProvider`. It
-   calls the function, then hands the response body to `parseExtractionResponse` with
-   `provider: 'groq'`.
-5. Return it from `activeProvider()` when it reports itself configured, falling back
-   to the demo provider otherwise.
+3. Set `EXPO_PUBLIC_ENABLE_GEMINI_EXTRACTION=1` in the app's untracked `.env` file.
+4. Deploy the Function:
+
+   ```bash
+   npx firebase-tools deploy --only functions:processUpload
+   ```
+
+The client uploads the source file to Storage and creates a processing job. The
+Function extracts PDF or text content, splits long material into bounded chunks,
+requests Gemini structured JSON, validates every card, writes the canonical course,
+deck and cards, then marks the job complete. Override the default model with
+`GEMINI_MODEL` in the Function environment only when intentionally testing another
+compatible model.
 
 ### The prompt
 
@@ -764,7 +766,7 @@ client-side.
 
 ### Next up
 
-The Groq Cloud Function, Firestore sync for decks and progress, SM-2 scheduling, the
+Firestore sync for decks and progress, SM-2 scheduling, the
 session summary and streak screens, and the accessibility overlay.
 
 ### Beyond the MVP
