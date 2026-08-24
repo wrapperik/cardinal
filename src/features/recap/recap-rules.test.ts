@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   advanceRecap,
   buildRecapPlan,
+  decodeCheckpointRecords,
+  isCheckpoint,
   isRecapComplete,
   legAt,
   resumeIndex,
@@ -55,14 +57,15 @@ function tagOf(c: CardContent): string {
   }
 }
 
-function deck(courseId: string, cards: CardContent[], id = `deck-${courseId}-${cards.length}-${Math.random()}`): LocalDeck {
+function deck(courseId: string, cards: CardContent[], id = `deck-${courseId}-${cards.length}`): LocalDeck {
   return {
     id,
     courseId,
     title: "TITLE",
     sourceName: "file.pdf",
-    cards,
+    cards: cards.map((card, index) => ({ ...card, cardId: `${id}-card-${index}` })),
     createdAt: 0,
+    updatedAt: 0,
     provider: "mock",
   };
 }
@@ -433,6 +436,34 @@ describe("sanitiseCheckpoints", () => {
       art: { index: 1, total: 3, updatedAt: Number.NaN },
     };
     expect(sanitiseCheckpoints(raw)).toEqual({});
+  });
+
+  it("drops positions outside a non-empty queue", () => {
+    const raw = {
+      negativeIndex: { index: -1, total: 3, updatedAt: 100 },
+      emptyQueue: { index: 0, total: 0, updatedAt: 100 },
+      terminalIndex: { index: 3, total: 3, updatedAt: 100 },
+      valid: { index: 2, total: 3, updatedAt: 100 },
+    };
+
+    expect(sanitiseCheckpoints(raw)).toEqual({
+      valid: { index: 2, total: 3, updatedAt: 100 },
+    });
+    expect(isCheckpoint(raw.valid)).toBe(true);
+  });
+});
+
+describe("decodeCheckpointRecords", () => {
+  it("converts a legacy checkpoint map into valid id-bearing records", () => {
+    expect(
+      decodeCheckpointRecords({
+        geography: { index: 1, total: 3, updatedAt: 100 },
+        history: { index: 3, total: 3, updatedAt: 100 },
+        art: { index: 1, total: "3", updatedAt: 100 },
+      }),
+    ).toEqual([
+      { id: "geography", index: 1, total: 3, updatedAt: 100 },
+    ]);
   });
 });
 

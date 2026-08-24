@@ -9,7 +9,7 @@
  * Sidecar metadata for one local record, persisted under its own AsyncStorage
  * key rather than folded into the record itself. Keeping it separate means a
  * store's local record type never has to grow an `updatedAt` field just to
- * support sync — which is what lets Chunk 2 swap `createSyncedStore` in for
+ * support sync — which is what lets a store swap `createSyncedStore` in for
  * an existing module-level store without touching that store's type, without
  * migrating whatever an already-installed app already has in AsyncStorage,
  * and without disturbing the seed-id stability every existing store relies
@@ -62,6 +62,16 @@ interface OutboxOpBase {
   /** Epoch millis. The drain loop leaves this op alone until now is past it. */
   nextAttemptAt: number;
   createdAt: number;
+  /**
+   * The op this one cannot outlive, e.g. a card's write pointing at the
+   * opId of the deck it belongs to. Undefined for anything that stands on
+   * its own. Firestore rejects a card write until its parent deck exists
+   * (see the ordering note on SyncedStoreConfig's `expand` in store.ts), so
+   * a deck op that fails terminally means every queued op naming it as
+   * parent can never succeed either — see `dropChildrenOf` in outbox.ts,
+   * which is what actually acts on this field.
+   */
+  parentOpId?: string;
 }
 
 /**
@@ -84,3 +94,26 @@ export type OutboxOp =
   | (OutboxOpBase & { kind: "delete"; payload: null });
 
 export type FailureClass = "retryable" | "terminal";
+
+/**
+ * One write a `SyncedStoreConfig.expand` hook wants sent, before store.ts
+ * has turned it into a real queued OutboxOp (assigned an opId, a
+ * createdAt/nextAttemptAt, and — for every entry after the first — a
+ * parentOpId pointing at the first one). Deliberately not just an
+ * `OutboxOp` itself: those bookkeeping fields are store.ts's to assign
+ * once, consistently, for every op it enqueues, whether it came from
+ * `expand` or the single-write default path.
+ */
+export interface ExpandedOp {
+  collection: string;
+  docId: string;
+  /**
+   * "delete" is deliberately not part of this union — every store that
+   * needs one already has it via SyncedStore.remove(), which enqueues a
+   * single op directly rather than going through expand(). Restricting the
+   * union to the two kinds that always carry a real payload is also what
+   * lets `payload` below be typed as always-present rather than nullable.
+   */
+  kind: "set" | "update";
+  payload: Record<string, unknown>;
+}

@@ -63,15 +63,15 @@ export function recordAnswer(tally: SessionTally, result: AnswerResult, gameType
 const VALID_GAME_TYPES = new Set<GameType>(GAME_TYPE_ORDER);
 
 /**
- * Mirrors `SessionDoc` in @/types/cardinal.ts, with two deliberate
- * differences: it keys on `courseId` rather than `deckId`, because a recap
- * spans every deck filed under a course rather than one deck's cards; and it
- * uses epoch millis rather than `Timestamp`, exactly as `LocalDeck` mirrors
- * `DeckDoc`.
+ * Mirrors `SessionDoc` in @/types/cardinal.ts, with one deliberate
+ * difference: it uses epoch millis rather than `Timestamp`, exactly as
+ * `LocalDeck` mirrors `DeckDoc`.
  */
 export interface LocalSession {
   id: string;
   courseId: string;
+  /** Null when the session spans a course rather than one deck. */
+  deckId: string | null;
   startedAt: number;
   /** Null while the session is still open. */
   endedAt: number | null;
@@ -88,6 +88,7 @@ export function isSession(value: unknown): value is LocalSession {
   return (
     typeof candidate.id === "string" &&
     typeof candidate.courseId === "string" &&
+    (candidate.deckId === null || typeof candidate.deckId === "string") &&
     Number.isFinite(candidate.startedAt) &&
     (candidate.endedAt === null || Number.isFinite(candidate.endedAt)) &&
     // Counters are integers, not merely numbers: they are summed and divided
@@ -102,9 +103,25 @@ export function isSession(value: unknown): value is LocalSession {
   );
 }
 
+/**
+ * Adds the nullable deck field to sessions written before sessions began
+ * recording their scope. Kept separate from validation so createSyncedStore
+ * can persist the correction during hydration before `isSession` filters it.
+ */
+export function backfillSession(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const candidate = value as Record<string, unknown>;
+  return "deckId" in candidate ? candidate : { ...candidate, deckId: null };
+}
+
+/** A finished session supersedes the otherwise immutable time it opened. */
+export function sessionRemoteRevision(session: LocalSession): number {
+  return session.endedAt ?? session.startedAt;
+}
+
 /** Validates hydrated session data, dropping anything malformed, in the style of `mergeCourses`'s use of `isCourse`. */
 export function sanitiseSessions(value: unknown): LocalSession[] {
-  return Array.isArray(value) ? value.filter(isSession) : [];
+  return Array.isArray(value) ? value.map(backfillSession).filter(isSession) : [];
 }
 
 export interface CourseSummary {

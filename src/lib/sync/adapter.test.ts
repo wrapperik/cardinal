@@ -70,6 +70,26 @@ describe("toFirestorePayload", () => {
     const payload = toFirestorePayload(fixture({ endedAt: null }), "update", "owner-1", rootConfig);
     expect(payload.endedAt).toBeNull();
   });
+
+  it("drops every field named in omitFields from the payload", () => {
+    interface WithLocalOnly extends Fixture {
+      cards: string[];
+      sourceName: string;
+    }
+    const config: FieldAdapterConfig = { ...rootConfig, omitFields: ["cards", "sourceName"] };
+    const record: WithLocalOnly = { ...fixture(), cards: ["a", "b"], sourceName: "notes.pdf" };
+    const payload = toFirestorePayload(record, "set", "owner-1", config);
+    expect("cards" in payload).toBe(false);
+    expect("sourceName" in payload).toBe(false);
+    // Everything else still goes through untouched.
+    expect(payload.title).toBe("GEOGRAPHY");
+  });
+
+  it("omits a field even when it was also id/ownerId/timestamp-mapped, for a config that (nonsensically) lists it in both", () => {
+    const config: FieldAdapterConfig = { ...rootConfig, omitFields: ["updatedAt"] };
+    const payload = toFirestorePayload(fixture(), "set", "owner-1", config);
+    expect("updatedAt" in payload).toBe(false);
+  });
 });
 
 describe("fromFirestorePayload", () => {

@@ -36,6 +36,20 @@ describe("reconcile", () => {
     expect(result.toUpload).toEqual([local]);
   });
 
+  it("does not re-queue an already remote-confirmed record just because this snapshot can't see it", () => {
+    // Stands in for a store whose local type carries fields the remote
+    // document never had (a deck's `cards`), which makes isValid reject the
+    // remote reconstruction on every single snapshot — so remoteRecords is
+    // permanently empty for it, even for a deck this app already wrote.
+    // Without the remoteConfirmed check this would toUpload the SAME record
+    // again, whose resend produces a new snapshot that lands right back
+    // here — an unbounded resend loop, not a one-off.
+    const local: Fixture = { id: "deck-1", title: "DECK" };
+    const result = reconcile<Fixture>([local], { "deck-1": meta(100, { remoteConfirmed: true }) }, []);
+    expect(result.toUpload).toEqual([]);
+    expect(result.records).toEqual([local]);
+  });
+
   it("prefers the remote record when it is newer than the local one", () => {
     const local: Fixture = { id: "geography", title: "OLD TITLE" };
     const result = reconcile<Fixture>([local], { geography: meta(100) }, [

@@ -7,6 +7,7 @@
  *   users/{userId}/preferences/settings
  *   users/{userId}/progress/{cardId}
  *   users/{userId}/sessions/{sessionId}
+ *   users/{userId}/checkpoints/{courseId}
  *   users/{userId}/courses/{courseId}
  *   decks/{deckId}
  *   decks/{deckId}/cards/{cardId}
@@ -101,7 +102,9 @@ export interface ProgressDoc {
 
 export interface SessionDoc {
   sessionId: string;
-  deckId: string;
+  courseId: string;
+  /** Null when the session spans a course rather than one deck. */
+  deckId: string | null;
   startedAt: Timestamp;
   /** Null while the session is still open. */
   endedAt: Timestamp | null;
@@ -110,6 +113,14 @@ export interface SessionDoc {
   passedCount: number;
   bestStreakInSession: number;
   gameTypesPlayed: GameType[];
+}
+
+/** Resume position for one course's generated recap queue. */
+export interface CheckpointDoc {
+  courseId: string;
+  index: number;
+  total: number;
+  updatedAt: Timestamp;
 }
 
 /* -------------------------------------------------------------------------- */

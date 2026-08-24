@@ -92,6 +92,24 @@ export function replaceOp(queue: OutboxOp[], next: OutboxOp): OutboxOp[] {
 }
 
 /**
+ * Drops every op whose `parentOpId` names the given id — called once a
+ * parent op (a deck's own write) has been dropped as terminal, since a
+ * card write can never succeed against a deck that will now never exist
+ * (see the ordering note on SyncedStoreConfig's `expand` in store.ts).
+ * Retrying those child ops forever would otherwise wedge every later op
+ * behind a deck that is never coming, which is strictly worse than losing
+ * the deck's own write already was.
+ *
+ * One pass, not a recursive sweep: nothing in this codebase enqueues an op
+ * whose parent is itself a child — a card has no children of its own — so
+ * a single filter already catches everything a terminal deck failure needs
+ * to take down with it.
+ */
+export function dropChildrenOf(queue: OutboxOp[], parentOpId: string): OutboxOp[] {
+  return queue.filter((op) => op.parentOpId !== parentOpId);
+}
+
+/**
  * The op strict FIFO drain should attempt next: the queue head, but only
  * once its backoff has elapsed. Returning null rather than skipping ahead to
  * a later, currently-due op is what keeps drain order strict FIFO — a
@@ -114,10 +132,24 @@ export function nextToDrain(queue: OutboxOp[], now: number): OutboxOp | null {
  * code defaults to retryable rather than terminal: dropping an op silently
  * loses a write the user believes is saved, while a wrong "keep retrying"
  * only costs some backoff cycles before someone notices.
+ *
+ * `unauthenticated` is deliberately not in this set, even though it sounds
+ * like a rules rejection. `permission-denied` and friends are terminal
+ * because the *payload* is what is wrong, so resending it changes nothing.
+ * `unauthenticated` says the *caller* is wrong — an ID token that expired
+ * mid-flight, or a request that raced a token refresh — and the Firebase
+ * Auth SDK refreshes tokens on its own well before they expire, so the
+ * caller is very likely to be valid again by the time backoff schedules a
+ * retry. Treating it as terminal would drop the op the moment that happens
+ * and could never recover it: the queue itself is namespaced per uid (see
+ * keys.ts), so nothing re-enqueues a dropped op just because the user signs
+ * back in. A user who is well and truly signed out for good has already
+ * lost the write for a different reason — drain() only runs while `uid` is
+ * set — so misclassifying this code costs nothing in that case and saves a
+ * queued course, deck, or session in every other one.
  */
 const TERMINAL_CODES = new Set([
   "permission-denied",
-  "unauthenticated",
   "invalid-argument",
   "failed-precondition",
   "not-found",

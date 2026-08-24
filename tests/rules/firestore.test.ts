@@ -20,15 +20,39 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// courses.ts creates its app store at import time. The rules suite only needs
+// its exported adapter config, so keep auth/cache startup out of this emulator
+// boundary test while leaving the Firebase Firestore client itself real.
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: { getItem: vi.fn(), setItem: vi.fn() },
+}));
+vi.mock('firebase/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('firebase/auth')>()),
+  onAuthStateChanged: vi.fn(() => vi.fn()),
+}));
+vi.mock('@/lib/firebase', () => ({ auth: {}, db: {} }));
+
+import { toFirestorePayload } from '../../src/lib/sync/adapter';
+import { reconcile } from '../../src/lib/sync/merge';
+import { SERVER_TIMESTAMP } from '../../src/lib/sync/types';
+import { seedCourses } from '../../src/features/upload/course-rules';
+import { COURSE_FIELD } from '../../src/features/upload/courses';
+import { CARD_FIELD, DECK_FIELD, expandDeck } from '../../src/features/upload/deck-rules';
+import { CHECKPOINT_FIELD } from '../../src/features/recap/checkpoints';
+import type { Course } from '../../src/features/upload/types';
+import type { LocalDeck } from '../../src/features/upload/types';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -86,7 +110,8 @@ function validProgress(cardId: string) {
 function validSession(sessionId: string) {
   return {
     sessionId,
-    deckId: 'deck-1',
+    courseId: 'course-geography',
+    deckId: null,
     startedAt: serverTimestamp(),
     endedAt: null,
     correctCount: 0,
@@ -94,6 +119,15 @@ function validSession(sessionId: string) {
     passedCount: 0,
     bestStreakInSession: 0,
     gameTypesPlayed: [],
+  };
+}
+
+function validCheckpoint(courseId: string) {
+  return {
+    courseId,
+    index: 1,
+    total: 3,
+    updatedAt: serverTimestamp(),
   };
 }
 
@@ -135,6 +169,45 @@ function validCard(cardId: string, deckId: string) {
     },
     createdAt: serverTimestamp(),
   };
+}
+
+function deckForSyncProof(): LocalDeck {
+  return {
+    id: 'deck-sync-proof',
+    courseId: 'course-biology',
+    title: 'Cell division',
+    sourceName: 'cell-division.pdf',
+    cards: [
+      {
+        cardId: 'card-sync-1',
+        gameType: 'compassQuiz',
+        difficulty: 2,
+        payload: {
+          question: 'Which phase splits the centromeres?',
+          choices: ['Anaphase', 'Prophase', 'Telophase'],
+          correctIndex: 0,
+        },
+      },
+      {
+        cardId: 'card-sync-2',
+        gameType: 'trueFalseDuel',
+        difficulty: 1,
+        payload: { statement: 'Cells divide.', isTrue: true },
+      },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+    provider: 'mock',
+  };
+}
+
+/** Converts the sync layer's pure marker into the SDK value at its write boundary. */
+function materialize(payload: Record<string, unknown>): Record<string, unknown> {
+  const materialized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    materialized[key] = value === SERVER_TIMESTAMP ? serverTimestamp() : value;
+  }
+  return materialized;
 }
 
 function validUpload(uploadId: string, ownerId: string) {
@@ -334,6 +407,23 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
       );
     });
 
+    it('permits an optional string deckId when opening a session', async () => {
+      await assertSucceeds(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'sessions', 'session-1'), {
+          ...validSession('session-1'),
+          deckId: 'deck-1',
+        }),
+      );
+    });
+
+    it('requires a string courseId when opening a session', async () => {
+      const { courseId: _courseId, ...withoutCourseId } = validSession('session-1');
+
+      await assertFails(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'sessions', 'session-1'), withoutCourseId),
+      );
+    });
+
     it('rejects a session that opens already scored', async () => {
       await assertFails(
         setDoc(doc(as(ALICE), 'users', ALICE, 'sessions', 'session-1'), {
@@ -352,6 +442,22 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
       await assertFails(updateDoc(ref, { correctCount: 1 }));
     });
 
+    it('keeps courseId immutable after opening', async () => {
+      const db = as(ALICE);
+      const ref = doc(db, 'users', ALICE, 'sessions', 'session-1');
+      await setDoc(ref, validSession('session-1'));
+
+      await assertFails(updateDoc(ref, { courseId: 'course-history' }));
+    });
+
+    it('keeps deckId immutable after opening', async () => {
+      const db = as(ALICE);
+      const ref = doc(db, 'users', ALICE, 'sessions', 'session-1');
+      await setDoc(ref, validSession('session-1'));
+
+      await assertFails(updateDoc(ref, { deckId: 'deck-1' }));
+    });
+
     it('refuses to reopen a closed session', async () => {
       const db = as(ALICE);
       const ref = doc(db, 'users', ALICE, 'sessions', 'session-1');
@@ -359,6 +465,80 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
       await assertSucceeds(updateDoc(ref, { endedAt: serverTimestamp() }));
 
       await assertFails(updateDoc(ref, { correctCount: 10 }));
+    });
+  });
+
+  describe('checkpoints', () => {
+    it('creates and reads a valid checkpoint for its path owner', async () => {
+      const db = as(ALICE);
+      const ref = doc(db, 'users', ALICE, 'checkpoints', 'course-geography');
+      await assertSucceeds(setDoc(ref, validCheckpoint('course-geography')));
+      await assertSucceeds(getDoc(ref));
+    });
+
+    it("denies another user reading or writing a user's checkpoint", async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), 'users', ALICE, 'checkpoints', 'course-geography'),
+          validCheckpoint('course-geography'),
+        );
+      });
+      const ref = doc(as(BOB), 'users', ALICE, 'checkpoints', 'course-geography');
+      await assertFails(getDoc(ref));
+      await assertFails(setDoc(ref, validCheckpoint('course-geography')));
+    });
+
+    it('requires courseId to match the checkpoint document id', async () => {
+      await assertFails(
+        setDoc(
+          doc(as(ALICE), 'users', ALICE, 'checkpoints', 'course-geography'),
+          validCheckpoint('course-history'),
+        ),
+      );
+    });
+
+    it('rejects a checkpoint outside its non-empty integer bounds', async () => {
+      const ref = doc(as(ALICE), 'users', ALICE, 'checkpoints', 'course-geography');
+      await assertFails(setDoc(ref, { ...validCheckpoint('course-geography'), index: -1 }));
+      await assertFails(setDoc(ref, { ...validCheckpoint('course-geography'), total: 0, index: 0 }));
+      await assertFails(setDoc(ref, { ...validCheckpoint('course-geography'), index: 3 }));
+      await assertFails(setDoc(ref, { ...validCheckpoint('course-geography'), index: 1.5 }));
+    });
+
+    it('requires a server timestamp on creation and every update', async () => {
+      const db = as(ALICE);
+      const ref = doc(db, 'users', ALICE, 'checkpoints', 'course-geography');
+      await assertFails(
+        setDoc(ref, {
+          ...validCheckpoint('course-geography'),
+          updatedAt: new Date('2026-08-24T00:00:00.000Z'),
+        }),
+      );
+      await assertSucceeds(setDoc(ref, validCheckpoint('course-geography')));
+      await assertFails(updateDoc(ref, { index: 2 }));
+      await assertSucceeds(updateDoc(ref, { index: 2, updatedAt: serverTimestamp() }));
+    });
+
+    it('allows the owner to delete a checkpoint', async () => {
+      const db = as(ALICE);
+      const ref = doc(db, 'users', ALICE, 'checkpoints', 'course-geography');
+      await setDoc(ref, validCheckpoint('course-geography'));
+      await assertSucceeds(deleteDoc(ref));
+    });
+  });
+
+  describe('checkpoint sync config (createSyncedStore integration)', () => {
+    it('writes the production checkpoint payload to users/{uid}/checkpoints/{courseId}', async () => {
+      const db = as(ALICE);
+      const checkpoint = { id: 'course-geography', index: 1, total: 3, updatedAt: Date.now() };
+      const payload = toFirestorePayload(checkpoint, 'set', ALICE, CHECKPOINT_FIELD);
+      const ref = doc(db, 'users', ALICE, 'checkpoints', checkpoint.id);
+
+      await assertSucceeds(setDoc(ref, materialize(payload)));
+      const snap = await getDoc(ref);
+      expect(snap.data()?.courseId).toBe(checkpoint.id);
+      expect(typeof snap.data()?.updatedAt?.toMillis).toBe('function');
+      expect(snap.data()?.ownerId).toBeUndefined();
     });
   });
 
@@ -453,6 +633,100 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
     });
   });
 
+  /**
+   * These tests run the production course config through the real adapter
+   * against the emulator. The import-time mocks above only prevent the
+   * unrelated app singleton from connecting while this suite loads.
+   */
+  describe('courses sync config (createSyncedStore integration)', () => {
+    it('writes a freshly-created course through the real adapter and lands it at users/{uid}/courses/{courseId}', async () => {
+      const db = as(ALICE);
+      const course: Course = {
+        id: 'course-adapter',
+        title: 'BIOLOGY',
+        gameType: 'trueFalseDuel',
+        seeded: false,
+        createdAt: Date.now(),
+      };
+
+      const payload = toFirestorePayload(course, 'set', ALICE, COURSE_FIELD);
+      const ref = doc(db, 'users', ALICE, 'courses', course.id);
+      await assertSucceeds(setDoc(ref, materialize(payload)));
+
+      const snap = await getDoc(ref);
+      const data = snap.data();
+      expect(data?.courseId).toBe('course-adapter');
+      expect(data?.ownerId).toBe(ALICE);
+      // A client-supplied createdAt (a plain millis number) must never reach
+      // Firestore on create — toFirestorePayload has to replace it with the
+      // serverTimestamp() marker or isServerTime('createdAt') denies the
+      // write outright, which the assertSucceeds above already proves; this
+      // also checks the stored value round-trips as a real Timestamp.
+      expect(typeof data?.createdAt?.toMillis).toBe('function');
+    });
+
+    it("materialises every seed remotely on a fresh sign-in — the same toUpload list store.ts's Firestore listener enqueues from its first, empty snapshot", async () => {
+      const db = as(ALICE);
+      const seeds = seedCourses([
+        { title: 'Biology', gameType: 'trueFalseDuel' },
+        { title: 'History', gameType: 'sequenceSwipe' },
+        { title: 'Geography', gameType: 'matchRelease' },
+        { title: 'Visual Culture', gameType: 'compassQuiz' },
+      ]);
+
+      // Empty remote collection, exactly what a brand-new account has.
+      // reconcile() is the exact function store.ts's onSnapshot callback
+      // calls on the very first snapshot it ever receives.
+      const { toUpload } = reconcile(seeds, {}, []);
+      expect(toUpload).toHaveLength(4);
+
+      for (const seed of toUpload) {
+        // Seeds carry createdAt: 0 (see seedCourses in course-rules.ts) —
+        // the exact value the adapter's 'onCreate' branch exists to
+        // override, so it is worth proving against the real rules rather
+        // than trusting adapter.test.ts's fixtures alone.
+        expect(seed.createdAt).toBe(0);
+        const payload = toFirestorePayload(seed, 'set', ALICE, COURSE_FIELD);
+        await assertSucceeds(
+          setDoc(doc(db, 'users', ALICE, 'courses', seed.id), materialize(payload)),
+        );
+      }
+
+      const snap = await getDocs(collection(db, 'users', ALICE, 'courses'));
+      expect(snap.docs.map((d) => d.id).sort()).toEqual([
+        'biology',
+        'geography',
+        'history',
+        'visual-culture',
+      ]);
+    });
+
+    it('edits an already-synced course without disturbing createdAt — unchanged(createdAt) holds against a real Timestamp, not a millis approximation', async () => {
+      const db = as(ALICE);
+      const course: Course = {
+        id: 'course-edit',
+        title: 'HISTORY',
+        gameType: 'sequenceSwipe',
+        seeded: false,
+        createdAt: Date.now(),
+      };
+      const ref = doc(db, 'users', ALICE, 'courses', course.id);
+      await setDoc(ref, materialize(toFirestorePayload(course, 'set', ALICE, COURSE_FIELD)));
+
+      const edited: Course = { ...course, gameType: 'matchRelease' };
+      const updatePayload = toFirestorePayload(edited, 'update', ALICE, COURSE_FIELD);
+      // The adapter's contract for an 'onCreate' field on an update: omit it
+      // entirely rather than resend the client's local, millis-precision
+      // copy — which is what firestore.rules' unchanged() compares against
+      // as a Timestamp.
+      expect('createdAt' in updatePayload).toBe(false);
+
+      await assertSucceeds(updateDoc(ref, materialize(updatePayload)));
+      const snap = await getDoc(ref);
+      expect(snap.data()?.gameType).toBe('matchRelease');
+    });
+  });
+
   describe('decks', () => {
     it('creates a deck owned by the caller', async () => {
       await assertSucceeds(
@@ -488,6 +762,52 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
           uploadId: null,
         }),
       );
+    });
+  });
+
+  describe('deck sync config (createSyncedStore integration)', () => {
+    it('writes expandDeck’s parent before its cards, then reads the real production payloads back', async () => {
+      const db = as(ALICE);
+      const deck = deckForSyncProof();
+      const [deckOp, ...cardOps] = expandDeck(deck, ALICE, {});
+
+      expect(deckOp).toMatchObject({ collection: 'decks', docId: deck.id, kind: 'set' });
+      expect(cardOps).toHaveLength(deck.cards.length);
+
+      // The first card uses the exact payload expandDeck built from CARD_FIELD.
+      // Without the already-committed parent, deckOwner() in firestore.rules
+      // cannot authorize this child write.
+      const firstCard = cardOps[0];
+      await assertFails(
+        setDoc(
+          doc(db, firstCard.collection, firstCard.docId),
+          materialize(firstCard.payload),
+        ),
+      );
+
+      await assertSucceeds(
+        setDoc(doc(db, deckOp.collection, deckOp.docId), materialize(deckOp.payload)),
+      );
+      for (const cardOp of cardOps) {
+        await assertSucceeds(
+          setDoc(
+            doc(db, cardOp.collection, cardOp.docId),
+            materialize(cardOp.payload),
+          ),
+        );
+      }
+
+      const deckSnap = await getDoc(doc(db, 'decks', deck.id));
+      expect(deckSnap.data()?.[DECK_FIELD.idField]).toBe(deck.id);
+      expect(deckSnap.data()?.cardCount).toBe(deck.cards.length);
+      expect(deckSnap.data()?.sourceName).toBeUndefined();
+
+      const cards = await getDocs(collection(db, 'decks', deck.id, 'cards'));
+      expect(cards.docs.map((card) => card.data()?.[CARD_FIELD.idField]).sort()).toEqual([
+        'card-sync-1',
+        'card-sync-2',
+      ]);
+      expect(cards.docs.every((card) => card.data()?.deckId === deck.id)).toBe(true);
     });
   });
 

@@ -1,10 +1,40 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSyncExternalStore } from "react";
-
-import { sanitiseCheckpoints } from "@/features/recap/recap-rules";
+import { decodeCheckpointRecords, isCheckpoint } from "@/features/recap/recap-rules";
 import type { Checkpoint } from "@/features/recap/recap-rules";
+import type { FieldAdapterConfig } from "@/lib/sync/adapter";
+import { createSyncedStore, type SyncedStoreConfig } from "@/lib/sync/store";
 
-const STORAGE_KEY = "cardinal.checkpoints";
+const LEGACY_STORAGE_KEY = "cardinal.checkpoints";
+
+type CheckpointRecord = Checkpoint & { id: string };
+
+export const CHECKPOINT_FIELD: FieldAdapterConfig = {
+  idField: "courseId",
+  ownerIdField: null,
+  timestampFields: ["updatedAt"],
+  serverTimestamps: { updatedAt: "always" },
+};
+
+function isCheckpointRecord(value: unknown): value is CheckpointRecord {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as { id?: unknown }).id === "string" &&
+    isCheckpoint(value)
+  );
+}
+
+const checkpointSyncConfig: SyncedStoreConfig<CheckpointRecord> = {
+  name: "checkpoints",
+  collectionPath: (uid) => `users/${uid}/checkpoints`,
+  pathIsOwnerScoped: true,
+  field: CHECKPOINT_FIELD,
+  remoteUpdatedAtField: "updatedAt",
+  isValid: isCheckpointRecord,
+  migrateLegacyKey: LEGACY_STORAGE_KEY,
+  decodeRecords: decodeCheckpointRecords,
+};
+
+const store = createSyncedStore<CheckpointRecord>(checkpointSyncConfig);
 
 /**
  * A module-level store rather than a context, for the same reason as
@@ -12,45 +42,26 @@ const STORAGE_KEY = "cardinal.checkpoints";
  * player both need this, and there is nothing to seed since a fresh install
  * has nobody mid-recap yet.
  */
-let snapshot: Record<string, Checkpoint> = {};
+let sourceRecords: CheckpointRecord[] | null = null;
+let derivedSnapshot: Record<string, Checkpoint> = {};
 
-const listeners = new Set<() => void>();
+/** Keeps React's external-store snapshot stable while records are unchanged. */
+function checkpointsFrom(records: CheckpointRecord[]): Record<string, Checkpoint> {
+  if (records === sourceRecords) return derivedSnapshot;
 
-function commit(next: Record<string, Checkpoint>) {
-  snapshot = next;
-  listeners.forEach((l) => l());
-  // Fire-and-forget: a failed write costs the player one resume point next
-  // launch, which is not worth interrupting the recap over.
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+  sourceRecords = records;
+  derivedSnapshot = Object.fromEntries(
+    records.map(({ id, ...checkpoint }) => [id, checkpoint]),
+  );
+  return derivedSnapshot;
 }
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function getSnapshot() {
-  return snapshot;
-}
-
-// Hydrate once at import. Anything already rendered re-renders when it lands;
-// until then every screen just shows no checkpoints, which is the correct
-// fallback rather than a loading state.
-AsyncStorage.getItem(STORAGE_KEY)
-  .then((raw) => {
-    if (!raw) return;
-    const parsed: unknown = JSON.parse(raw);
-    snapshot = sanitiseCheckpoints(parsed);
-    listeners.forEach((l) => l());
-  })
-  .catch(() => {});
 
 export function useCheckpoints(): Record<string, Checkpoint> {
-  return useSyncExternalStore(subscribe, getSnapshot);
+  return checkpointsFrom(store.useRecords());
 }
 
 export function getCheckpoint(courseId: string): Checkpoint | undefined {
-  return snapshot[courseId];
+  return checkpointsFrom(store.getRecords())[courseId];
 }
 
 /**
@@ -64,12 +75,12 @@ export function saveCheckpoint(courseId: string, index: number, total: number): 
     clearCheckpoint(courseId);
     return;
   }
-  commit({ ...snapshot, [courseId]: { index, total, updatedAt: Date.now() } });
+  const checkpoint: Checkpoint = { index, total, updatedAt: Date.now() };
+  if (!isCheckpoint(checkpoint)) return;
+  store.put({ id: courseId, ...checkpoint });
 }
 
 export function clearCheckpoint(courseId: string): void {
-  if (!(courseId in snapshot)) return;
-  const next = { ...snapshot };
-  delete next[courseId];
-  commit(next);
+  if (!getCheckpoint(courseId)) return;
+  store.remove(courseId);
 }

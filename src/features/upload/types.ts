@@ -138,6 +138,18 @@ export interface ExtractionProvider {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * A card once it has been filed under a deck. `CardContent` itself stays
+ * id-less — it is what the extraction pipeline produces before any deck, and
+ * therefore any cardId, exists — so identity is layered on here instead,
+ * the same relationship `CardDoc` has to `CardContent` in cardinal.ts. This
+ * is what the SM-2 scheduler needs: `users/{uid}/progress/{cardId}`
+ * has to name a card that keeps meaning the same thing across syncs and app
+ * restarts, which a bare array index cannot promise once cards can be
+ * reordered, added, or dropped.
+ */
+export type LocalCard = CardContent & { cardId: string };
+
+/**
  * A finished upload. Mirrors `decks/{deckId}` plus its cards subcollection,
  * flattened into one record because there is nothing to paginate locally.
  */
@@ -147,8 +159,17 @@ export interface LocalDeck {
   title: string;
   /** The original filename, kept so the review screen can show provenance. */
   sourceName: string;
-  cards: CardContent[];
+  cards: LocalCard[];
   createdAt: number;
+  /**
+   * Mirrors `DeckDoc.updatedAt`. firestore.rules pins this to
+   * `isServerTime('updatedAt')` on both create and update, so the local
+   * record needs a field to map the server's value into — decks written
+   * before this field existed backfill it from `createdAt` on hydrate (see
+   * decks.ts), which is the best available approximation of "last changed"
+   * for a deck nothing has edited since.
+   */
+  updatedAt: number;
   provider: ExtractionProviderId;
 }
 

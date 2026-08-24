@@ -35,8 +35,9 @@ function deck(courseId: string, cards: CardContent[], id = `deck-${courseId}-${c
     courseId,
     title: "TITLE",
     sourceName: "file.pdf",
-    cards,
+    cards: cards.map((card, index) => ({ ...card, cardId: `${id}-card-${index}` })),
     createdAt: 0,
+    updatedAt: 0,
     provider: "mock",
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyFailure, backoffMs, classifyFailure, enqueue, nextToDrain } from "./outbox";
+import { applyFailure, backoffMs, classifyFailure, dropChildrenOf, enqueue, nextToDrain } from "./outbox";
 import type { OutboxOp } from "./types";
 
 function setOp(docId: string, payload: Record<string, unknown>, createdAt = 0): Extract<OutboxOp, { kind: "set" }> {
@@ -72,6 +72,32 @@ describe("enqueue", () => {
   });
 });
 
+describe("dropChildrenOf", () => {
+  it("removes every op naming the given id as its parent", () => {
+    const parent = setOp("deck-1", { title: "DECK" });
+    const child1 = { ...setOp("card-1", { gameType: "compassQuiz" }), parentOpId: parent.opId };
+    const child2 = { ...setOp("card-2", { gameType: "compassQuiz" }), parentOpId: parent.opId };
+    const queue = [parent, child1, child2];
+
+    expect(dropChildrenOf(queue, parent.opId)).toEqual([parent]);
+  });
+
+  it("leaves an unrelated op's siblings alone — only ops naming THIS parent are dropped", () => {
+    const deckA = setOp("deck-a", {});
+    const deckB = setOp("deck-b", {});
+    const cardOfA = { ...setOp("card-a1", {}), parentOpId: deckA.opId };
+    const cardOfB = { ...setOp("card-b1", {}), parentOpId: deckB.opId };
+    const queue = [deckA, deckB, cardOfA, cardOfB];
+
+    expect(dropChildrenOf(queue, deckA.opId)).toEqual([deckA, deckB, cardOfB]);
+  });
+
+  it("is a no-op when nothing in the queue names the given parent", () => {
+    const queue = [setOp("geography", {})];
+    expect(dropChildrenOf(queue, "op-does-not-exist")).toEqual(queue);
+  });
+});
+
 describe("classifyFailure", () => {
   it("treats permission-denied as terminal — retrying a rules rejection never helps", () => {
     expect(classifyFailure({ code: "permission-denied" })).toBe("terminal");
@@ -79,6 +105,10 @@ describe("classifyFailure", () => {
 
   it("treats unavailable as retryable", () => {
     expect(classifyFailure({ code: "unavailable" })).toBe("retryable");
+  });
+
+  it("treats unauthenticated as retryable — an expired token is worth another attempt once the user is signed back in, unlike a rules rejection where retrying reproduces the exact same denial", () => {
+    expect(classifyFailure({ code: "unauthenticated" })).toBe("retryable");
   });
 
   it("treats deadline-exceeded as retryable", () => {

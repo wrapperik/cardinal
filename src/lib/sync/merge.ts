@@ -53,7 +53,20 @@ export function reconcile<T extends { id: string }>(
     if (!remote) {
       records.push(local);
       if (localMetaEntry) meta[local.id] = localMetaEntry;
-      toUpload.push(local);
+      // A record with no visible remote counterpart normally means "never
+      // uploaded" — a brand-new local record, or a fresh sign-in's seeds —
+      // and toUpload exists to catch exactly that. But "no visible remote
+      // counterpart" can also mean isValid rejected what WAS there, which
+      // happens by design for a store whose local type carries fields the
+      // remote document never had in the first place (a deck's `cards`,
+      // kept off the wire — see DECK_FIELD.omitFields in deck-rules.ts).
+      // For that store every snapshot would land here, and without this
+      // guard every one would re-toUpload an already-synced record forever
+      // — each resend producing a new snapshot that lands right back here.
+      // remoteConfirmed is what tells the two cases apart: a record this
+      // store has gotten a real acknowledgement for before does not need
+      // re-uploading just because this particular snapshot can't see it.
+      if (!localMetaEntry?.remoteConfirmed) toUpload.push(local);
       continue;
     }
 

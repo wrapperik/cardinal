@@ -1,56 +1,42 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSyncExternalStore } from "react";
-
-import { sanitiseSessions } from "@/features/sessions/session-rules";
+import { backfillSession, isSession, sessionRemoteRevision } from "@/features/sessions/session-rules";
 import type { LocalSession, SessionTally } from "@/features/sessions/session-rules";
+import { createSyncedStore, type SyncedStoreConfig } from "@/lib/sync/store";
+import type { FieldAdapterConfig } from "@/lib/sync/adapter";
 
-const STORAGE_KEY = "cardinal.sessions";
+const LEGACY_STORAGE_KEY = "cardinal.sessions";
 
 /**
- * A module-level store rather than a context, for the same reason as
- * src/features/upload/decks.ts — sessions are read from the recap player and
- * the course detail screen, and there is nothing to seed here since a fresh
- * install has no history yet.
+ * `users/{uid}/sessions/{sessionId}` carries ownership in its path, so it has
+ * no owner field. `startedAt` is fixed at creation; `endedAt` is a client
+ * timestamp only once the session closes.
  */
-let snapshot: LocalSession[] = [];
+export const SESSION_FIELD: FieldAdapterConfig = {
+  idField: "sessionId",
+  ownerIdField: null,
+  timestampFields: ["startedAt", "endedAt"],
+  serverTimestamps: { startedAt: "onCreate" },
+};
 
-const listeners = new Set<() => void>();
+const sessionSyncConfig: SyncedStoreConfig<LocalSession> = {
+  name: "sessions",
+  collectionPath: (uid) => `users/${uid}/sessions`,
+  pathIsOwnerScoped: true,
+  field: SESSION_FIELD,
+  remoteUpdatedAtField: "startedAt",
+  remoteRevision: sessionRemoteRevision,
+  isValid: isSession,
+  migrateLegacyKey: LEGACY_STORAGE_KEY,
+  backfill: backfillSession,
+};
 
-function commit(next: LocalSession[]) {
-  snapshot = next;
-  listeners.forEach((l) => l());
-  // Fire-and-forget: a failed write costs the player one session's stats
-  // next launch, which is not worth interrupting the recap over.
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function getSnapshot() {
-  return snapshot;
-}
-
-// Hydrate once at import. Anything already rendered re-renders when it lands;
-// until then every screen just shows no sessions, which is the correct
-// fallback rather than a loading state.
-AsyncStorage.getItem(STORAGE_KEY)
-  .then((raw) => {
-    if (!raw) return;
-    const parsed: unknown = JSON.parse(raw);
-    snapshot = sanitiseSessions(parsed);
-    listeners.forEach((l) => l());
-  })
-  .catch(() => {});
+const store = createSyncedStore<LocalSession>(sessionSyncConfig);
 
 export function useSessions(): LocalSession[] {
-  return useSyncExternalStore(subscribe, getSnapshot);
+  return store.useRecords();
 }
 
 export function getSessions(): LocalSession[] {
-  return snapshot;
+  return store.getRecords();
 }
 
 /**
@@ -66,6 +52,7 @@ export function startSession(courseId: string): LocalSession {
   const session: LocalSession = {
     id: makeSessionId(),
     courseId,
+    deckId: null,
     startedAt: Date.now(),
     endedAt: null,
     correctCount: 0,
@@ -74,7 +61,7 @@ export function startSession(courseId: string): LocalSession {
     bestStreakInSession: 0,
     gameTypesPlayed: [],
   };
-  commit([...snapshot, session]);
+  store.put(session);
   return session;
 }
 
@@ -84,21 +71,18 @@ export function startSession(courseId: string): LocalSession {
  * a session is in progress, and has no meaning once the session is over.
  */
 export function finishSession(id: string, tally: SessionTally): void {
-  commit(
-    snapshot.map((session) =>
-      session.id === id
-        ? {
-            ...session,
-            endedAt: Date.now(),
-            correctCount: tally.correctCount,
-            wrongCount: tally.wrongCount,
-            passedCount: tally.passedCount,
-            bestStreakInSession: tally.bestStreakInSession,
-            gameTypesPlayed: tally.gameTypesPlayed,
-          }
-        : session,
-    ),
-  );
+  const session = store.getRecords().find((candidate) => candidate.id === id);
+  if (!session) return;
+
+  store.put({
+    ...session,
+    endedAt: Date.now(),
+    correctCount: tally.correctCount,
+    wrongCount: tally.wrongCount,
+    passedCount: tally.passedCount,
+    bestStreakInSession: tally.bestStreakInSession,
+    gameTypesPlayed: tally.gameTypesPlayed,
+  });
 }
 
 /**

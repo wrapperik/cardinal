@@ -36,6 +36,16 @@ export interface FieldAdapterConfig {
    * updatedAt, which firestore.rules re-pins on every update too.
    */
   serverTimestamps?: Partial<Record<string, "onCreate" | "always">>;
+  /**
+   * Local record fields that never travel to Firestore at all, even though
+   * the local type carries them — a deck's `cards` (a whole separate
+   * subcollection, not a field on the deck document) plus `sourceName` and
+   * `provider` (kept off the wire deliberately; see LocalDeck's doc comment
+   * in features/upload/types.ts). Applied last, after id/ownerId/timestamp
+   * mapping, so a field can be renamed or timestamp-converted and still be
+   * dropped — though nothing today needs both at once.
+   */
+  omitFields?: string[];
 }
 
 /**
@@ -82,6 +92,10 @@ export function toFirestorePayload<T extends { id: string }>(
 
     const value = payload[field];
     payload[field] = value === null || value === undefined ? null : new Date(value as number);
+  }
+
+  for (const field of config.omitFields ?? []) {
+    delete payload[field];
   }
 
   return payload;

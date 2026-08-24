@@ -172,7 +172,8 @@ service cloud.firestore {
       // A session opens empty and open-ended; the counters accrue as it runs.
       allow create: if isUser(userId)
                     && incoming().sessionId == sessionId
-                    && incoming().deckId is string
+                    && incoming().courseId is string
+                    && (incoming().deckId == null || incoming().deckId is string)
                     && isServerTime('startedAt')
                     && incoming().endedAt == null
                     && incoming().correctCount == 0
@@ -185,6 +186,7 @@ service cloud.firestore {
       // it opened honestly and rewrite the totals the stats trigger reads.
       allow update: if isUser(userId)
                     && unchanged('sessionId')
+                    && unchanged('courseId')
                     && unchanged('deckId')
                     && unchanged('startedAt')
                     && incoming().correctCount >= existing().correctCount
@@ -193,6 +195,32 @@ service cloud.firestore {
                     && incoming().bestStreakInSession >= existing().bestStreakInSession
                     // Once closed, a session stays closed.
                     && existing().endedAt == null;
+
+      allow delete: if isUser(userId);
+    }
+
+    /* users/{userId}/checkpoints/{courseId} */
+    match /users/{userId}/checkpoints/{courseId} {
+      allow read: if isUser(userId);
+
+      // Checkpoints are cursors into a non-empty recap queue. Keeping the
+      // course id duplicated on the document makes an accidental cross-course
+      // write fail at the boundary, while the path itself remains the sole
+      // ownership marker — there is deliberately no ownerId field here.
+      allow create, update: if isUser(userId)
+                            && incoming().keys().hasOnly([
+                                 'courseId',
+                                 'index',
+                                 'total',
+                                 'updatedAt'
+                               ])
+                            && incoming().courseId == courseId
+                            && incoming().index is int
+                            && incoming().index >= 0
+                            && incoming().total is int
+                            && incoming().total > 0
+                            && incoming().index < incoming().total
+                            && isServerTime('updatedAt');
 
       allow delete: if isUser(userId);
     }

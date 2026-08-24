@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { reconcile } from "@/lib/sync/merge";
+import type { MetaMap } from "@/lib/sync/types";
+
+import * as sessionRules from "./session-rules";
 import {
   emptyTally,
+  isSession,
   recordAnswer,
   sanitiseSessions,
   summariseSessions,
@@ -13,6 +18,7 @@ function session(overrides: Partial<LocalSession> = {}): LocalSession {
   return {
     id: "session-1",
     courseId: "geography",
+    deckId: null,
     startedAt: 0,
     endedAt: 1000,
     correctCount: 0,
@@ -151,6 +157,41 @@ describe("summariseSessions", () => {
 });
 
 describe("sanitiseSessions", () => {
+  it("adopts a remotely finished session when its completion revision is newer", () => {
+    const open = session({ startedAt: 100, endedAt: null });
+    const finished = session({ startedAt: 100, endedAt: 200, correctCount: 1 });
+    // Until the selector exists, this reproduces store.ts's old startedAt
+    // fallback; that ties the open local record and leaves it stale.
+    const remoteRevision =
+      typeof sessionRules.sessionRemoteRevision === "function"
+        ? sessionRules.sessionRemoteRevision(finished)
+        : finished.startedAt;
+    const localMeta: MetaMap = {
+      [open.id]: { updatedAt: 100, dirty: false, remoteConfirmed: true },
+    };
+
+    const result = reconcile([open], localMeta, [{ record: finished, updatedAt: remoteRevision }]);
+
+    expect(result.records).toEqual([finished]);
+    expect(result.meta[open.id]).toEqual({ updatedAt: 200, dirty: false, remoteConfirmed: true });
+  });
+
+  it("requires deckId to be null or a string", () => {
+    const complete = session();
+    const { deckId: _deckId, ...legacy } = complete;
+
+    expect(isSession(complete)).toBe(true);
+    expect(isSession({ ...legacy, deckId: "deck-1" })).toBe(true);
+    expect(isSession({ ...legacy, deckId: 1 })).toBe(false);
+    expect(isSession(legacy)).toBe(false);
+  });
+
+  it("backfills a legacy session without deckId instead of dropping it", () => {
+    const { deckId: _deckId, ...legacy } = session();
+
+    expect(sanitiseSessions([legacy])).toEqual([{ ...legacy, deckId: null }]);
+  });
+
   it("drops sessions whose counters are not integers, so accuracy can never go NaN", () => {
     const raw = [
       session({ id: "ok" }),

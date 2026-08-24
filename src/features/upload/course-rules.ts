@@ -17,6 +17,16 @@ const VALID_GAME_TYPES = new Set<GameType>([
   "matchRelease",
 ]);
 
+/**
+ * Exported so deck-rules.ts's card validator checks the same four templates
+ * this module already does, rather than keeping its own copy of the set —
+ * matching firestore.rules' own `isGameType()` helper, which every write
+ * rule that touches a gameType field calls for the same reason.
+ */
+export function isGameType(value: unknown): value is GameType {
+  return typeof value === "string" && VALID_GAME_TYPES.has(value as GameType);
+}
+
 /** Every surface renders course titles uppercase, so this is the one place that decides it. */
 export function normaliseTitle(raw: string): string {
   return raw.trim().replace(/\s+/g, " ").toUpperCase().slice(0, MAX_TITLE_LENGTH);
@@ -72,14 +82,20 @@ export function seedCourses(topics: { title: string; gameType: GameType }[]): Co
   });
 }
 
-function isCourse(value: unknown): value is Course {
+/**
+ * Exported for createSyncedStore's `isValid`, which needs the exact same
+ * check this module already applies to whatever AsyncStorage handed back —
+ * a malformed record arriving from a Firestore listener deserves no more
+ * trust than one arriving from local storage, so there is no reason for a
+ * second, parallel validator to exist.
+ */
+export function isCourse(value: unknown): value is Course {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<Course>;
   return (
     typeof candidate.id === "string" &&
     typeof candidate.title === "string" &&
-    typeof candidate.gameType === "string" &&
-    VALID_GAME_TYPES.has(candidate.gameType as GameType) &&
+    isGameType(candidate.gameType) &&
     typeof candidate.seeded === "boolean" &&
     typeof candidate.createdAt === "number"
   );

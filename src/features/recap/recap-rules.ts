@@ -158,10 +158,28 @@ export function isCheckpoint(value: unknown): value is Checkpoint {
   // `legAt` and indexes a leg's cards to `undefined`, and a NaN one slips
   // through every comparison in `resumeIndex` to be returned as-is.
   return (
+    typeof candidate.index === "number" &&
     Number.isInteger(candidate.index) &&
+    candidate.index >= 0 &&
+    typeof candidate.total === "number" &&
     Number.isInteger(candidate.total) &&
+    candidate.total > 0 &&
+    candidate.index < candidate.total &&
+    typeof candidate.updatedAt === "number" &&
     Number.isFinite(candidate.updatedAt)
   );
+}
+
+/** Turns the old `{ [courseId]: Checkpoint }` cache into synced-store records. */
+export function decodeCheckpointRecords(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+
+  const records: (Checkpoint & { id: string })[] = [];
+  for (const [id, candidate] of Object.entries(value as Record<string, unknown>)) {
+    if (isCheckpoint(candidate)) records.push({ id, ...candidate });
+  }
+  return records;
 }
 
 /** Validates a hydrated `Record<courseId, Checkpoint>`, dropping anything malformed. */

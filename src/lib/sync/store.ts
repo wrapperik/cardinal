@@ -34,8 +34,8 @@ import { auth, db } from "@/lib/firebase";
 import { fromFirestorePayload, toFirestorePayload, type FieldAdapterConfig } from "./adapter";
 import { syncStorageKeys } from "./keys";
 import { reconcile, type RemoteEntry } from "./merge";
-import { applyFailure, enqueue, nextToDrain, removeOp, replaceOp } from "./outbox";
-import { SERVER_TIMESTAMP, type MetaMap, type OutboxOp } from "./types";
+import { applyFailure, dropChildrenOf, enqueue, nextToDrain, removeOp, replaceOp } from "./outbox";
+import { SERVER_TIMESTAMP, type ExpandedOp, type MetaMap, type OutboxOp } from "./types";
 
 export interface SyncedStoreConfig<T extends { id: string }> {
   /** Namespaces this store's AsyncStorage keys — see keys.ts. Does not affect the Firestore path; that is collectionPath below. */
@@ -66,12 +66,71 @@ export interface SyncedStoreConfig<T extends { id: string }> {
    * millis.
    */
   remoteUpdatedAtField: string;
+  /**
+   * Optionally derives a remote record's reconciliation revision instead of
+   * reading `remoteUpdatedAtField`. Sessions use this because a close is
+   * represented by `endedAt`, while their `startedAt` never changes.
+   */
+  remoteRevision?: (record: T) => number;
   /** Validates and drops anything malformed, in the style of isCourse/isSession. */
   isValid: (value: unknown) => value is T;
   /** Present for stores that ship with fixed starter content, e.g. courses. */
   seeds?: T[];
   /** Reconciles freshly-hydrated local records against seeds, in the style of mergeCourses. Defaults to "seeds first, then non-seed survivors" keyed on id. */
   mergeWithSeeds?: (stored: T[], seeds: T[]) => T[];
+  /**
+   * A flat, pre-namespacing AsyncStorage key this store used to read before
+   * it existed as a SyncedStore. When set, and the uid-namespaced records
+   * key (see keys.ts) is empty on hydrate, this key is read once and its
+   * contents adopted into the namespaced key instead of falling back to
+   * seeds/empty. Optional and additive: a store with nothing to migrate
+   * simply never sets this, and behaves exactly as before. The legacy key
+   * itself is never cleared — only ever read — so a wrong migration still
+   * leaves the original data recoverable rather than silently destroying it.
+   */
+  migrateLegacyKey?: string;
+  /**
+   * Rewrites one just-hydrated raw record before isValid ever sees it.
+   * Optional and additive — a store with nothing to correct simply never
+   * sets this, and hydrate() behaves exactly as before. Exists for a store
+   * whose local shape gained a required field after records were already
+   * on disk (a card's `cardId`, added in the same chunk this hook was —
+   * see backfillDeck in deck-rules.ts): isValid can only accept or reject a
+   * record as given, and rejecting every pre-existing one outright would
+   * silently delete a player's whole history the first time the new code
+   * runs against old data. Applied to every record from both the primary
+   * key and an adopted legacy key, and — whenever it actually changes
+   * something — persisted back immediately, for the same reason
+   * migrateLegacyKey's adoption is: an app kill before the next put() must
+   * not leave the correction sitting only in memory.
+   */
+  backfill?: (value: unknown) => unknown;
+  /**
+   * Converts a persisted legacy shape into records before backfill and
+   * validation. Stores that have always persisted arrays leave this unset.
+   */
+  decodeRecords?: (value: unknown) => unknown[];
+  /**
+   * Expands one `put()`'d record into several ordered outbox ops instead of
+   * the single write every other store uses — a deck plus its cards, which
+   * firestore.rules forces to be two genuinely separate, sequential writes:
+   * the cards rule's deckOwner() reads the parent deck via get(), which
+   * only sees state from before the current write, so a deck and a card
+   * can never be created in the same atomic batch (see the emulator test
+   * named for exactly this in tests/rules/firestore.test.ts). Strict global
+   * FIFO in the outbox (see nextToDrain in outbox.ts) is what makes
+   * "expand in order, enqueue in order" enough to guarantee that ordering —
+   * no separate scheduling logic is needed here.
+   *
+   * The first op returned is enqueued as the parent; every op after it is
+   * tagged with that op's freshly-assigned id via parentOpId, so a terminal
+   * failure on the parent cascades to drop the rest (dropChildrenOf in
+   * outbox.ts) instead of retrying child writes against a parent that will
+   * never exist. `meta` is passed through so the hook can replicate the
+   * same set-vs-update decision enqueueWrite makes for the default path
+   * (see RecordMeta.remoteConfirmed in ./types).
+   */
+  expand?: (record: T, uid: string, meta: MetaMap) => ExpandedOp[];
 }
 
 export interface SyncedStore<T extends { id: string }> {
@@ -143,6 +202,41 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     });
   }
 
+  /**
+   * Builds and enqueues whatever writes one record needs — the single op
+   * enqueueWrite already builds, or, when config.expand is set, the
+   * ordered parent-then-children sequence it describes. Both put() and the
+   * listener's toUpload loop (attachFirestoreListener below) call this
+   * rather than enqueueWrite directly, so a deck saved offline and only
+   * discovered as unsynced once the listener attaches gets the same
+   * deck-then-cards treatment a deck saved online does.
+   */
+  function enqueueOps(queue: OutboxOp[], record: T, metaMap: MetaMap): OutboxOp[] {
+    if (!uid) return queue;
+    if (!config.expand) return enqueueWrite(queue, record, metaMap);
+
+    const expanded = config.expand(record, uid, metaMap);
+    const now = Date.now();
+    let next = queue;
+    let parentOpId: string | undefined;
+
+    expanded.forEach((op, index) => {
+      const opId = makeOpId();
+      next = enqueue(next, {
+        opId,
+        collection: op.collection,
+        docId: op.docId,
+        kind: op.kind,
+        payload: op.payload,
+        createdAt: now,
+        parentOpId,
+      });
+      if (index === 0) parentOpId = opId;
+    });
+
+    return next;
+  }
+
   function attachFirestoreListener() {
     firestoreUnsubscribe?.();
     firestoreUnsubscribe = null;
@@ -158,7 +252,9 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
       for (const docSnap of snap.docs) {
         const record = fromFirestorePayload<T>(docSnap.id, docSnap.data(), config.field);
         if (!config.isValid(record)) continue;
-        const updatedAt = (record as unknown as Record<string, unknown>)[config.remoteUpdatedAtField];
+        const updatedAt = config.remoteRevision
+          ? config.remoteRevision(record)
+          : (record as unknown as Record<string, unknown>)[config.remoteUpdatedAtField];
         if (typeof updatedAt !== "number") continue;
         remoteRecords.push({ record, updatedAt });
       }
@@ -173,7 +269,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
             [record.id]: { updatedAt: Date.now(), dirty: true, remoteConfirmed: false },
           };
         }
-        nextOutbox = enqueueWrite(nextOutbox, record, nextMeta);
+        nextOutbox = enqueueOps(nextOutbox, record, nextMeta);
       }
 
       commitRecords(result.records);
@@ -238,7 +334,12 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
             // already treats a failed AsyncStorage write as not worth
             // interrupting the user over.
             console.warn(`[sync:${config.name}] dropping ${op.kind} for ${op.docId}`, error);
-            commitOutbox(removeOp(outbox, op.opId));
+            // A card queued behind a deck that will now never exist can
+            // never succeed either — see the ordering note on `expand`
+            // above — so a terminal failure on a parent op takes its
+            // children down with it rather than leaving them to retry
+            // forever against a deck that is never coming.
+            commitOutbox(dropChildrenOf(removeOp(outbox, op.opId), op.opId));
             continue;
           }
           commitOutbox(replaceOp(outbox, outcome.op));
@@ -274,9 +375,47 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     // let that one own the snapshot instead of stomping it with stale data.
     if (token !== hydrationToken) return;
 
-    const stored: unknown[] = rawRecords ? JSON.parse(rawRecords) : [];
+    let recordsSource = rawRecords;
+    let adoptedLegacy = false;
+    if (!recordsSource && config.migrateLegacyKey) {
+      const legacy = await AsyncStorage.getItem(config.migrateLegacyKey);
+      if (token !== hydrationToken) return;
+      if (legacy) {
+        recordsSource = legacy;
+        adoptedLegacy = true;
+      }
+    }
+
+    const parsed: unknown = recordsSource ? JSON.parse(recordsSource) : [];
+    // A store can opt into decoding an older non-array cache shape before the
+    // common record pipeline. The default preserves every existing store's
+    // array-only persistence contract while safely treating malformed JSON
+    // values as an empty record list.
+    const decoded = config.decodeRecords
+      ? config.decodeRecords(parsed)
+      : Array.isArray(parsed)
+        ? parsed
+        : [];
+    // Backfill runs before isValid ever sees a record — see the field
+    // comment on SyncedStoreConfig.backfill. Applied uniformly whether the
+    // records came from the primary key or were just adopted from a legacy
+    // one, since a legacy install's data is exactly the data most likely to
+    // predate whatever this backfill exists to correct.
+    const normalised = config.backfill ? decoded.map(config.backfill) : decoded;
+
+    // Persist immediately rather than waiting for the first put(): a user
+    // who signs in, sees their migrated or corrected records, and
+    // force-quits before touching anything should not have that silently
+    // undone by the next cold start reading the old, uncorrected data
+    // again. Skipped when nothing actually changed, so a store with no
+    // migrateLegacyKey/backfill configured never pays for a JSON.stringify
+    // it doesn't need on every single hydrate.
+    if (adoptedLegacy || JSON.stringify(normalised) !== JSON.stringify(parsed)) {
+      AsyncStorage.setItem(k.records, JSON.stringify(normalised)).catch(() => {});
+    }
+
     const merge = config.mergeWithSeeds ?? defaultMergeWithSeeds;
-    snapshot = merge(stored.filter(config.isValid), config.seeds ?? []);
+    snapshot = merge(normalised.filter(config.isValid), config.seeds ?? []);
     meta = rawMeta ? (JSON.parse(rawMeta) as MetaMap) : {};
     outbox = rawOutbox ? (JSON.parse(rawOutbox) as OutboxOp[]) : [];
     notify();
@@ -316,7 +455,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     commitMeta(nextMeta);
 
     if (uid) {
-      commitOutbox(enqueueWrite(outbox, record, nextMeta));
+      commitOutbox(enqueueOps(outbox, record, nextMeta));
       scheduleDrain();
     }
   }
