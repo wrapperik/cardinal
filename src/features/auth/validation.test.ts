@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateSignIn, validateSignUp } from "./validation";
+import { validateNameChange, validatePasswordChange, validateSignIn, validateSignUp } from "./validation";
 
 describe("validateSignUp", () => {
   it("rejects blank fields", () => {
@@ -47,5 +47,19 @@ describe("validateSignIn", () => {
     expect(
       validateSignIn({ email: "student@example.com", password: "secret" }),
     ).toEqual({});
+  });
+});
+
+describe("account settings validation", () => {
+  it("does not allow an empty replacement name", () => {
+    expect(validateNameChange("  ")).toEqual({ name: "Enter your name." });
+    expect(validateNameChange(" Rikus ")).toEqual({});
+  });
+
+  it("requires the current password and a new password of at least six characters", () => {
+    expect(validatePasswordChange({ currentPassword: "", nextPassword: "123" })).toEqual({
+      currentPassword: "Enter your current password.",
+      nextPassword: "Use at least 6 characters.",
+    });
   });
 });

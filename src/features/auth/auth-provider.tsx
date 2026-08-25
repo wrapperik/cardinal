@@ -16,9 +16,12 @@ import {
 } from "@/features/auth/onboarding";
 import {
   createEmailAccount,
+  changeCurrentUserPassword,
+  deleteCurrentAccount,
   resetPassword,
   signInWithEmail,
   signOutUser,
+  updateCurrentUserName,
 } from "@/features/auth/service";
 
 interface AuthContextValue {
@@ -30,6 +33,9 @@ interface AuthContextValue {
   signIn: typeof signInWithEmail;
   sendPasswordReset: typeof resetPassword;
   signOutUser: typeof signOutUser;
+  deleteAccount: typeof deleteCurrentAccount;
+  updateName: typeof updateCurrentUserName;
+  changePassword: typeof changeCurrentUserPassword;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -75,6 +81,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setUser(null);
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    await deleteCurrentAccount();
+    setUser(null);
+  }, []);
+
+  const updateName = useCallback(async (name: string) => {
+    await updateCurrentUserName(name);
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, nextPassword: string) => {
+    await changeCurrentUserPassword(currentPassword, nextPassword);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -84,15 +103,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signUp,
       signIn,
       sendPasswordReset: resetPassword,
+      deleteAccount,
+      updateName,
+      changePassword,
       signOutUser: signOutNow,
     }),
     [
       authReady,
       completeOnboarding,
+      changePassword,
+      deleteAccount,
       onboarded,
       signIn,
       signOutNow,
       signUp,
+      updateName,
       user,
     ],
   );

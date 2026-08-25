@@ -13,9 +13,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { GameShell, GAME_HEADER_H } from "@/components/game-shell";
-import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { Colors, EDGE_PILL_HEIGHT, Fonts, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
+import { shouldPassSequence } from "@/features/sequence/pass-gesture";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useSequenceRounds } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
@@ -222,10 +223,9 @@ export default function Sequence() {
       passY.value = Math.max(0, e.translationY) * 0.4;
     })
     .onEnd((e) => {
-      const commits =
-        e.translationY > Gestures.commitDistance ||
-        e.velocityY > Gestures.commitVelocity;
-      if (commits) runOnJS(skipRound)();
+      if (shouldPassSequence({ translationY: e.translationY, velocityY: e.velocityY })) {
+        runOnJS(skipRound)();
+      }
     })
     .onFinalize(() => {
       passY.value = withSpring(0, SETTLE_SPRING);
@@ -268,6 +268,11 @@ export default function Sequence() {
         </View>
 
         <View style={styles.passWrap}>
+          <View style={styles.passHint} pointerEvents="none">
+            <Svg width={18} height={12} viewBox="0 0 18 12" fill="none">
+              <Path d="M2 2 L9 9 L16 2" stroke={Colors.bone} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </View>
           <GestureDetector gesture={passDrag}>
             <Animated.View style={[styles.passPill, passPillStyle]}>
               <View style={styles.passBadge}>
@@ -483,6 +488,10 @@ const styles = StyleSheet.create({
   },
   passWrap: {
     alignItems: "center",
+  },
+  passHint: {
+    marginBottom: Spacing.xs,
+    opacity: 0.38,
   },
   passPill: {
     height: EDGE_PILL_HEIGHT,

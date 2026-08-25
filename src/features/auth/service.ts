@@ -1,16 +1,20 @@
 import {
+  EmailAuthProvider,
   createUserWithEmailAndPassword,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
   type User,
 } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
 import type { UserDoc } from "@/types/cardinal";
 
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functions } from "@/lib/firebase";
 
 async function createUserDocument(user: User): Promise<void> {
   const reference = doc(db, "users", user.uid);
@@ -67,4 +71,33 @@ export async function resetPassword(email: string): Promise<void> {
 
 export async function signOutUser(): Promise<void> {
   await signOut(auth);
+}
+
+/** Calls the Admin-backed erasure routine; clients cannot safely erase seeded data or deck subcollections themselves. */
+export async function deleteCurrentAccount(): Promise<void> {
+  if (!auth.currentUser) throw new Error("NO_SIGNED_IN_USER");
+  const removeAccount = httpsCallable<{ confirmation: "DELETE" }, { deleted: boolean }>(functions, "deleteAccount");
+  await removeAccount({ confirmation: "DELETE" });
+  // The Admin SDK revokes the identity remotely; signing out locally makes the
+  // route change immediate instead of waiting for the next token refresh.
+  await signOut(auth).catch(() => {});
+}
+
+export async function updateCurrentUserName(name: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("NO_SIGNED_IN_USER");
+
+  const displayName = name.trim();
+  await updateProfile(user, { displayName });
+  await updateDoc(doc(db, "users", user.uid), { displayName });
+}
+
+/** Firebase requires a recent credential before a sensitive password update. */
+export async function changeCurrentUserPassword(currentPassword: string, nextPassword: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user?.email) throw new Error("NO_PASSWORD_ACCOUNT");
+
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, nextPassword);
 }

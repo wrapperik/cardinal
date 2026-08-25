@@ -39,3 +39,24 @@ export function validateSignUp(values: SignUpValues): AuthFieldErrors {
 
   return errors;
 }
+
+export function validateNameChange(name: string): Pick<AuthFieldErrors, "name"> {
+  return name.trim() ? {} : { name: "Enter your name." };
+}
+
+export function validatePasswordChange({
+  currentPassword,
+  nextPassword,
+}: {
+  currentPassword: string;
+  nextPassword: string;
+}): Record<"currentPassword" | "nextPassword", string | undefined> {
+  return {
+    currentPassword: currentPassword ? undefined : "Enter your current password.",
+    nextPassword: !nextPassword
+      ? "Enter a new password."
+      : nextPassword.length < 6
+        ? "Use at least 6 characters."
+        : undefined,
+  };
+}

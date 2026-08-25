@@ -2,6 +2,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
 import { DEFAULT_GEMINI_MODEL, safeUploadError } from "./upload/helpers";
@@ -12,6 +13,7 @@ import {
   PROCESS_UPLOAD_TIMEOUT_SECONDS,
 } from "./upload/processor";
 import { refreshUserStats } from "./stats/refresh";
+import { deleteAccountData, hasDeleteConfirmation, type DeleteAccountRequest } from "./account/delete-account";
 
 if (getApps().length === 0) initializeApp();
 
@@ -69,3 +71,16 @@ export const refreshStatsFromProgress = onDocumentWritten(
     await refreshUserStats(getFirestore(), event.params.userId);
   },
 );
+
+/** An authenticated user can irreversibly remove their own account only. */
+export const deleteAccount = onCall<DeleteAccountRequest>(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "SIGN IN TO DELETE YOUR ACCOUNT.");
+  }
+  if (!hasDeleteConfirmation(request.data ?? {})) {
+    throw new HttpsError("invalid-argument", "TYPE DELETE TO CONFIRM ACCOUNT DELETION.");
+  }
+
+  await deleteAccountData(request.auth.uid);
+  return { deleted: true };
+});

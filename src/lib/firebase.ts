@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -19,6 +20,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
 /**
  * Editing this file re-executes it under Fast Refresh, but each
@@ -46,6 +48,7 @@ if (useFirebaseEmulator && !cardinalGlobal.__cardinalEmulatorsConnected) {
     connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
     connectFirestoreEmulator(db, host, 8080);
     connectStorageEmulator(storage, host, 9199);
+    connectFunctionsEmulator(functions, host, 5001);
   } catch (error) {
     if (!(error instanceof Error) || !/already/i.test(error.message)) throw error;
   }

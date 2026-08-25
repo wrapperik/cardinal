@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const firebase = vi.hoisted(() => ({
   connectAuthEmulator: vi.fn(),
   connectFirestoreEmulator: vi.fn(),
+  connectFunctionsEmulator: vi.fn(),
   connectStorageEmulator: vi.fn(),
 }));
 
@@ -18,6 +19,10 @@ vi.mock("firebase/auth", () => ({
 vi.mock("firebase/firestore", () => ({
   connectFirestoreEmulator: firebase.connectFirestoreEmulator,
   getFirestore: vi.fn(() => ({})),
+}));
+vi.mock("firebase/functions", () => ({
+  connectFunctionsEmulator: firebase.connectFunctionsEmulator,
+  getFunctions: vi.fn(() => ({})),
 }));
 vi.mock("firebase/storage", () => ({
   connectStorageEmulator: firebase.connectStorageEmulator,
@@ -47,6 +52,7 @@ describe("Firebase emulator selection", () => {
     expect(firebase.connectFirestoreEmulator).not.toHaveBeenCalled();
     expect(firebase.connectStorageEmulator).not.toHaveBeenCalled();
     expect(firebase.connectAuthEmulator).not.toHaveBeenCalled();
+    expect(firebase.connectFunctionsEmulator).not.toHaveBeenCalled();
   });
 
   it("connects the local services when the flag is 1", async () => {
@@ -55,5 +61,6 @@ describe("Firebase emulator selection", () => {
     expect(firebase.connectFirestoreEmulator).toHaveBeenCalledOnce();
     expect(firebase.connectStorageEmulator).toHaveBeenCalledOnce();
     expect(firebase.connectAuthEmulator).toHaveBeenCalledOnce();
+    expect(firebase.connectFunctionsEmulator).toHaveBeenCalledOnce();
   });
 });
