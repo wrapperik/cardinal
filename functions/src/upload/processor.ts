@@ -13,6 +13,8 @@ import {
   buildUploadCardPayload,
   buildUploadDeckPayload,
   extractGeminiCompletion,
+  FALLBACK_GEMINI_MODELS,
+  isModelOutageStatus,
   isTemplateChoice,
   majorityGameType,
   makeUploadCardId,
@@ -33,6 +35,9 @@ const MAX_CHUNK_CHARACTERS = 50_000;
 const MAX_SOURCE_CHUNKS = 4;
 const MAX_TOTAL_CHARACTERS = MAX_CHUNK_CHARACTERS * MAX_SOURCE_CHUNKS;
 const RATE_LIMIT_RETRIES = 3;
+// A model that is out of capacity stays that way for far longer than the job
+// can wait, so the ladder is cut short while another model is still untried.
+const RETRIES_BEFORE_FALLBACK = 1;
 const REQUEST_TIMEOUT_MS = 90_000;
 const PROCESSING_SAFETY_MARGIN_MS = 30_000;
 const PERSISTENCE_RESERVE_MS = 10_000;
@@ -65,6 +70,7 @@ interface ProcessUploadDependencies {
   bucket: Bucket;
   apiKey: string;
   model: string;
+  fallbackModels?: string[];
   fetchImpl?: typeof fetch;
 }
 
@@ -173,6 +179,7 @@ export async function processUploadJob(
       const completion = await requestGeminiCompletion({
         apiKey: dependencies.apiKey,
         model: dependencies.model,
+        fallbackModels: dependencies.fallbackModels ?? FALLBACK_GEMINI_MODELS,
         system: prompt.system,
         user: `${prompt.user}\n\nStudy material:\n${chunk}`,
         maxOutputTokens: outputTokenBudget(perChunkTarget),
@@ -347,7 +354,58 @@ async function writeCards(db: Firestore, deckId: string, uploadId: string, cards
   }
 }
 
+/**
+ * Runs the extraction against the primary model, then against each fallback in
+ * turn while the failure is the model's own unavailability rather than
+ * something about the key, the file or this pipeline.
+ */
 export async function requestGeminiCompletion(input: {
+  apiKey: string;
+  model: string;
+  fallbackModels?: string[];
+  system: string;
+  user: string;
+  maxOutputTokens: number;
+  fetchImpl: typeof fetch;
+  deadlineMs: number;
+}): Promise<string> {
+  const models = [input.model, ...(input.fallbackModels ?? [])].filter(
+    (model, index, all) => model.trim().length > 0 && all.indexOf(model) === index,
+  );
+
+  for (const [index, model] of models.entries()) {
+    const isLastModel = index === models.length - 1;
+    try {
+      return await requestModelCompletion({
+        ...input,
+        model,
+        // Waiting out a rate limit only pays off once nothing else is left to
+        // try; until then the remaining budget is better spent on a sibling.
+        maxRetries: isLastModel ? RATE_LIMIT_RETRIES : RETRIES_BEFORE_FALLBACK,
+      });
+    } catch (error) {
+      if (
+        isLastModel ||
+        !(error instanceof UploadProcessingError) ||
+        !error.modelOutage ||
+        Date.now() >= input.deadlineMs
+      ) {
+        throw error;
+      }
+      logger.warn("Extraction model unavailable; falling back", {
+        from: model,
+        to: models[index + 1],
+        reason: error.message,
+      });
+    }
+  }
+
+  // Unreachable while `models` is non-empty, which the primary model guarantees
+  // unless it was configured as blank — in which case there is nothing to call.
+  throw new UploadProcessingError("THE EXTRACTION SERVICE IS NOT CONFIGURED");
+}
+
+async function requestModelCompletion(input: {
   apiKey: string;
   model: string;
   system: string;
@@ -355,6 +413,7 @@ export async function requestGeminiCompletion(input: {
   maxOutputTokens: number;
   fetchImpl: typeof fetch;
   deadlineMs: number;
+  maxRetries: number;
 }): Promise<string> {
   const request = buildGeminiRequest({
     apiKey: input.apiKey,
@@ -411,13 +470,15 @@ export async function requestGeminiCompletion(input: {
     }
 
     const retryable = response.status === 429 || response.status === 408 || response.status >= 500;
-    if (!retryable || attempt >= RATE_LIMIT_RETRIES) {
+    if (!retryable || attempt >= input.maxRetries) {
       logger.error("Gemini rejected the extraction request", {
         status: response.status,
         model: input.model,
         attempts: attempt + 1,
       });
-      throw new UploadProcessingError(mapGeminiHttpError(response.status));
+      throw new UploadProcessingError(mapGeminiHttpError(response.status), {
+        modelOutage: isModelOutageStatus(response.status),
+      });
     }
 
     const waitSeconds = retryAfterSeconds(response.headers.get("retry-after"), attempt);

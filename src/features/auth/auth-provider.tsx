@@ -11,6 +11,7 @@ import {
 
 import { auth } from "@/lib/firebase";
 import {
+  clearOnboardingComplete,
   getOnboardingComplete,
   setOnboardingComplete,
 } from "@/features/auth/onboarding";
@@ -75,14 +76,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   // Same reasoning as signIn/signUp, mirrored: clearing the session here rather
   // than waiting for Firebase's event closes the window where a signed-out user
-  // is still looking at a protected screen.
+  // is still looking at a protected screen. The onboarding flag is cleared, and
+  // onboarded set false, before user is set null: that way the guard never sees
+  // the intermediate signed-out-but-onboarded state, which would otherwise
+  // bounce the user through /sign-in for a frame on the way back to onboarding.
   const signOutNow = useCallback(async () => {
     await signOutUser();
+    await clearOnboardingComplete();
+    setOnboarded(false);
     setUser(null);
   }, []);
 
   const deleteAccount = useCallback(async () => {
     await deleteCurrentAccount();
+    await clearOnboardingComplete();
+    setOnboarded(false);
     setUser(null);
   }, []);
 

@@ -19,7 +19,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
-import { Colors, Fonts, Spacing, Theme, Trail } from "@/constants/theme";
+import { Colors, Fonts, Spacing, Theme, TrailAccent } from "@/constants/theme";
 import { impact, ImpactFeedbackStyle, notification, NotificationFeedbackType } from "@/lib/haptics";
 import {
   MILESTONES,
@@ -281,8 +281,9 @@ export default function Onboarding() {
     <View style={styles.container}>
       <Animated.View style={[styles.camera, cameraStyle]}>
         <Svg width={CONTENT_W} height={CONTENT_H}>
-          {/* Stroking the same centreline twice — wide in bone, then narrower
-              in rust — produces both pipe walls with correct corner radii. */}
+          {/* Stroking the same centreline twice — wide in bone, then the bore
+              filled in charcoal to match the background — produces both pipe
+              walls with correct corner radii. */}
           <Path
             d={ONBOARDING_PATH.d}
             stroke={Colors.bone}
@@ -292,7 +293,7 @@ export default function Onboarding() {
           />
           <Path
             d={ONBOARDING_PATH.d}
-            stroke={Colors.rust}
+            stroke={Colors.charcoal}
             strokeWidth={PIPE.bore}
             strokeLinecap="round"
             fill="none"
@@ -410,7 +411,7 @@ function Ghost({
 
   return (
     <Animated.View
-      style={[styles.ghost, { backgroundColor: Trail[index] }, style]}
+      style={[styles.ghost, { backgroundColor: TrailAccent[index] }, style]}
     />
   );
 }
@@ -418,7 +419,7 @@ function Ghost({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.rust,
+    backgroundColor: Theme.background,
     overflow: "hidden",
   },
   camera: {
@@ -433,7 +434,7 @@ const styles = StyleSheet.create({
     width: PIPE.ballSize,
     height: PIPE.ballSize,
     borderRadius: PIPE.ballSize / 2,
-    backgroundColor: Colors.bone,
+    backgroundColor: Colors.rust,
   },
   header: {
     position: "absolute",
@@ -443,7 +444,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   wordmark: {
-    backgroundColor: Colors.rust,
+    backgroundColor: Theme.background,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     fontFamily: Fonts.display,
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
     width: PIPE.ballSize / 4,
     height: PIPE.ballSize / 4,
     borderRadius: PIPE.ballSize / 8,
-    backgroundColor: Colors.bone,
+    backgroundColor: Colors.rust,
   },
   ghost: {
     position: "absolute",
@@ -475,7 +476,7 @@ const styles = StyleSheet.create({
   body: {
     // Masks the pipe behind the copy — the text must stay readable wherever the
     // ball happens to be.
-    backgroundColor: Colors.rust,
+    backgroundColor: Theme.background,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     maxWidth: "88%",
@@ -520,6 +521,6 @@ const styles = StyleSheet.create({
     width: DOT_SIZE,
     height: DOT_SIZE,
     borderRadius: DOT_SIZE / 2,
-    backgroundColor: Colors.bone,
+    backgroundColor: Colors.rust,
   },
 });

@@ -3,8 +3,9 @@ import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
-import { Fonts, Spacing, Theme } from "@/constants/theme";
+import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
 import { useLastRun } from "@/features/recap/last-run";
 import { dailyStats, formatDuration, studyStreakDays } from "@/features/score/score";
 import { useSessions } from "@/features/sessions/sessions";
@@ -64,12 +65,18 @@ export default function Complete() {
             <SwipeAction
               label="DONE"
               hint="SWIPE RIGHT"
+              tone="calm"
               onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
             />
           </>
         ) : (
           <>
             <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(SCORE_DELAY_MS).duration(280)}>
+              <View style={styles.completionMark}>
+                <Svg width={34} height={28} viewBox="0 0 34 28" fill="none">
+                  <Path d="M3 15 L12 24 L31 3" stroke={Colors.rust} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </View>
               <Text style={styles.label}>COURSE COMPLETE</Text>
               <Text style={styles.courseTitle}>{run.courseTitle}</Text>
               <Text
@@ -100,7 +107,7 @@ export default function Complete() {
             <SwipeAction
               label="STUDY AGAIN"
               hint="SWIPE RIGHT"
-              tone="accent"
+              tone="light"
               onConfirm={() =>
                 router.replace({ pathname: "/recap", params: { courseId: run.courseId } })
               }
@@ -109,6 +116,7 @@ export default function Complete() {
             <SwipeAction
               label="DONE"
               hint="SWIPE RIGHT"
+              tone="calm"
               onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
             />
           </>
@@ -132,7 +140,7 @@ function StatRow({ label, value, delay, reducedMotion }: { label: string; value:
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.background,
+    backgroundColor: Colors.rust,
   },
   unavailable: {
     fontFamily: Fonts.body,
@@ -141,28 +149,43 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   label: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: Theme.textMuted,
+    marginTop: Spacing.md,
+    color: Colors.bone,
+    fontFamily: Fonts.display,
+    fontSize: 42,
+    letterSpacing: 1.5,
+    lineHeight: 46,
+    textAlign: "center",
+  },
+  completionMark: {
+    alignSelf: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.bone,
   },
   courseTitle: {
     fontFamily: Fonts.bodyBold,
-    fontSize: 15,
-    color: Theme.text,
+    fontSize: 17,
+    letterSpacing: 1,
+    color: Colors.bone,
     marginTop: Spacing.xs,
+    textAlign: "center",
   },
   score: {
     fontFamily: Fonts.display,
     fontSize: 72,
     color: Theme.text,
     marginTop: Spacing.sm,
+    textAlign: "center",
   },
   groupLabel: {
     fontFamily: Fonts.bodyBold,
     fontSize: 12,
     letterSpacing: 2,
-    color: Theme.textMuted,
+    color: Colors.bone,
     marginTop: Spacing.xl,
     marginBottom: Spacing.sm,
   },
@@ -185,7 +208,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontFamily: Fonts.bodyBold,
     fontSize: 15,
-    color: Theme.textMuted,
+    color: Colors.bone,
   },
   gap: {
     height: Spacing.xl,

@@ -3,6 +3,14 @@ import type { CardContent, GameType } from "../../../src/types/cardinal";
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 
+/**
+ * Tried in order when the primary model cannot serve the request. Google
+ * capacity-throttles an individual model with 503s for minutes at a time while
+ * its siblings answer normally, so a second model buys far more than a longer
+ * retry ladder against the first one does.
+ */
+export const FALLBACK_GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"];
+
 function buildGeminiResponseSchema() {
   const card = (
     gameType: GameType,
@@ -154,9 +162,13 @@ const FILE_TYPE_ALIASES: Record<string, UploadFileType> = {
 };
 
 export class UploadProcessingError extends Error {
-  constructor(message: string) {
+  /** True when a different model is worth trying, rather than this same one again. */
+  readonly modelOutage: boolean;
+
+  constructor(message: string, options?: { modelOutage?: boolean }) {
     super(message);
     this.name = "UploadProcessingError";
+    this.modelOutage = options?.modelOutage ?? false;
   }
 }
 
@@ -192,6 +204,16 @@ export function extractGeminiCompletion(value: unknown): string {
   }
 
   return text;
+}
+
+/**
+ * Whether the status describes the chosen model being unable to serve rather
+ * than the request being wrong. A retired model (404), a busy one (408/429)
+ * and an overloaded one (5xx) all fail identically on a retry but can succeed
+ * immediately on a sibling; a rejected key or file fails the same way anywhere.
+ */
+export function isModelOutageStatus(status: number): boolean {
+  return status === 404 || status === 408 || status === 429 || status >= 500;
 }
 
 /** API errors are deliberately mapped to stable user-facing text, never provider response bodies. */

@@ -157,21 +157,6 @@ export function renameCourse(id: string, title: string): Course | undefined {
   return updated;
 }
 
-/**
- * Changes a course's default extraction template. Allowed on seeded courses
- * — unlike the title, the doc comment on `Course` only protects the name;
- * seeded courses "otherwise take uploads like any other course", template
- * included.
- */
-export function setCourseTemplate(id: string, gameType: GameType): Course | undefined {
-  const course = store.getRecords().find((existing) => existing.id === id);
-  if (!course) return undefined;
-
-  const updated: Course = { ...course, gameType };
-  store.put(updated);
-  return updated;
-}
-
 /** Removes a user-created course. Seed courses remain permanent fixtures. */
 export function deleteCourse(id: string): boolean {
   const course = store.getRecords().find((existing) => existing.id === id);

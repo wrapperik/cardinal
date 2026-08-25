@@ -12,6 +12,7 @@ import * as processor from "./processor";
 type RequestGeminiCompletion = (input: {
   apiKey: string;
   model: string;
+  fallbackModels?: string[];
   system: string;
   user: string;
   maxOutputTokens: number;
@@ -50,6 +51,107 @@ describe("requestGeminiCompletion", () => {
       expect.objectContaining({ status: 400, model: "gemini-3.5-flash", attempts: 1 }),
     );
     expect(JSON.stringify(firebaseLog.error.mock.calls)).not.toContain(sensitiveBody);
+  });
+
+  it("moves to a fallback model when the primary one is out of capacity", async () => {
+    vi.useFakeTimers();
+    try {
+      const completion = JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"cards":[]}' }] } }],
+      });
+      const fetchImpl = vi.fn(async (url: string | URL | Request) =>
+        String(url).includes("gemini-3.5-flash:")
+          ? new Response("overloaded", { status: 503 })
+          : new Response(completion, { status: 200, headers: { "content-type": "application/json" } }),
+      ) as unknown as typeof fetch;
+      let outcome = "pending";
+
+      void requestGeminiCompletion!({
+        apiKey: "server-key",
+        model: "gemini-3.5-flash",
+        fallbackModels: ["gemini-3.6-flash"],
+        system: "rules",
+        user: "study material",
+        maxOutputTokens: 4_000,
+        fetchImpl,
+        deadlineMs: Date.now() + 200_000,
+      }).then(
+        (text: string) => { outcome = text; },
+        (error: unknown) => { outcome = error instanceof Error ? error.message : "unknown error"; },
+      );
+
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(outcome).toBe('{"cards":[]}');
+      const called = (fetchImpl as unknown as { mock: { calls: [string][] } }).mock.calls;
+      expect(String(called.at(-1)?.[0])).toContain("gemini-3.6-flash:generateContent");
+      expect(firebaseLog.warn).toHaveBeenCalledWith(
+        "Extraction model unavailable; falling back",
+        expect.objectContaining({ from: "gemini-3.5-flash", to: "gemini-3.6-flash" }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a rejected file on the primary model instead of retrying it elsewhere", async () => {
+    const fetchImpl = vi.fn(async () => new Response("too large", { status: 413 })) as unknown as typeof fetch;
+
+    await expect(
+      requestGeminiCompletion!({
+        apiKey: "server-key",
+        model: "gemini-3.5-flash",
+        fallbackModels: ["gemini-3.6-flash"],
+        system: "rules",
+        user: "study material",
+        maxOutputTokens: 4_000,
+        fetchImpl,
+        deadlineMs: Date.now() + 60_000,
+      }),
+    ).rejects.toThrow("THE FILE COULDN'T BE PROCESSED BY THE EXTRACTION SERVICE");
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the outage only once every model has been tried", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn(async () => new Response("overloaded", { status: 503 })) as unknown as typeof fetch;
+      let outcome = "pending";
+
+      void requestGeminiCompletion!({
+        apiKey: "server-key",
+        model: "gemini-3.5-flash",
+        // The repeated primary is collapsed, so it is not tried twice.
+        fallbackModels: ["gemini-3.5-flash", "gemini-3.6-flash"],
+        system: "rules",
+        user: "study material",
+        maxOutputTokens: 4_000,
+        fetchImpl,
+        deadlineMs: Date.now() + 200_000,
+      }).then(
+        () => { outcome = "resolved"; },
+        (error: unknown) => { outcome = error instanceof Error ? error.message : "unknown error"; },
+      );
+
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(outcome).toBe("THE EXTRACTION SERVICE IS TEMPORARILY UNAVAILABLE");
+      const models = (fetchImpl as unknown as { mock: { calls: [string][] } }).mock.calls
+        .map(([url]) => (String(url).match(/models\/([^:]+):/) ?? [])[1]);
+      // The primary gives up early because a fallback is still worth trying;
+      // the last model spends what remains of the retry ladder.
+      expect(models).toEqual([
+        "gemini-3.5-flash",
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.6-flash",
+        "gemini-3.6-flash",
+        "gemini-3.6-flash",
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stops retrying when Gemini's delay would outlive the job deadline", async () => {

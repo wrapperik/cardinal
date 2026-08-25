@@ -13,6 +13,9 @@ interface BackButtonProps {
   onBack: () => void;
   /** Back controls live on the right; kept as a prop for exceptional layouts. */
   side?: "left" | "right";
+  /** The chevron points right almost everywhere; settings is the one screen
+   *  that pushes in from the right and so points left, back toward home. */
+  direction?: "left" | "right";
 }
 
 /**
@@ -35,13 +38,13 @@ interface BackButtonProps {
  * nav buttons invert this rather than contradict it: they are charcoal
  * because they sit ON rust.
  */
-export function BackButton({ label, hint, onBack, side = "right" }: BackButtonProps) {
+export function BackButton({ label, hint, onBack, side = "right", direction = "right" }: BackButtonProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.button, { top: insets.top + Spacing.md }, side === "right" ? styles.right : styles.left]}>
       <HoldButton
-        glyph={<BackChevron />}
+        glyph={<BackChevron direction={direction} />}
         label={label}
         hint={hint}
         onHold={onBack}
@@ -51,11 +54,11 @@ export function BackButton({ label, hint, onBack, side = "right" }: BackButtonPr
   );
 }
 
-function BackChevron() {
+function BackChevron({ direction }: { direction: "left" | "right" }) {
   return (
     <Svg width={10} height={18} viewBox="0 0 10 18" fill="none">
       <Path
-        d="M9 1 L1 9 L9 17"
+        d={direction === "left" ? "M9 1 L1 9 L9 17" : "M1 1 L9 9 L1 17"}
         stroke={Colors.bone}
         strokeWidth={2}
         strokeLinecap="round"

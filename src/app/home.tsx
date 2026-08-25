@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SkeletonBlock } from "@/components/skeleton-block";
 import { Colors, Fonts, Radius, Spacing, Theme } from "@/constants/theme";
+import { HelpButton } from "@/features/home/help-button";
 import { HomeNavBar } from "@/features/home/nav-bar";
 import { MenuRow } from "@/features/home/menu-row";
 import { HomeSummaryCard } from "@/features/home/home-summary-card";
@@ -14,6 +15,7 @@ import { sessionsForCourse, useSessions, useSessionsHydrated } from "@/features/
 import { courseStats } from "@/features/upload/course-stats";
 import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
 import { useDecks, useDecksHydrated } from "@/features/upload/decks";
+import { hideDrafts, useDraftIds } from "@/features/upload/drafts";
 import { useDelayedSkeleton } from "@/lib/loading";
 
 /**
@@ -27,8 +29,15 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const courses = useCourses();
-  const decks = useDecks();
+  // An upload writes its course and deck to Firestore before anyone confirms
+  // it, and the sheet sits over this screen while that happens — so the pills
+  // behind it would otherwise announce a course the user has not accepted and
+  // may yet discard. The library only shows what an upload has finished with.
+  const draftIds = useDraftIds();
+  const allCourses = useCourses();
+  const allDecks = useDecks();
+  const courses = useMemo(() => hideDrafts(allCourses, draftIds), [allCourses, draftIds]);
+  const decks = useMemo(() => hideDrafts(allDecks, draftIds), [allDecks, draftIds]);
   const sessions = useSessions();
   const coursesHydrated = useCoursesHydrated();
   const decksHydrated = useDecksHydrated();
@@ -139,6 +148,8 @@ export default function Home() {
           <Text style={styles.empty}>HOLD THE PLUS TO ADD YOUR FIRST COURSE</Text>
         ) : null}
       </ScrollView>
+
+      <HelpButton />
     </View>
   );
 }

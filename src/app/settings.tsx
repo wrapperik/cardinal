@@ -51,14 +51,14 @@ export default function Settings() {
           // Clears the BACK button, exactly like course detail's own clearance.
           paddingTop: insets.top + HOLD_BUTTON_SIZE + Spacing.lg,
           paddingHorizontal: Spacing.lg,
-          // The account actions are fixed at the bottom, so the final ABOUT
-          // row scrolls completely above them instead of being obscured.
-          paddingBottom: insets.bottom + 184,
+          // Clears the home indicator, so DELETE ACCOUNT is never sitting in
+          // the strip iOS reserves for its own gesture.
+          paddingBottom: insets.bottom + Spacing.xl,
         }}
       >
         <Text style={styles.heading}>SETTINGS</Text>
 
-        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <Text style={styles.firstSectionLabel}>ACCOUNT</Text>
         <InfoRow label="NAME" value={displayName} />
         <InfoRow label="EMAIL" value={user?.email ?? "—"} />
         <InfoRow label="SYNC" value={syncStatusLabel(syncStatus)} />
@@ -73,6 +73,12 @@ export default function Settings() {
           <ChangePasswordRow onChangePassword={changePassword} />
         </View>
 
+        <Text style={styles.sectionLabel}>ACCOUNT ACTIONS</Text>
+        <View style={styles.profileActions}>
+          <SignOutRow onSignOut={signOutUser} />
+          <DeleteAccountRow onDelete={deleteAccount} />
+        </View>
+
         <Text style={styles.sectionLabel}>FEEDBACK</Text>
         <ToggleRow
           label="HAPTICS"
@@ -82,16 +88,9 @@ export default function Settings() {
 
         <Text style={styles.sectionLabel}>ABOUT</Text>
         <InfoRow label="VERSION" value="1.0.0" />
-        <InfoRow label="BUILD" value="WEEK 5" />
       </ScrollView>
 
-      <View style={[styles.accountActions, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <Text style={styles.actionLabel}>ACCOUNT ACTIONS</Text>
-        <SignOutRow onSignOut={signOutUser} />
-        <DeleteAccountRow onDelete={deleteAccount} />
-      </View>
-
-      <BackButton label="BACK" onBack={() => router.back()} />
+      <BackButton label="BACK" side="left" direction="left" onBack={() => router.back()} />
     </View>
   );
 }
@@ -349,6 +348,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     marginBottom: Spacing.sm,
   },
+  firstSectionLabel: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 2,
+    color: Theme.textMuted,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -377,25 +384,6 @@ const styles = StyleSheet.create({
     color: Colors.rust,
   },
   profileActions: { marginTop: Spacing.md, gap: Spacing.sm },
-  accountActions: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    left: 0,
-    gap: Spacing.sm,
-    paddingTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Theme.hairline,
-    backgroundColor: Theme.background,
-  },
-  actionLabel: {
-    marginBottom: Spacing.xs,
-    color: Theme.textMuted,
-    fontFamily: Fonts.bodyBold,
-    fontSize: 11,
-    letterSpacing: 1.2,
-  },
   backdrop: { flex: 1, justifyContent: "center", padding: Spacing.lg, backgroundColor: "rgba(0,0,0,0.65)" },
   dialog: { borderRadius: Radius.card, backgroundColor: Theme.background, padding: Spacing.lg, gap: Spacing.md },
   dialogTitle: { fontFamily: Fonts.display, fontSize: 30, letterSpacing: 1.5, color: Theme.text },

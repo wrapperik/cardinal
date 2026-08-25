@@ -49,10 +49,10 @@ export default function RootLayout() {
                 headerShown: false,
                 contentStyle: { backgroundColor: Theme.background },
                 // Explicit rather than left to the platform default, so iOS
-                // and Android push the same way. Left, not right: the back
-                // button's chevron always points left, so a screen popped by
-                // it should exit the way that arrow points rather than the
-                // platform-default rightward pop.
+                // and Android push the same way. Left, not right, so a
+                // screen popped by the back button exits opposite its
+                // right-pointing chevron rather than the platform-default
+                // rightward pop.
                 animation: reducedMotion ? 'none' : 'slide_from_left',
                 // Leaving a screen is a deliberate hold on a visible button
                 // now, not a swipe. An edge swipe left on to pop a game
@@ -62,11 +62,38 @@ export default function RootLayout() {
             >
               <Stack.Screen name="sign-up" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
               <Stack.Screen name="sign-in" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              {/* The one screen that reverses the app's push direction: it
+                  reads as a panel sliding over home from the right, so its
+                  BackButton sits on the left with a left-pointing chevron
+                  (side="left" direction="left" in settings.tsx) and popping
+                  it slides back out to the right it came from. */}
+              <Stack.Screen name="settings" options={{ animation: reducedMotion ? 'none' : 'slide_from_right' }} />
               {/* Dispatcher only — it replaces itself before anything is ever
                   visible, so animating it in would slide a blank charcoal
                   screen into view for a beat before the game it hands off to
                   slides in on top of that. */}
               <Stack.Screen name="recap" options={{ animation: 'none' }} />
+              {/* The one screen presented as a sheet rather than pushed: it
+                  rises from the bottom over a dimmed home rather than
+                  sliding in from the side, so leaving it reads as closing a
+                  popup, not backing out of a place. Rendered fully
+                  transparent — BottomSheet inside upload.tsx draws and
+                  animates the backdrop and card itself rather than using
+                  the platform's own sheet presentation, so animation stays
+                  'none' here and contentStyle drops the opaque background
+                  the rest of the stack paints behind every other screen.
+                  gestureEnabled stays false (inherited above): the sheet's
+                  own grabber is the only way to drag it closed, so a native
+                  edge-swipe can't dismiss it and skip the discard
+                  confirmation the grabber's onRequestClose routes through. */}
+              <Stack.Screen
+                name="upload"
+                options={{
+                  presentation: 'transparentModal',
+                  animation: 'none',
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+              />
             </Stack>
             <AuthGate />
           </View>

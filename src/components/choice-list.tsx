@@ -39,13 +39,13 @@ export function ChoiceList<T extends string>({ options, value, onChange, suggest
 }
 
 const styles = StyleSheet.create({
-  list: { gap: Spacing.sm },
+  list: { gap: Spacing.md },
   rowList: { flexDirection: "row", flexWrap: "wrap" },
   option: { minHeight: 48, borderRadius: Radius.card, backgroundColor: Theme.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, justifyContent: "center" },
   rowOption: { flexGrow: 1, flexBasis: "30%", alignItems: "center" },
-  selected: { backgroundColor: Colors.bone },
+  selected: { backgroundColor: Colors.rust },
   pressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
   label: { fontFamily: Fonts.bodyBold, fontSize: 13, letterSpacing: 0.5, color: Theme.text },
-  selectedLabel: { color: Colors.rust },
+  selectedLabel: { color: Colors.bone },
   meta: { marginTop: 2, fontFamily: Fonts.bodyBold, fontSize: 9, letterSpacing: 1, color: Theme.textMuted },
 });

@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring } from "react-native-reanimated";
 
-import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
+import { Colors, Fonts, Motion, Radius, Spacing, Theme, TrailDark } from "@/constants/theme";
 import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from "@/constants/gestures";
 import { useReducedMotion } from "@/lib/accessibility";
 import { selection } from "@/lib/haptics";
@@ -11,7 +11,7 @@ export interface SwipeActionProps {
   label: string;
   hint?: string;
   onConfirm: () => void;
-  tone?: "default" | "accent" | "destructive" | "calm";
+  tone?: "default" | "accent" | "destructive" | "calm" | "light";
   direction?: "left" | "right";
   disabled?: boolean;
 }
@@ -36,7 +36,18 @@ export function SwipeAction({ label, hint, onConfirm, tone = "default", directio
   const fillDrag = useDerivedValue(() => reducedMotion ? Math.abs(drag.value) : withSpring(Math.abs(drag.value), DELAYED_FILL_SPRING));
   const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateX: drag.value }] }));
   const fillStyle = useAnimatedStyle(() => ({ width: `${Math.max(0, Math.min(100, (fillDrag.value / SWIPE_COMMIT_DISTANCE) * 100))}%` }));
-  const fillColor = tone === "default" ? Theme.surface : tone === "calm" ? Colors.blue : Colors.rust;
+  // The fill has to contrast with the row it grows across — Theme.surface on
+  // styles.row's own Theme.surface background was invisible, giving a
+  // default-tone swipe no drag feedback at all. `default` and `accent` now
+  // both resolve to rust; `accent` stays as an explicit name for rows that
+  // are deliberately the primary action, not because it renders any differently.
+  const fillColor = tone === "default"
+    ? Colors.rust
+    : tone === "calm"
+      ? Colors.blue
+      : tone === "light"
+        ? TrailDark[2]
+        : Colors.rust;
 
   return (
     <View style={[styles.row, disabled && styles.disabled]}>
@@ -52,7 +63,7 @@ export function SwipeAction({ label, hint, onConfirm, tone = "default", directio
 }
 
 const styles = StyleSheet.create({
-  row: { height: 56, borderRadius: 16, backgroundColor: Theme.surface, overflow: "hidden" },
+  row: { height: 56, borderRadius: Radius.card, backgroundColor: Theme.surface, overflow: "hidden" },
   disabled: { opacity: 0.4 },
   fill: { position: "absolute", top: 0, bottom: 0 },
   left: { left: 0 }, right: { right: 0 },

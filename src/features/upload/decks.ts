@@ -114,6 +114,19 @@ export function moveDeckToCourse(id: string, courseId: string): LocalDeck | unde
   return moved;
 }
 
+/**
+ * Removes one deck and, through the store's delete expansion, its cards.
+ * Used when an upload is abandoned: the Function has already written the deck
+ * to Firestore, so discarding has to take it back out rather than merely
+ * forgetting it locally.
+ */
+export function deleteDeck(id: string): boolean {
+  const deck = store.getRecords().find((candidate) => candidate.id === id);
+  if (!deck) return false;
+  store.remove(id);
+  return true;
+}
+
 /** Deletes every deck owned by a course and returns the deleted ids. */
 export function deleteDecksForCourse(courseId: string): string[] {
   const ids = store.getRecords()

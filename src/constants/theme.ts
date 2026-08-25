@@ -49,6 +49,14 @@ export const Trail = ['#CB6C5A', '#C95944', '#C74D35'] as const;
 export const TrailDark = ['#676767', '#535353', '#464646'] as const;
 
 /**
+ * Ghost trail for a rust ball on the charcoal background — rust blended over
+ * charcoal at 30 / 18 / 10%, nearest the ball first. Trails are always
+ * pre-blended against whatever they sit on, so neither Trail nor TrailDark
+ * works here. Recompute if Colors.rust or Colors.charcoal changes.
+ */
+export const TrailAccent = ['#613830', '#503733', '#443734'] as const;
+
+/**
  * The four cardinal directions. Down is always reserved for Pass in the
  * Compass Quiz, so the mapping is fixed app-wide rather than per-template.
  */
@@ -104,6 +112,8 @@ export const Radius = {
   card: 20,
   /** The rust header block's lower corners on home. */
   header: 28,
+  /** The upload sheet's top corners where it rises over the screen behind it. */
+  sheet: 28,
 } as const;
 
 /**

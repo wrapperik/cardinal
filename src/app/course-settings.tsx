@@ -20,15 +20,12 @@ import { isValidTitle } from "@/features/upload/course-rules";
 import {
   deleteCourse,
   renameCourse,
-  setCourseTemplate,
   useCourses,
 } from "@/features/upload/courses";
 import { deleteDecksForCourse } from "@/features/upload/decks";
 import { deleteProgressForDecks } from "@/features/progress/progress";
 import { clearCheckpoint } from "@/features/recap/checkpoints";
 import { SwipeAction } from "@/features/upload/swipe-action";
-import { TemplatePicker } from "@/features/upload/template-picker";
-import type { TemplateChoice } from "@/features/upload/types";
 
 const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
 
@@ -39,8 +36,8 @@ const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
 const CONFIRM_HOLD_MS = 1400;
 
 /**
- * The COURSE SETTINGS destination: rename, pick a default extraction
- * template, upload more material, or deliberately remove a custom course.
+ * The COURSE SETTINGS destination: rename, upload more material, or
+ * deliberately remove a custom course.
  */
 export default function CourseSettings() {
   const insets = useSafeAreaInsets();
@@ -106,19 +103,6 @@ export default function CourseSettings() {
                 onDraftChange={setDraft}
                 renamed={renamed}
                 onRenamed={() => setRenamed(true)}
-              />
-
-              <Text style={styles.groupLabel}>DEFAULT TEMPLATE</Text>
-              <TemplatePicker
-                value={course.gameType}
-                includeAuto={false}
-                onChange={(value: TemplateChoice) => {
-                  // 'auto' has nothing to store here: a course's gameType is a
-                  // concrete extraction default for new uploads, not a
-                  // per-upload choice — see the Course doc comment in
-                  // types.ts. Only a real GameType is ever written.
-                  if (value !== "auto") setCourseTemplate(course.id, value);
-                }}
               />
 
               <Text style={styles.groupLabel}>UPLOAD</Text>

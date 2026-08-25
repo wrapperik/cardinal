@@ -49,6 +49,21 @@ describe("getAuthDestination", () => {
     ).toBe("/sign-in");
   });
 
+  it("sends a signed-out user whose onboarding flag was cleared to onboarding", () => {
+    // Sign-out and account deletion clear the onboarding flag, so the guard
+    // routes to "/" rather than "/sign-in" for these cases.
+    expect(
+      getAuthDestination({ pathname: "/home", onboarded: false, signedIn: false }),
+    ).toBe("/");
+    expect(
+      getAuthDestination({
+        pathname: "/settings",
+        onboarded: false,
+        signedIn: false,
+      }),
+    ).toBe("/");
+  });
+
   it("allows signed-out users to move between auth screens", () => {
     expect(
       getAuthDestination({
