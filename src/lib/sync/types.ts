@@ -108,12 +108,15 @@ export interface ExpandedOp {
   collection: string;
   docId: string;
   /**
-   * "delete" is deliberately not part of this union — every store that
-   * needs one already has it via SyncedStore.remove(), which enqueues a
-   * single op directly rather than going through expand(). Restricting the
-   * union to the two kinds that always carry a real payload is also what
-   * lets `payload` below be typed as always-present rather than nullable.
+   * Deletes use ExpandedDeleteOp through the separate expandDelete hook.
+   * Keeping them out of this union lets `payload` stay always-present here.
    */
   kind: "set" | "update";
   payload: Record<string, unknown>;
+}
+
+/** One ordered delete emitted by a record with dependent documents. */
+export interface ExpandedDeleteOp {
+  collection: string;
+  docId: string;
 }

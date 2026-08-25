@@ -11,6 +11,7 @@ import Animated, {
 import Svg, { Path } from 'react-native-svg';
 
 import { Colors, Fonts, Motion, Radius, Spacing, Theme } from '@/constants/theme';
+import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from '@/constants/gestures';
 import { selection } from '@/lib/haptics';
 
 /**
@@ -18,18 +19,6 @@ import { selection } from '@/lib/haptics';
  * SwipeAction and the sign-out row both carry it — so a menu row commits
  * with exactly the weight the rest of the house does.
  */
-const COMMIT_DISTANCE = 88;
-const MAX_DRAG = 112;
-
-/**
- * Deliberately slacker than Motion.snap: this spring is not trying to settle
- * the fill, it is trying to make the fill arrive a beat after the finger.
- * Low stiffness against a heavier mass is what produces the lag — retargeted
- * every frame from useDerivedValue below, so the fill is always chasing the
- * drag rather than tracking it exactly.
- */
-const FILL_LAG = { damping: 20, stiffness: 90, mass: 1 } as const;
-
 interface MenuRowProps {
   label: string;
   /** Small capsule on the right. Omitted or null renders no badge at all, rather than an empty one. */
@@ -69,10 +58,10 @@ export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
     // vertical — the same threshold SwipeAction uses.
     .activeOffsetX([-8, 8])
     .onChange((event) => {
-      drag.value = Math.max(0, Math.min(MAX_DRAG, drag.value + event.changeX));
+      drag.value = Math.max(0, Math.min(SWIPE_MAX_DRAG, drag.value + event.changeX));
     })
     .onEnd(() => {
-      if (drag.value > COMMIT_DISTANCE) runOnJS(commit)();
+      if (drag.value > SWIPE_COMMIT_DISTANCE) runOnJS(commit)();
       drag.value = withSpring(0, Motion.snap);
     });
 
@@ -80,7 +69,7 @@ export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
   // Returning an animation from useDerivedValue re-targets the spring every
   // time `drag` moves, which is what makes the fill trail the finger going
   // out and then catch up on the way back.
-  const fillDrag = useDerivedValue(() => withSpring(drag.value, FILL_LAG));
+  const fillDrag = useDerivedValue(() => withSpring(drag.value, DELAYED_FILL_SPRING));
 
   const contentStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: drag.value }],
@@ -89,7 +78,7 @@ export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
   // Scaled against COMMIT_DISTANCE, not MAX_DRAG, so the fill reads as full
   // exactly when the drag has travelled far enough to fire.
   const fillStyle = useAnimatedStyle(() => ({
-    width: `${Math.max(0, Math.min(100, (fillDrag.value / COMMIT_DISTANCE) * 100))}%`,
+    width: `${Math.max(0, Math.min(100, (fillDrag.value / SWIPE_COMMIT_DISTANCE) * 100))}%`,
   }));
 
   // Folds the badge into the label rather than leaving it a second, separate
@@ -143,7 +132,7 @@ export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
  */
 function ChevronGlyph({ drag }: { drag: SharedValue<number> }) {
   const style = useAnimatedStyle(() => ({
-    opacity: 0.55 + 0.45 * Math.max(0, Math.min(1, drag.value / COMMIT_DISTANCE)),
+    opacity: 0.55 + 0.45 * Math.max(0, Math.min(1, drag.value / SWIPE_COMMIT_DISTANCE)),
   }));
 
   return (

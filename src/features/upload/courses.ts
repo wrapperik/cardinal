@@ -167,3 +167,11 @@ export function setCourseTemplate(id: string, gameType: GameType): Course | unde
   store.put(updated);
   return updated;
 }
+
+/** Removes a user-created course. Seed courses remain permanent fixtures. */
+export function deleteCourse(id: string): boolean {
+  const course = store.getRecords().find((existing) => existing.id === id);
+  if (!course || course.seeded) return false;
+  store.remove(id);
+  return true;
+}

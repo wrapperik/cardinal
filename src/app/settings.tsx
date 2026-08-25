@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
+import { SwipeAction } from "@/components/swipe-action";
 import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-provider";
 import {
@@ -88,7 +89,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
  *  to the one row in the app that can't be undone by swiping again. */
 function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
   const [error, setError] = useState(false);
-  const drag = useSharedValue(0);
 
   const signOut = async () => {
     setError(false);
@@ -99,28 +99,9 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
     }
   };
 
-  const gesture = Gesture.Pan()
-    .activeOffsetX([-8, 8])
-    .onChange((event) => {
-      drag.value = Math.max(-112, Math.min(0, drag.value + event.changeX));
-    })
-    .onEnd(() => {
-      if (drag.value < -88) runOnJS(signOut)();
-      drag.value = withSpring(0, Motion.snap);
-    });
-
-  const dragStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: drag.value }],
-  }));
-
   return (
     <View>
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.signOutRow, dragStyle]}>
-          <Text style={styles.signOutLabel}>SIGN OUT</Text>
-          <Text style={styles.signOutHint}>SWIPE LEFT</Text>
-        </Animated.View>
-      </GestureDetector>
+      <SwipeAction label="SIGN OUT" direction="left" tone="destructive" onConfirm={signOut} />
       {error && <Text style={styles.signOutError}>COULDN&apos;T SIGN OUT. TRY AGAIN.</Text>}
     </View>
   );
@@ -224,25 +205,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontFamily: Fonts.bodyBold,
     fontSize: 15,
-    color: Theme.textMuted,
-  },
-  signOutRow: {
-    minHeight: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.glassEdge,
-  },
-  signOutLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 15,
-    color: Colors.rust,
-  },
-  signOutHint: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 11,
-    letterSpacing: 1.2,
     color: Theme.textMuted,
   },
   signOutError: {

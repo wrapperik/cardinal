@@ -35,7 +35,7 @@ import { fromFirestorePayload, toFirestorePayload, type FieldAdapterConfig } fro
 import { syncStorageKeys } from "./keys";
 import { reconcile, type RemoteEntry } from "./merge";
 import { applyFailure, dropChildrenOf, enqueue, nextToDrain, removeOp, replaceOp } from "./outbox";
-import { SERVER_TIMESTAMP, type ExpandedOp, type MetaMap, type OutboxOp } from "./types";
+import { SERVER_TIMESTAMP, type ExpandedDeleteOp, type ExpandedOp, type MetaMap, type OutboxOp } from "./types";
 
 export interface SyncedStoreConfig<T extends { id: string }> {
   /** Namespaces this store's AsyncStorage keys — see keys.ts. Does not affect the Firestore path; that is collectionPath below. */
@@ -140,6 +140,8 @@ export interface SyncedStoreConfig<T extends { id: string }> {
    * (see RecordMeta.remoteConfirmed in ./types).
    */
   expand?: (record: T, uid: string, meta: MetaMap) => ExpandedOp[];
+  /** Ordered dependent deletes, e.g. a deck's cards before its root. */
+  expandDelete?: (record: T, uid: string) => ExpandedDeleteOp[];
 }
 
 export interface SyncedStore<T extends { id: string }> {
@@ -546,7 +548,8 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   }
 
   function remove(id: string) {
-    if (!snapshot.some((record) => record.id === id)) return;
+    const record = snapshot.find((candidate) => candidate.id === id);
+    if (!record) return;
     commitRecords(snapshot.filter((record) => record.id !== id));
 
     const nextMeta = { ...meta };
@@ -554,16 +557,22 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     commitMeta(nextMeta);
 
     if (uid) {
-      commitOutbox(
-        enqueue(outbox, {
+      const expanded = config.expandDelete?.(record, uid) ?? [
+        { collection: config.collectionPath(uid), docId: id },
+      ];
+      let nextOutbox = outbox;
+      const createdAt = Date.now();
+      expanded.forEach((operation) => {
+        nextOutbox = enqueue(nextOutbox, {
           opId: makeOpId(),
-          collection: config.collectionPath(uid),
-          docId: id,
+          collection: operation.collection,
+          docId: operation.docId,
           kind: "delete",
           payload: null,
-          createdAt: Date.now(),
-        }),
-      );
+          createdAt,
+        });
+      });
+      commitOutbox(nextOutbox);
       scheduleDrain();
     }
   }

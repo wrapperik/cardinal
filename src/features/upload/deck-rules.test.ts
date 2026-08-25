@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import * as deckRules from "./deck-rules";
-import { backfillDeck, expandDeck, isLocalDeck } from "./deck-rules";
-import { saveDeck } from "./decks";
+import { backfillDeck, expandDeck, expandDeckDelete, isLocalDeck } from "./deck-rules";
+import { addCourse, deleteCourse, getCourses } from "./courses";
+import { deleteDecksForCourse, getDecks, moveDeckToCourse, saveDeck } from "./decks";
 import type { LocalDeck } from "./types";
 import { createSyncedStore } from "@/lib/sync/store";
 import type { CardContent } from "@/types/cardinal";
@@ -94,6 +95,41 @@ describe("deck local behavior", () => {
     expect(isLocalDeck({ ...validDeck(), provider: "gemini" })).toBe(true);
   });
 
+  it("can refile an extracted deck when the AI chose the wrong course", () => {
+    const deck = saveDeck({
+      courseId: "wrong-course",
+      title: "CELLS",
+      sourceName: "cells.pdf",
+      cards: extractedCards,
+      provider: "mock",
+    });
+
+    moveDeckToCourse(deck.id, "right-course");
+
+    expect(getDecks().find((candidate) => candidate.id === deck.id)?.courseId).toBe("right-course");
+  });
+
+  it("deletes all decks belonging to a removed course", () => {
+    const doomed = saveDeck({
+      courseId: "delete-me",
+      title: "CELLS",
+      sourceName: "cells.pdf",
+      cards: extractedCards,
+      provider: "mock",
+    });
+    saveDeck({
+      courseId: "keep-me",
+      title: "OTHER",
+      sourceName: "other.pdf",
+      cards: extractedCards,
+      provider: "mock",
+    });
+
+    expect(deleteDecksForCourse("delete-me")).toEqual([doomed.id]);
+    expect(getDecks().some((deck) => deck.courseId === "delete-me")).toBe(false);
+    expect(getDecks().some((deck) => deck.courseId === "keep-me")).toBe(true);
+  });
+
   it("rebuilds an existing uploaded deck from its cloud card documents", () => {
     type Hydrator = (input: {
       deckId: string;
@@ -178,6 +214,20 @@ describe("deck local behavior", () => {
   });
 });
 
+describe("course deletion", () => {
+  it("deletes custom courses but protects sample courses", () => {
+    const custom = addCourse("Temporary course");
+    const seed = getCourses().find((course) => course.seeded);
+
+    expect(deleteCourse(custom.id)).toBe(true);
+    expect(getCourses().some((course) => course.id === custom.id)).toBe(false);
+    if (seed) {
+      expect(deleteCourse(seed.id)).toBe(false);
+      expect(getCourses().some((course) => course.id === seed.id)).toBe(true);
+    }
+  });
+});
+
 describe("backfillDeck", () => {
   it("keeps existing card ids while assigning ids only to legacy cards", () => {
     const result = backfillDeck({
@@ -217,6 +267,14 @@ describe("expandDeck", () => {
 
     expect(operation.payload.sourceType).toBe("upload");
     expect(operation.payload.uploadId).toBe("upload-1");
+  });
+
+  it("deletes every card before deleting its owning deck", () => {
+    expect(expandDeckDelete(validDeck())).toEqual([
+      { collection: "decks/deck-1/cards", docId: "card-1" },
+      { collection: "decks/deck-1/cards", docId: "card-2" },
+      { collection: "decks", docId: "deck-1" },
+    ]);
   });
 });
 

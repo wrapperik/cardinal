@@ -5,6 +5,7 @@ import {
   deckFromFirestoreDocuments,
   DECK_FIELD,
   expandDeck,
+  expandDeckDelete,
   isLocalDeck,
   makeCardId,
   makeDeckId,
@@ -33,6 +34,7 @@ const deckSyncConfig: SyncedStoreConfig<LocalDeck> = {
   migrateLegacyKey: "cardinal.decks",
   backfill: backfillDeck,
   expand: expandDeck,
+  expandDelete: expandDeckDelete,
   hydrateRemote: hydrateRemoteDeck,
 };
 
@@ -97,4 +99,22 @@ export function selectCards(
 /** The same selection against the current snapshot, for one-shot reads. */
 export function cardsForCourse(courseId: string, gameType?: GameType): CardContent[] {
   return selectCards(store.getRecords(), courseId, gameType);
+}
+
+/** Moves a deck without rewriting any of its cards. */
+export function moveDeckToCourse(id: string, courseId: string): LocalDeck | undefined {
+  const deck = store.getRecords().find((candidate) => candidate.id === id);
+  if (!deck) return undefined;
+  const moved = { ...deck, courseId, updatedAt: Date.now() };
+  store.put(moved);
+  return moved;
+}
+
+/** Deletes every deck owned by a course and returns the deleted ids. */
+export function deleteDecksForCourse(courseId: string): string[] {
+  const ids = store.getRecords()
+    .filter((deck) => deck.courseId === courseId)
+    .map((deck) => deck.id);
+  ids.forEach((id) => store.remove(id));
+  return ids;
 }

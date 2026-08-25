@@ -9,7 +9,7 @@ interface BackButtonProps {
   /** Announced to assistive tech. "BACK" on ordinary screens, "EXIT" in a game. */
   label: string;
   onBack: () => void;
-  /** Home-row destinations return on the opposite side from their entry gesture. */
+  /** Back controls live on the right; kept as a prop for exceptional layouts. */
   side?: "left" | "right";
 }
 
@@ -33,7 +33,7 @@ interface BackButtonProps {
  * nav buttons invert this rather than contradict it: they are charcoal
  * because they sit ON rust.
  */
-export function BackButton({ label, onBack, side = "left" }: BackButtonProps) {
+export function BackButton({ label, onBack, side = "right" }: BackButtonProps) {
   const insets = useSafeAreaInsets();
 
   return (

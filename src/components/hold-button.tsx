@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
+import { useFocusEffect } from "expo-router";
 import { StyleSheet } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -58,6 +59,15 @@ export function HoldButton({
   // onTouchesUp after that, and writing to shared values for a view that's
   // already gone crashes the native side — so once fired, no more writes.
   const fired = useSharedValue(false);
+
+  // Pushed screens leave their source mounted underneath. Reset whenever its
+  // route regains focus so a completed Home hold cannot remain visually full.
+  useFocusEffect(useCallback(() => {
+    fired.value = false;
+    scale.value = 1;
+    fill.value = 0;
+    return undefined;
+  }, [fill, fired, scale]));
 
   const beginHaptic = () => {
     impact(ImpactFeedbackStyle.Light);

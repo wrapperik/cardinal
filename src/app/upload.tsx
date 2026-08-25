@@ -1,14 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
-import { addCourse, adoptRemoteCourse, courseById, useCourses } from "@/features/upload/courses";
-import { adoptRemoteDeck, saveDeck } from "@/features/upload/decks";
+import { addCourse, adoptRemoteCourse, courseById, deleteCourse, useCourses } from "@/features/upload/courses";
+import { adoptRemoteDeck, moveDeckToCourse, saveDeck } from "@/features/upload/decks";
 import { DestinationPicker } from "@/features/upload/destination-picker";
 import { activeProvider, extractCards } from "@/features/upload/extract";
 import { formatBytes, pickDocument } from "@/features/upload/picker";
@@ -184,6 +185,7 @@ export default function Upload() {
   const courses = useCourses();
 
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [discardIntent, setDiscardIntent] = useState<"reset" | "leave" | null>(null);
   const extraction = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -267,10 +269,22 @@ export default function Upload() {
       // through the sync outbox.
       adoptRemoteCourse(canonicalCourse);
       adoptRemoteDeck(canonicalDeck);
+      const canonicalWasKnown = courses.some((course) => course.id === canonicalCourse.id);
+      const chosenId = state.destinationId ?? canonicalCourse.id;
+      const chosenCourse = chosenId === canonicalCourse.id
+        ? canonicalCourse
+        : courseById(chosenId) ?? canonicalCourse;
+      if (chosenCourse.id !== canonicalCourse.id) {
+        moveDeckToCourse(canonicalDeck.id, chosenCourse.id);
+        // When the Function created a brand-new course solely for this deck,
+        // correcting the destination should not leave that empty AI guess in
+        // the library. Existing courses are never removed here.
+        if (!canonicalWasKnown) deleteCourse(canonicalCourse.id);
+      }
       dispatch({
         type: "saveSuccess",
-        courseTitle: canonicalCourse.title,
-        courseId: canonicalCourse.id,
+        courseTitle: chosenCourse.title,
+        courseId: chosenCourse.id,
         count: canonicalDeck.cards.length,
       });
       return;
@@ -349,7 +363,7 @@ export default function Upload() {
               }}
               onSave={handleSave}
               onDropCard={(index) => dispatch({ type: "dropCard", index })}
-              onDiscard={() => dispatch({ type: "reset" })}
+              onDiscard={() => setDiscardIntent("reset")}
             />
           )}
 
@@ -360,13 +374,35 @@ export default function Upload() {
             <FailedStage
               message={state.error}
               onRetry={() => dispatch({ type: "retry" })}
-              onStartOver={() => dispatch({ type: "reset" })}
+              onStartOver={() => setDiscardIntent("reset")}
             />
           )}
         </View>
       </ScrollView>
 
-      <BackButton label="BACK" onBack={() => router.back()} />
+      <BackButton
+        key={discardIntent ?? "ready"}
+        label="BACK"
+        onBack={() => {
+          if (state.stage === "idle" || state.stage === "saved") router.back();
+          else setDiscardIntent("leave");
+        }}
+      />
+      <ConfirmationDialog
+        visible={discardIntent !== null}
+        title="DISCARD UPLOAD?"
+        message="Your selected file and extracted cards will be cleared."
+        confirmLabel="DISCARD"
+        onCancel={() => setDiscardIntent(null)}
+        onConfirm={() => {
+          const intent = discardIntent;
+          extraction.current?.abort();
+          extraction.current = null;
+          setDiscardIntent(null);
+          dispatch({ type: "reset" });
+          if (intent === "leave") router.back();
+        }}
+      />
     </View>
   );
 }
@@ -474,11 +510,13 @@ function ReviewStage({
   onDiscard: () => void;
 }) {
   const breakdown = countByTemplate(result.cards);
-  const isCanonical = result.provider === "gemini" && !!result.canonicalDeck;
   // Falls back to the model's own suggestion so the picker shows a filled
   // row even before the user has touched it — "preselected", not "empty".
-  const chosenId = isCanonical ? result.canonicalDeck!.courseId : destinationId ?? result.suggestedCourseId;
-  const chosenCourse = isCanonical
+  const chosenId = destinationId ?? result.canonicalCourse?.id ?? result.suggestedCourseId;
+  const pickerCourses = result.canonicalCourse && !courses.some((course) => course.id === result.canonicalCourse?.id)
+    ? [...courses, result.canonicalCourse]
+    : courses;
+  const chosenCourse = chosenId === result.canonicalCourse?.id
     ? result.canonicalCourse
     : chosenId
       ? courseById(chosenId)
@@ -511,17 +549,13 @@ function ReviewStage({
         {result.confidence > 0 ? `  ·  ${Math.round(result.confidence * 100)}%` : ""}
       </Text>
 
-      {isCanonical ? (
-        <Text style={styles.note}>CLOUD DESTINATION: {chosenCourse?.title ?? result.suggestedTitle}</Text>
-      ) : (
-        <DestinationPicker
-          courses={courses}
-          selectedId={chosenId}
-          suggestedId={result.suggestedCourseId}
-          onSelect={onDestinationSelect}
-          onCreate={onDestinationCreate}
-        />
-      )}
+      <DestinationPicker
+        courses={pickerCourses}
+        selectedId={chosenId}
+        suggestedId={result.suggestedCourseId ?? result.canonicalCourse?.id}
+        onSelect={onDestinationSelect}
+        onCreate={onDestinationCreate}
+      />
 
       <SwipeAction label={saveLabel} hint="SWIPE RIGHT" tone="accent" onConfirm={onSave} />
       <SwipeAction label="DISCARD" hint="SWIPE RIGHT" onConfirm={onDiscard} />

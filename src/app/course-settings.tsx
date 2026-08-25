@@ -11,16 +11,21 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { Fonts, Spacing, Theme } from "@/constants/theme";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { AuthField } from "@/features/auth/auth-field";
 import { isValidTitle } from "@/features/upload/course-rules";
 import {
+  deleteCourse,
   renameCourse,
   setCourseTemplate,
   useCourses,
 } from "@/features/upload/courses";
+import { deleteDecksForCourse } from "@/features/upload/decks";
+import { deleteProgressForDecks } from "@/features/progress/progress";
+import { clearCheckpoint } from "@/features/recap/checkpoints";
 import { SwipeAction } from "@/features/upload/swipe-action";
 import { TemplatePicker } from "@/features/upload/template-picker";
 import type { TemplateChoice } from "@/features/upload/types";
@@ -35,8 +40,7 @@ const CONFIRM_HOLD_MS = 1400;
 
 /**
  * The COURSE SETTINGS destination: rename, pick a default extraction
- * template, or jump straight into uploading more material — nothing here
- * can destroy data, so there is no delete row.
+ * template, upload more material, or deliberately remove a custom course.
  */
 export default function CourseSettings() {
   const insets = useSafeAreaInsets();
@@ -60,6 +64,7 @@ export default function CourseSettings() {
   }, [course]);
 
   const [renamed, setRenamed] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
     if (!renamed) return;
     notification(NotificationFeedbackType.Success);
@@ -106,6 +111,7 @@ export default function CourseSettings() {
               <Text style={styles.groupLabel}>DEFAULT TEMPLATE</Text>
               <TemplatePicker
                 value={course.gameType}
+                includeAuto={false}
                 onChange={(value: TemplateChoice) => {
                   // 'auto' has nothing to store here: a course's gameType is a
                   // concrete extraction default for new uploads, not a
@@ -127,6 +133,18 @@ export default function CourseSettings() {
                   })
                 }
               />
+
+              <Text style={styles.groupLabel}>DELETE COURSE</Text>
+              {course.seeded ? (
+                <Text style={styles.note}>SAMPLE COURSES CAN&apos;T BE DELETED</Text>
+              ) : (
+                <SwipeAction
+                  label="DELETE COURSE"
+                  hint="SWIPE RIGHT"
+                  tone="destructive"
+                  onConfirm={() => setConfirmDelete(true)}
+                />
+              )}
             </>
           )}
         </ScrollView>
@@ -135,6 +153,22 @@ export default function CourseSettings() {
       {/* Sibling of the ScrollView, not inside it — same reasoning
           course/[id].tsx documents for its own tab. */}
       <BackButton label="BACK" side="right" onBack={() => router.back()} />
+      <ConfirmationDialog
+        visible={confirmDelete}
+        title="DELETE COURSE?"
+        message={`This removes ${course?.title ?? "this course"}, its uploaded decks, and its saved progress.`}
+        confirmLabel="DELETE"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          if (!course || course.seeded) return;
+          setConfirmDelete(false);
+          const deckIds = deleteDecksForCourse(course.id);
+          deleteProgressForDecks(deckIds);
+          clearCheckpoint(course.id);
+          deleteCourse(course.id);
+          router.replace("/home");
+        }}
+      />
     </View>
   );
 }

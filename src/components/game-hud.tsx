@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -10,6 +10,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { RestartButton } from "@/components/restart-button";
 import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
 import type { RecapRunner } from "@/features/recap/runner";
@@ -39,6 +40,7 @@ interface GameHUDProps {
  */
 export function GameHUD({ step, total, runner }: GameHUDProps) {
   const insets = useSafeAreaInsets();
+  const [confirmRestart, setConfirmRestart] = useState(false);
 
   const progressLabel = `${String(step).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
@@ -92,9 +94,17 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
         </View>
       </View>
 
-      <BackButton label="EXIT" onBack={() => runner.abandon()} />
+      <BackButton label="EXIT" side="right" onBack={() => runner.abandon()} />
       {/* Nothing to restart from on the very first card. */}
-      {step > 1 && <RestartButton onRestart={runner.restart} />}
+      {step > 1 && !confirmRestart && <RestartButton onRestart={() => setConfirmRestart(true)} />}
+      <ConfirmationDialog
+        visible={confirmRestart}
+        title="START AGAIN?"
+        message="This attempt will close and the deck will restart from its first card."
+        confirmLabel="RESTART"
+        onCancel={() => setConfirmRestart(false)}
+        onConfirm={() => { setConfirmRestart(false); runner.restart(); }}
+      />
     </>
   );
 }

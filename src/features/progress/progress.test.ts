@@ -2,10 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { toFirestorePayload } from "@/lib/sync/adapter";
 
-import { PROGRESS_FIELD, isProgressRecord, type ProgressRecord } from "./progress";
+import {
+  deleteProgressForDecks,
+  getProgress,
+  PROGRESS_FIELD,
+  isProgressRecord,
+  recordProgress,
+  type ProgressRecord,
+} from "./progress";
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
-  default: { getItem: vi.fn(), setItem: vi.fn() },
+  default: { getItem: vi.fn(async () => null), setItem: vi.fn(async () => undefined) },
 }));
 
 vi.mock("firebase/auth", () => ({ onAuthStateChanged: vi.fn(() => vi.fn()) }));
@@ -53,5 +60,15 @@ describe("progress sync config", () => {
     expect(isProgressRecord(progress())).toBe(true);
     expect(isProgressRecord(progress({ easeFactor: 1.2 }))).toBe(false);
     expect(isProgressRecord(progress({ lastQuality: 6 as 5 }))).toBe(false);
+  });
+
+  it("clears only the progress owned by deleted decks", () => {
+    recordProgress({ cardId: "deleted-card", deckId: "deleted-deck" }, "correct", 1_000);
+    recordProgress({ cardId: "kept-card", deckId: "kept-deck" }, "correct", 1_000);
+
+    deleteProgressForDecks(["deleted-deck"]);
+
+    expect(getProgress().some((record) => record.id === "deleted-card")).toBe(false);
+    expect(getProgress().some((record) => record.id === "kept-card")).toBe(true);
   });
 });

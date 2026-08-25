@@ -12,7 +12,7 @@
 import { isGameType } from "@/features/upload/course-rules";
 import type { LocalCard, LocalDeck } from "@/features/upload/types";
 import { fromFirestorePayload, toFirestorePayload, type FieldAdapterConfig } from "@/lib/sync/adapter";
-import type { ExpandedOp, MetaMap } from "@/lib/sync/types";
+import type { ExpandedDeleteOp, ExpandedOp, MetaMap } from "@/lib/sync/types";
 
 /**
  * Not a slug of anything user-visible — unlike course ids, nobody reads a
@@ -249,4 +249,15 @@ export function expandDeck(deck: LocalDeck, uid: string, meta: MetaMap): Expande
   }
 
   return ops;
+}
+
+/** Firestore requires cards to be removed while their owning deck exists. */
+export function expandDeckDelete(deck: LocalDeck): ExpandedDeleteOp[] {
+  return [
+    ...deck.cards.map((card) => ({
+      collection: `decks/${deck.id}/cards`,
+      docId: card.cardId,
+    })),
+    { collection: "decks", docId: deck.id },
+  ];
 }

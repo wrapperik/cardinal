@@ -76,3 +76,12 @@ export function recordProgress(
   store.put(record);
   return record;
 }
+
+/** Clears review state that belonged to decks removed with a course. */
+export function deleteProgressForDecks(deckIds: string[]): void {
+  if (deckIds.length === 0) return;
+  const deleted = new Set(deckIds);
+  store.getRecords()
+    .filter((record) => deleted.has(record.deckId))
+    .forEach((record) => store.remove(record.id));
+}

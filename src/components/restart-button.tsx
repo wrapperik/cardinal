@@ -119,7 +119,7 @@ function RestartGlyph() {
 const styles = StyleSheet.create({
   button: {
     position: "absolute",
-    right: Spacing.md,
+    left: Spacing.md,
     zIndex: 10,
   },
 });
