@@ -25,7 +25,7 @@ import {
   DOT_CLUSTER_WIDTH,
   DotCluster,
 } from "@/components/dot-cluster";
-import { BackButton } from "@/components/back-button";
+import { GameHUD } from "@/components/game-hud";
 import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useTrueFalseStatements } from "@/features/upload/play";
@@ -112,9 +112,18 @@ export default function TrueFalse() {
     };
   }, []);
 
-  function leaveTrueFalse() {
-    runner.abandon();
-  }
+  useEffect(() => {
+    setIndex(0);
+    committing.current = false;
+    if (verdictTimeout.current) {
+      clearTimeout(verdictTimeout.current);
+      verdictTimeout.current = null;
+    }
+    verdictActive.value = false;
+    verdictCorrect.value = false;
+    revealSide.value = -1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runner.restartToken]);
 
   function advanceStatement() {
     if (index + 1 >= statements.length) {
@@ -243,7 +252,6 @@ export default function TrueFalse() {
   }));
 
   const total = runner.total(statements.length);
-  const progressLabel = `${String(runner.step(index)).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (
     <View style={styles.screen}>
@@ -287,9 +295,7 @@ export default function TrueFalse() {
         size={GLOW_SIZE}
       />
 
-      <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
-        {progressLabel}
-      </Text>
+      <GameHUD step={runner.step(index)} total={total} />
 
       <EdgePill
         side="left"
@@ -398,7 +404,6 @@ export default function TrueFalse() {
         </View>
       </View>
 
-      <BackButton label="EXIT" onBack={leaveTrueFalse} />
     </View>
   );
 }
@@ -532,17 +537,6 @@ const styles = StyleSheet.create({
   },
   grid: {
     position: "absolute",
-  },
-  progress: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    fontFamily: Fonts.display,
-    fontSize: 30,
-    color: Theme.text,
-    letterSpacing: 2,
-    marginTop: 8,
   },
   pill: {
     position: "absolute",

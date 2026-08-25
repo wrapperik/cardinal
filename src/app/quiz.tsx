@@ -16,7 +16,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 
 import BgGrid from "@/assets/images/BG-Grid.svg";
 import { CharacterMark } from "@/components/character-mark";
-import { BackButton } from "@/components/back-button";
+import { GameHUD } from "@/components/game-hud";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import {
   Colors,
@@ -131,9 +131,18 @@ export default function Quiz() {
     };
   }, []);
 
-  function leaveQuiz() {
-    runner.abandon();
-  }
+  useEffect(() => {
+    setIndex(0);
+    committing.current = false;
+    if (verdictTimeout.current) {
+      clearTimeout(verdictTimeout.current);
+      verdictTimeout.current = null;
+    }
+    verdictIndex.value = -1;
+    verdictCorrect.value = false;
+    revealCorrect.value = -1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runner.restartToken]);
 
   function advanceQuestion() {
     if (index + 1 >= questions.length) {
@@ -239,13 +248,9 @@ export default function Quiz() {
   }));
 
   const total = runner.total(questions.length);
-  const progressLabel = `${String(runner.step(index)).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
-
   return (
     <View style={styles.screen}>
-      <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
-        {progressLabel}
-      </Text>
+      <GameHUD step={runner.step(index)} total={total} />
 
       <View
         style={[
@@ -366,7 +371,6 @@ export default function Quiz() {
         </View>
       </View>
 
-      <BackButton label="EXIT" onBack={leaveQuiz} />
     </View>
   );
 }
@@ -566,17 +570,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Theme.background,
-  },
-  progress: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    fontFamily: Fonts.display,
-    fontSize: 30,
-    color: Theme.text,
-    letterSpacing: 2,
-    marginTop: 8,
   },
   body: {
     flex: 1,

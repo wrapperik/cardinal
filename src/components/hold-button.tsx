@@ -25,6 +25,10 @@ const RELEASE_MS = 160;
 interface HoldButtonProps {
   glyph: ReactNode;
   label: string;
+  /** Announced to assistive tech alongside `label`. Defaults to the generic
+   *  hold instruction; callers whose hold does something more specific than
+   *  "activate" (RestartButton, say) can name that instead. */
+  hint?: string;
   onHold: () => void;
   backgroundColor?: string;
 }
@@ -40,7 +44,13 @@ interface HoldButtonProps {
  * holds instead, and the fill below makes the hold legible rather than a
  * guess at how long to keep a finger down.
  */
-export function HoldButton({ glyph, label, onHold, backgroundColor = Colors.charcoal }: HoldButtonProps) {
+export function HoldButton({
+  glyph,
+  label,
+  hint = "Hold to activate",
+  onHold,
+  backgroundColor = Colors.charcoal,
+}: HoldButtonProps) {
   const scale = useSharedValue(1);
   const fill = useSharedValue(0);
 
@@ -51,6 +61,11 @@ export function HoldButton({ glyph, label, onHold, backgroundColor = Colors.char
   const fireHold = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onHold();
+  };
+
+  const release = () => {
+    scale.value = withSpring(1, Motion.press);
+    fill.value = withTiming(0, { duration: RELEASE_MS });
   };
 
   const gesture = Gesture.LongPress()
@@ -65,8 +80,15 @@ export function HoldButton({ glyph, label, onHold, backgroundColor = Colors.char
       runOnJS(fireHold)();
     })
     .onFinalize(() => {
-      scale.value = withSpring(1, Motion.press);
-      fill.value = withTiming(0, { duration: RELEASE_MS });
+      release();
+    })
+    // The recognizer's own fail state doesn't resolve until minDuration has
+    // elapsed, even when the finger lifted immediately — so a plain tap
+    // would otherwise watch the fill finish its rise before onFinalize ever
+    // drains it. Touch events aren't gated by that recognition delay, so
+    // release on the real lift instead of waiting on the gesture's verdict.
+    .onTouchesUp(() => {
+      release();
     });
 
   const circleStyle = useAnimatedStyle(() => ({
@@ -92,7 +114,7 @@ export function HoldButton({ glyph, label, onHold, backgroundColor = Colors.char
         hitSlop={12}
         accessibilityRole="button"
         accessibilityLabel={label}
-        accessibilityHint="Hold to activate"
+        accessibilityHint={hint}
       >
         <Animated.View style={[styles.fill, fillStyle]} />
         {/* Rendered after the fill so the glyph always paints on top and

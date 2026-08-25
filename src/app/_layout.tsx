@@ -45,8 +45,11 @@ export default function RootLayout() {
                 headerShown: false,
                 contentStyle: { backgroundColor: Theme.background },
                 // Explicit rather than left to the platform default, so iOS
-                // and Android push the same way.
-                animation: 'slide_from_right',
+                // and Android push the same way. Left, not right: the back
+                // button's chevron always points left, so a screen popped by
+                // it should exit the way that arrow points rather than the
+                // platform-default rightward pop.
+                animation: 'slide_from_left',
                 // Leaving a screen is a deliberate hold on a visible button
                 // now, not a swipe. An edge swipe left on to pop a game
                 // mid-run would discard it on an accidental brush.

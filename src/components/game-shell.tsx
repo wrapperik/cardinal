@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
-import { BackButton } from "@/components/back-button";
+import { GameHUD } from "@/components/game-hud";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
-import { Fonts, Spacing, Theme } from "@/constants/theme";
-import { useRecapRunner } from "@/features/recap/runner";
+import { Spacing, Theme } from "@/constants/theme";
 
 /**
  * Vertical room the header claims below the safe area. Games pad their own
@@ -22,27 +20,17 @@ interface GameShellProps {
 }
 
 /**
- * Everything every game template has in common: the charcoal field, the
- * progress readout, and the way out.
- *
- * The entrance and exit both belong to the stack now, not to this component
- * — expo-router pushes every game on with its own slide, and the EXIT button
- * just pops once its hold completes. There is nothing left for the shell to
- * animate itself.
+ * The charcoal field for the two templates (Sequence, Match) that nest their
+ * whole board inside it rather than positioning against the full viewport
+ * themselves. The header itself — progress, score, both hold buttons — is
+ * GameHUD, shared with Quiz and True/False, which mount it directly since
+ * they have no children slot to nest inside.
  */
 export function GameShell({ step, total, children }: GameShellProps) {
-  const insets = useSafeAreaInsets();
-  const runner = useRecapRunner();
-
-  const progressLabel = `${String(step).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
-
   return (
     <View style={styles.screen}>
       {children}
-
-      <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>{progressLabel}</Text>
-
-      <BackButton label="EXIT" onBack={() => runner.abandon()} />
+      <GameHUD step={step} total={total} />
     </View>
   );
 }
@@ -51,16 +39,5 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Theme.background,
-  },
-  progress: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    fontFamily: Fonts.display,
-    fontSize: 30,
-    color: Theme.text,
-    letterSpacing: 2,
-    marginTop: 8,
   },
 });

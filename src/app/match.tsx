@@ -118,6 +118,28 @@ export default function Match() {
     };
   }, []);
 
+  // Full, unconditional reset — a restart while already on round 0 would
+  // make setRoundIndex(0) a no-op, so nothing here can depend on roundIndex
+  // actually changing to fire.
+  useEffect(() => {
+    setRoundIndex(0);
+    setMatchedAt([null, null, null]);
+    matched0.value = false;
+    matched1.value = false;
+    matched2.value = false;
+    wrong0.value = false;
+    wrong1.value = false;
+    wrong2.value = false;
+    hoverZone.value = -1;
+    committing.current = false;
+    fumbled.current = false;
+    if (advanceTimeout.current) {
+      clearTimeout(advanceTimeout.current);
+      advanceTimeout.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runner.restartToken]);
+
   function resetZoneVisuals() {
     matched0.value = false;
     matched1.value = false;

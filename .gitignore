@@ -60,3 +60,5 @@ example
 # editor / tooling
 .idea/
 *.swp
+
+docs/experience-audit.md

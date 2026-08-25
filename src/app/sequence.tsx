@@ -138,6 +138,26 @@ export default function Sequence() {
     committing.current = false;
   }, [roundIndex, solved]);
 
+  // Deliberately not reliant on the [roundIndex, solved] effect above: a
+  // restart while already on round 0 makes setRoundIndex(0) a no-op, so that
+  // effect would never re-fire. This one performs the full reset directly,
+  // unconditionally, every time restartToken changes.
+  useEffect(() => {
+    setRoundIndex(0);
+    setBoard({ round: 0, order: [0, 1, 2, 3] });
+    solved.value = false;
+    committing.current = false;
+    if (resolveTimeout.current) {
+      clearTimeout(resolveTimeout.current);
+      resolveTimeout.current = null;
+    }
+    activeSlot.value = -1;
+    dragY.value = 0;
+    hoverSlot.value = -1;
+    passY.value = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runner.restartToken]);
+
   function advanceRound() {
     if (roundIndex + 1 >= rounds.length) {
       runner.finishLeg();
