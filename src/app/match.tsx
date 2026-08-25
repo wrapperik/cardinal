@@ -16,6 +16,7 @@ import { GAME_HEADER_H, GameShell } from "@/components/game-shell";
 import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import type { MatchPair, MatchRound } from "@/features/match/rounds";
 import { useRecapRunner } from "@/features/recap/runner";
+import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
@@ -304,6 +305,7 @@ export default function Match() {
           </Animated.View>
         </GestureDetector>
       </View>
+      <TutorialTip gameType="matchRelease" />
     </GameShell>
   );
 }

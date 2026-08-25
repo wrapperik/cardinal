@@ -3,9 +3,17 @@ import { Modal, Pressable, StyleSheet, Text } from "react-native";
 import { SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 
-interface Props { visible: boolean; title: string; message: string; confirmLabel: string; onConfirm: () => void; onCancel: () => void }
+interface Props {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
 
-export function ConfirmationDialog({ visible, title, message, confirmLabel, onConfirm, onCancel }: Props) {
+export function ConfirmationDialog({ visible, title, message, confirmLabel, cancelLabel = "KEEP IT", onConfirm, onCancel }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.backdrop} onPress={onCancel} accessibilityRole="button" accessibilityLabel="CANCEL">
@@ -13,7 +21,7 @@ export function ConfirmationDialog({ visible, title, message, confirmLabel, onCo
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
           <SwipeAction label={confirmLabel} tone="destructive" onConfirm={onConfirm} />
-          <SwipeAction label="KEEP IT" direction="left" onConfirm={onCancel} />
+          <SwipeAction label={cancelLabel} direction="left" tone="calm" onConfirm={onCancel} />
         </Pressable>
       </Pressable>
     </Modal>

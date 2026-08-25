@@ -11,7 +11,7 @@ export interface SwipeActionProps {
   label: string;
   hint?: string;
   onConfirm: () => void;
-  tone?: "default" | "accent" | "destructive";
+  tone?: "default" | "accent" | "destructive" | "calm";
   direction?: "left" | "right";
   disabled?: boolean;
 }
@@ -36,7 +36,7 @@ export function SwipeAction({ label, hint, onConfirm, tone = "default", directio
   const fillDrag = useDerivedValue(() => reducedMotion ? Math.abs(drag.value) : withSpring(Math.abs(drag.value), DELAYED_FILL_SPRING));
   const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateX: drag.value }] }));
   const fillStyle = useAnimatedStyle(() => ({ width: `${Math.max(0, Math.min(100, (fillDrag.value / SWIPE_COMMIT_DISTANCE) * 100))}%` }));
-  const fillColor = tone === "default" ? Theme.surface : Colors.rust;
+  const fillColor = tone === "default" ? Theme.surface : tone === "calm" ? Colors.blue : Colors.rust;
 
   return (
     <View style={[styles.row, disabled && styles.disabled]}>

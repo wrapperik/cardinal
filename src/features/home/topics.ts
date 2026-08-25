@@ -3,8 +3,8 @@ import type { Href } from 'expo-router';
 import type { GameType } from '@/types/cardinal';
 
 /**
- * The one demo course shipped on a fresh install, so Compass Quiz is
- * reachable from the first screen without needing real uploaded content yet.
+ * The one tutorial course shipped on a fresh install. Its first leg opens
+ * Compass Quiz, then the recap runner carries the player through every game.
  *
  * Trimmed from four seeded courses (one per game template) down to this one:
  * with only a single sample on the home screen, the pill row is no longer
@@ -16,9 +16,7 @@ export interface Topic {
   gameType: GameType;
 }
 
-export const TOPICS: Topic[] = [
-  { title: 'VISUAL CULTURE', gameType: 'compassQuiz' },
-];
+export const TOPICS: Topic[] = [{ title: 'LEARN THE GAMES', gameType: 'compassQuiz' }];
 
 /**
  * Where each template lives, with the course carried along so the screen knows

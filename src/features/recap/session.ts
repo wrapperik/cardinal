@@ -13,6 +13,7 @@ import {
 import { accuracyOf, MAX_SESSION_MILLIS, scoreForTally } from "@/features/score/score";
 import { emptyTally } from "@/features/sessions/session-rules";
 import { finishSession, getSessions, startSession } from "@/features/sessions/sessions";
+import { isTutorialCourse, tutorialPlan } from "@/features/tutorial/tutorial";
 import { courseById } from "@/features/upload/courses";
 import type { LocalDeck } from "@/features/upload/types";
 import type { AnswerResult } from "@/types/cardinal";
@@ -73,7 +74,9 @@ export function beginRecap(decks: LocalDeck[], courseId: string): RecapState | n
   // a run that finished on the way in here.
   clearLastRun();
 
-  const plan = buildRecapPlan(decks, courseId, getProgress());
+  const plan = isTutorialCourse(courseId)
+    ? tutorialPlan()
+    : buildRecapPlan(decks, courseId, getProgress());
   if (plan.cards.length === 0) return null;
 
   const index = resumeIndex(getCheckpoint(courseId), plan);

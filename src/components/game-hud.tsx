@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -42,6 +42,8 @@ interface GameHUDProps {
 export function GameHUD({ step, total, runner }: GameHUDProps) {
   const insets = useSafeAreaInsets();
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const exitWarningSeen = useRef(false);
   const reducedMotion = useReducedMotion();
 
   const progressLabel = `${String(step).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
@@ -72,6 +74,15 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
     transform: [{ translateY: awardRise.value }],
   }));
 
+  function requestExit() {
+    if (exitWarningSeen.current) {
+      runner.abandon();
+      return;
+    }
+    exitWarningSeen.current = true;
+    setConfirmExit(true);
+  }
+
   return (
     <>
       <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>{progressLabel}</Text>
@@ -98,14 +109,9 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
       <BackButton
         label="EXIT"
         side="right"
-        hint={runner.active ? "Hold to leave. Your progress is saved at the last checkpoint." : undefined}
-        onBack={() => runner.abandon()}
+        hint="Hold to leave this game"
+        onBack={requestExit}
       />
-      {runner.active && (
-        <Text style={[styles.exitHint, { top: insets.top + Spacing.md + 58 }]}>
-          PROGRESS SAVES AT YOUR LAST CHECKPOINT
-        </Text>
-      )}
       {/* Nothing to restart from on the very first card. */}
       {step > 1 && !confirmRestart && <RestartButton onRestart={() => setConfirmRestart(true)} />}
       <ConfirmationDialog
@@ -115,6 +121,17 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
         confirmLabel="RESTART"
         onCancel={() => setConfirmRestart(false)}
         onConfirm={() => { setConfirmRestart(false); runner.restart(); }}
+      />
+      <ConfirmationDialog
+        visible={confirmExit}
+        title="LEAVE THIS RUN?"
+        message={runner.active
+          ? "Your progress is saved at the last checkpoint, so you can continue later."
+          : "This game will end and your current score will be cleared."}
+        confirmLabel="LEAVE"
+        cancelLabel="CONTINUE"
+        onCancel={() => setConfirmExit(false)}
+        onConfirm={() => { setConfirmExit(false); runner.abandon(); }}
       />
     </>
   );
@@ -158,15 +175,5 @@ const styles = StyleSheet.create({
   },
   awardMuted: {
     opacity: MUTED_BONE_OPACITY,
-  },
-  exitHint: {
-    position: "absolute",
-    right: Spacing.md,
-    width: 170,
-    textAlign: "right",
-    fontFamily: Fonts.bodyBold,
-    fontSize: 10,
-    letterSpacing: 0.7,
-    color: Theme.textMuted,
   },
 });

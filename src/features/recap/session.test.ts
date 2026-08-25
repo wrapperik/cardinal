@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalDeck } from "@/features/upload/types";
 
-import { beginRecap, endRecap, reportRecapAnswer } from "./session";
+import { TUTORIAL_COURSE_ID } from "@/features/tutorial/tutorial";
+
+import { beginRecap, endRecap, getActiveRecap, reportRecapAnswer } from "./session";
 
 const progress = vi.hoisted(() => ({
   getProgress: vi.fn(() => []),
@@ -67,5 +69,13 @@ describe("reportRecapAnswer", () => {
       "correct",
     );
     expect(checkpoints.saveCheckpoint).toHaveBeenCalledWith("biology", 1, 1);
+  });
+
+  it("starts the fixed tutorial when its seeded course has no stored deck", () => {
+    const state = beginRecap([], TUTORIAL_COURSE_ID);
+
+    expect(state?.plan.cards).toHaveLength(15);
+    expect(getActiveRecap()?.plan.cards[0]).toMatchObject({ cardId: "tutorial-01", deckId: TUTORIAL_COURSE_ID });
+    expect(sessions.startSession).toHaveBeenCalledWith(TUTORIAL_COURSE_ID);
   });
 });

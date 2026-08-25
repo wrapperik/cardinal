@@ -16,6 +16,7 @@ import { GameShell, GAME_HEADER_H } from "@/components/game-shell";
 import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
+import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useSequenceRounds } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
@@ -288,6 +289,7 @@ export default function Sequence() {
             pill onto the home indicator at the very bottom of the screen. */}
         <View style={{ height: insets.bottom + Spacing.xl }} />
       </View>
+      <TutorialTip gameType="sequenceSwipe" />
     </GameShell>
   );
 }

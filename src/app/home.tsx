@@ -7,9 +7,9 @@ import { SkeletonBlock } from "@/components/skeleton-block";
 import { Colors, Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { HomeNavBar } from "@/features/home/nav-bar";
 import { MenuRow } from "@/features/home/menu-row";
+import { HomeSummaryCard } from "@/features/home/home-summary-card";
 import { PillNav } from "@/features/home/pill-nav";
-import { ScoreCard } from "@/features/home/score-card";
-import { dailyStats, estimateRecapMinutes, EMPTY_DAILY } from "@/features/score/score";
+import { dailyStats, estimateRecapMinutes, EMPTY_DAILY, studyStreakDays } from "@/features/score/score";
 import { sessionsForCourse, useSessions, useSessionsHydrated } from "@/features/sessions/sessions";
 import { courseStats } from "@/features/upload/course-stats";
 import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
@@ -18,7 +18,7 @@ import { useDelayedSkeleton } from "@/lib/loading";
 
 /**
  * Home: a rust header (wordmark, the two hold-to-activate icons, the course
- * pills) over a charcoal body (the day's score, then the four-row menu). The
+ * pills) over a charcoal body (the daily snapshot, then the four-row menu). The
  * pills are the only navigation on the screen — whichever course they have
  * selected drives every badge and every destination below, so there is
  * exactly one source of "which course" for the whole screen to read from.
@@ -68,10 +68,10 @@ export default function Home() {
     [sessions, activeCourseId],
   );
 
-  // Memoised for the same reason as the two above, not because it is
-  // expensive: dailyStats walks the whole session history, and it has no
-  // business rerunning on a render caused by a pill moving.
-  const todayScore = useMemo(() => dailyStats(sessions).score, [sessions]);
+  // The summary is global rather than course-specific: it answers "how did I
+  // do today?" independently of whichever course a person is browsing.
+  const today = useMemo(() => dailyStats(sessions), [sessions]);
+  const streak = useMemo(() => studyStreakDays(sessions), [sessions]);
 
   // PillNav keeps this in a useCallback dependency array of its own — an
   // inline arrow here would rebuild its scroll handler on every render this
@@ -91,15 +91,18 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + Spacing.xl }]}
       >
-        {/* The app's whole-day total, not the active course's — the label
-            says DAILY SCORE, not "this course today", so it must read the
-            same regardless of which pill is selected.
-
-            Inset tighter than the rows below it, deliberately: the card is a
-            single object and reads better close to the edges, while the rows
-            want their separators running the full width of the screen with
-            only their contents inset. */}
-        {showSkeleton ? <HomeSkeleton /> : <View style={styles.cardWrap}><ScoreCard label="DAILY SCORE" value={String(todayScore)} /></View>}
+        {/* Whole-app daily totals, deliberately independent of the selected
+            course. One panel makes the three related measures feel like a
+            single snapshot rather than a pair of unrelated destinations. */}
+        {showSkeleton ? <HomeSkeleton /> : (
+          <View style={styles.cardWrap}>
+            <HomeSummaryCard
+              streak={streak}
+              cardsPlayed={today.cardsStudied}
+              dailyScore={today.score}
+            />
+          </View>
+        )}
 
         {!showSkeleton && active ? (
           <View>
@@ -153,7 +156,7 @@ function HomeSkeleton() {
   return (
     <View>
       <View style={styles.cardWrap}>
-        <SkeletonBlock style={styles.scoreSkeleton} />
+        <SkeletonBlock style={styles.summarySkeleton} />
       </View>
       <View style={styles.rowSkeletons}>
         {[0, 1, 2, 3].map((index) => <SkeletonBlock key={index} style={styles.rowSkeleton} />)}
@@ -191,7 +194,7 @@ const styles = StyleSheet.create({
   },
   pillShort: { width: 108, height: 48, borderRadius: Radius.pill },
   pillLong: { width: 148, height: 48, borderRadius: Radius.pill },
-  scoreSkeleton: { height: 96 },
+  summarySkeleton: { height: 152 },
   rowSkeletons: { marginTop: Spacing.lg },
   rowSkeleton: {
     height: 92,

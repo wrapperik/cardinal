@@ -27,6 +27,7 @@ import {
 } from "@/constants/theme";
 import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
 import { useRecapRunner } from "@/features/recap/runner";
+import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useQuizQuestions } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
@@ -373,6 +374,7 @@ export default function Quiz() {
         </View>
       </View>
 
+      <TutorialTip gameType="compassQuiz" />
     </View>
   );
 }

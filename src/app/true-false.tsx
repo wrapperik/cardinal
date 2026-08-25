@@ -27,6 +27,7 @@ import {
 import { GameHUD } from "@/components/game-hud";
 import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
+import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useTrueFalseStatements } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
@@ -406,6 +407,7 @@ export default function TrueFalse() {
         </View>
       </View>
 
+      <TutorialTip gameType="trueFalseDuel" />
     </View>
   );
 }
