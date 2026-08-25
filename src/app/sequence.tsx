@@ -16,7 +16,7 @@ import { GameShell, GAME_HEADER_H } from "@/components/game-shell";
 import { Colors, EDGE_PILL_HEIGHT, Fonts, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
-import { shouldPassSequence } from "@/features/sequence/pass-gesture";
+import { finishSequencePassGesture } from "@/features/sequence/pass-gesture";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useSequenceRounds } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
@@ -191,6 +191,10 @@ export default function Sequence() {
     advanceRound();
   }
 
+  function finishPassDrag(translationY: number, velocityY: number) {
+    finishSequencePassGesture({ translationY, velocityY }, skipRound);
+  }
+
   // Checks the board every time it changes — there's no submit, so this IS
   // the submit.
   useEffect(() => {
@@ -223,9 +227,7 @@ export default function Sequence() {
       passY.value = Math.max(0, e.translationY) * 0.4;
     })
     .onEnd((e) => {
-      if (shouldPassSequence({ translationY: e.translationY, velocityY: e.velocityY })) {
-        runOnJS(skipRound)();
-      }
+      runOnJS(finishPassDrag)(e.translationY, e.velocityY);
     })
     .onFinalize(() => {
       passY.value = withSpring(0, SETTLE_SPRING);
