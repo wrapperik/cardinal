@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { clearCheckpoint, getCheckpoint, saveCheckpoint } from "@/features/recap/checkpoints";
+import { clearLastRun, setLastRun } from "@/features/recap/last-run";
 import { getProgress, recordProgress } from "@/features/progress/progress";
 import {
   advanceRecap,
@@ -9,8 +10,10 @@ import {
   resumeIndex,
   type RecapState,
 } from "@/features/recap/recap-rules";
+import { accuracyOf, MAX_SESSION_MILLIS, scoreForTally } from "@/features/score/score";
 import { emptyTally } from "@/features/sessions/session-rules";
-import { finishSession, startSession } from "@/features/sessions/sessions";
+import { finishSession, getSessions, startSession } from "@/features/sessions/sessions";
+import { courseById } from "@/features/upload/courses";
 import type { LocalDeck } from "@/features/upload/types";
 import type { AnswerResult } from "@/types/cardinal";
 
@@ -64,6 +67,12 @@ export function beginRecap(decks: LocalDeck[], courseId: string): RecapState | n
   // invisible to summariseSessions forever.
   if (snapshot) endRecap();
 
+  // Starting a run invalidates the last one's summary. Without this, the
+  // completion screen stays reachable with a stale result long after the run
+  // it described — and endRecap() just above may itself have written one for
+  // a run that finished on the way in here.
+  clearLastRun();
+
   const plan = buildRecapPlan(decks, courseId, getProgress());
   if (plan.cards.length === 0) return null;
 
@@ -101,6 +110,47 @@ export function reportRecapAnswer(result: AnswerResult): void {
 export function endRecap(): void {
   if (!snapshot) return;
   finishSession(snapshot.sessionId, snapshot.tally);
-  if (isRecapComplete(snapshot)) clearCheckpoint(snapshot.courseId);
+
+  // Only a genuinely completed run gets recorded — this is also the abandon
+  // path (runner.ts's abandon() calls it), and an abandoned run must not
+  // produce a completion screen.
+  if (isRecapComplete(snapshot)) {
+    clearCheckpoint(snapshot.courseId);
+
+    const finished = getSessions().find((s) => s.id === snapshot?.sessionId);
+    const millis = finished?.endedAt != null
+      ? Math.min(MAX_SESSION_MILLIS, Math.max(0, finished.endedAt - finished.startedAt))
+      : 0;
+    const { tally, courseId } = snapshot;
+
+    setLastRun({
+      courseId,
+      courseTitle: courseById(courseId)?.title ?? courseId,
+      score: scoreForTally(tally),
+      cardsAnswered: tally.correctCount + tally.wrongCount + tally.passedCount,
+      correct: tally.correctCount,
+      wrong: tally.wrongCount,
+      passed: tally.passedCount,
+      accuracy: accuracyOf(tally.correctCount, tally.wrongCount),
+      bestStreak: tally.bestStreakInSession,
+      millis,
+      finishedAt: Date.now(),
+    });
+  }
+
   commit(null);
+}
+
+/**
+ * Restarts the current course's recap from its first card: clears the
+ * checkpoint FIRST so beginRecap's resumeIndex has nothing to resume from,
+ * then reuses beginRecap wholesale — which already closes out the run being
+ * discarded (via its own `if (snapshot) endRecap()`), and since that run is
+ * not complete, endRecap will not write a completion summary or re-touch
+ * the checkpoint. A restart is therefore not a new code path, just
+ * beginRecap called against an emptied checkpoint.
+ */
+export function restartRecap(decks: LocalDeck[], courseId: string): RecapState | null {
+  clearCheckpoint(courseId);
+  return beginRecap(decks, courseId);
 }

@@ -16,11 +16,16 @@ const checkpoints = vi.hoisted(() => ({
 const sessions = vi.hoisted(() => ({
   finishSession: vi.fn(),
   startSession: vi.fn(() => ({ id: "session-1" })),
+  getSessions: vi.fn(() => []),
+}));
+const courses = vi.hoisted(() => ({
+  courseById: vi.fn(() => undefined),
 }));
 
 vi.mock("@/features/progress/progress", () => progress);
 vi.mock("@/features/recap/checkpoints", () => checkpoints);
 vi.mock("@/features/sessions/sessions", () => sessions);
+vi.mock("@/features/upload/courses", () => courses);
 
 const decks: LocalDeck[] = [
   {

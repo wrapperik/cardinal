@@ -1,9 +1,18 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { gameHref } from "@/features/home/topics";
 import { runAt } from "@/features/recap/recap-rules";
-import { endRecap, getActiveRecap, reportRecapAnswer, useActiveRecap } from "@/features/recap/session";
+import {
+  endRecap,
+  getActiveRecap,
+  reportRecapAnswer,
+  restartRecap,
+  useActiveRecap,
+} from "@/features/recap/session";
+import { scoreForTally } from "@/features/score/score";
+import { emptyTally, type SessionTally } from "@/features/sessions/session-rules";
+import { useDecks } from "@/features/upload/decks";
 import type { AnswerResult } from "@/types/cardinal";
 
 export interface RecapRunner {
@@ -19,6 +28,21 @@ export interface RecapRunner {
   finishLeg: () => void;
   /** Called from an exit gesture. Ends the session but leaves the checkpoint to resume from. */
   abandon: () => void;
+  /** Points earned so far in this run, live. */
+  score: number;
+  /** Current streak, live. */
+  streak: number;
+  /** The points just awarded by the most recent report(), for the flyer to
+   *  animate. `key` is monotonic so two answers worth the same amount still
+   *  each trigger a fresh animation — `amount` alone wouldn't change identity. */
+  lastAward: { amount: number; correct: boolean; key: number } | null;
+  /** Restarts the run from its first card. */
+  restart: () => void;
+  /** Bumped by restart(). Game screens reset their own local round state in
+   *  a useEffect keyed on this, rather than on navigation succeeding — a
+   *  router.replace to the SAME route the player is already on has
+   *  ambiguous remount behaviour, so local state cannot rely on it. */
+  restartToken: number;
 }
 
 /**
@@ -35,6 +59,7 @@ export function useRecapRunner(): RecapRunner {
   const { recap } = useLocalSearchParams<{ recap?: string }>();
   const recapState = useActiveRecap();
   const active = recapState !== null && recap === "1";
+  const decks = useDecks();
 
   // Captured once, at mount: the global position this leg starts at. Reading
   // it live off `recapState.index` instead would double-count every step —
@@ -44,9 +69,55 @@ export function useRecapRunner(): RecapRunner {
   // problem: the plan's length never changes mid-recap, so it can stay live.
   const [legStart] = useState(() => getActiveRecap()?.index ?? 0);
 
+  // Ephemeral — see the interface doc comment on `score`. Never touches the
+  // sessions/progress stores; exists purely so a standalone game still has
+  // something to show a running total against.
+  const [localTally, setLocalTally] = useState(emptyTally());
+
+  const [lastAward, setLastAward] = useState<{ amount: number; correct: boolean; key: number } | null>(null);
+  const awardKey = useRef(0);
+
+  const [restartToken, setRestartToken] = useState(0);
+
+  // Every existing call site of report() guards against a double-fire with
+  // its own `committing` ref, so reading `localTally` from this render
+  // closure (rather than inside a state updater) is safe — there is no
+  // back-to-back call within the same tick to race against.
   function report(result: AnswerResult) {
-    if (!active) return;
-    reportRecapAnswer(result);
+    if (active) {
+      // Read before AND after: scoreForTally is not additive per-answer — it
+      // recomputes the streak bonus from the tally's current peak streak each
+      // time, so an answer that happens to cross STREAK_BONUS_FROM earns more
+      // than its own raw weight. The award has to be measured as a delta
+      // across the call, not assumed from the result type alone.
+      const before = getActiveRecap()?.tally ?? null;
+      reportRecapAnswer(result);
+      const after = getActiveRecap()?.tally ?? null;
+      if (before && after && result !== "passed") {
+        awardKey.current += 1;
+        setLastAward({ amount: scoreForTally(after) - scoreForTally(before), correct: result === "correct", key: awardKey.current });
+      }
+      return;
+    }
+
+    if (result === "passed") return; // no session, and passes never move localTally anyway
+
+    // Mirrors recordAnswer's counting exactly (session-rules.ts) but without
+    // gameTypesPlayed bookkeeping — this tally is display-only and never
+    // summarised, and report() has no gameType to give recordAnswer even if
+    // it wanted the full behaviour.
+    const currentStreak = result === "correct" ? localTally.currentStreak + 1 : 0;
+    const next: SessionTally = {
+      correctCount: localTally.correctCount + (result === "correct" ? 1 : 0),
+      wrongCount: localTally.wrongCount + (result === "incorrect" ? 1 : 0),
+      passedCount: localTally.passedCount,
+      bestStreakInSession: Math.max(localTally.bestStreakInSession, currentStreak),
+      currentStreak,
+      gameTypesPlayed: localTally.gameTypesPlayed,
+    };
+    awardKey.current += 1;
+    setLastAward({ amount: scoreForTally(next) - scoreForTally(localTally), correct: result === "correct", key: awardKey.current });
+    setLocalTally(next);
   }
 
   function finishLeg() {
@@ -68,14 +139,7 @@ export function useRecapRunner(): RecapRunner {
     }
 
     endRecap();
-    // back(), not replace("/home"): every leg reached this screen by
-    // REPLACING the previous one, so the stack is still [home, thisGame] and
-    // popping lands on the home that is already sitting under it. Replacing
-    // would push a second Home on top of the first, leaving two of them
-    // mounted — and Home is not inert, it runs a marquee frame callback per
-    // pill row for as long as it exists.
-    if (router.canGoBack()) router.back();
-    else router.replace("/home");
+    router.replace("/complete");
   }
 
   function abandon() {
@@ -90,6 +154,23 @@ export function useRecapRunner(): RecapRunner {
     router.back();
   }
 
+  function restart() {
+    if (active && recapState) {
+      const state = restartRecap(decks, recapState.courseId);
+      const run = state && runAt(state.plan, state.index);
+      if (run) router.replace(gameHref(run.gameType, recapState.courseId, true));
+      // No fallback branch: restartRecap only returns null when the course has
+      // nothing to recap, which cannot be true here — this screen is already
+      // mid-recap, so a plan demonstrably exists.
+    } else {
+      setLocalTally(emptyTally());
+    }
+    setRestartToken((t) => t + 1);
+  }
+
+  const score = active && recapState ? scoreForTally(recapState.tally) : scoreForTally(localTally);
+  const streak = active && recapState ? recapState.tally.currentStreak : localTally.currentStreak;
+
   return {
     active,
     step: (localIndex) => (active ? legStart + localIndex + 1 : localIndex + 1),
@@ -97,5 +178,10 @@ export function useRecapRunner(): RecapRunner {
     report,
     finishLeg,
     abandon,
+    score,
+    streak,
+    lastAward,
+    restart,
+    restartToken,
   };
 }

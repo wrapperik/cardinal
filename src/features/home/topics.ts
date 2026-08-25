@@ -3,13 +3,13 @@ import type { Href } from 'expo-router';
 import type { GameType } from '@/types/cardinal';
 
 /**
- * Demo decks for the home screen. One per game template, so the four MVP
- * mechanics are each reachable from the first screen without needing real
- * uploaded content yet.
+ * The one demo course shipped on a fresh install, so Compass Quiz is
+ * reachable from the first screen without needing real uploaded content yet.
  *
- * The pairings are not arbitrary — each subject is the kind of material its
- * template handles best: multiple-choice recall for imagery, term-to-definition
- * for place names, chronology for events, and flat assertions for facts.
+ * Trimmed from four seeded courses (one per game template) down to this one:
+ * with only a single sample on the home screen, the pill row is no longer
+ * demonstrating navigation between courses that don't really exist yet — a
+ * new player's own uploads are what should fill that row in.
  */
 export interface Topic {
   title: string;
@@ -18,9 +18,6 @@ export interface Topic {
 
 export const TOPICS: Topic[] = [
   { title: 'VISUAL CULTURE', gameType: 'compassQuiz' },
-  { title: 'GEOGRAPHY', gameType: 'matchRelease' },
-  { title: 'HISTORY', gameType: 'sequenceSwipe' },
-  { title: 'BIOLOGY', gameType: 'trueFalseDuel' },
 ];
 
 /**

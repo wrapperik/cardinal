@@ -1,19 +1,33 @@
 import { describe, expect, it } from "vitest";
 
-import type { LocalSession } from "@/features/sessions/session-rules";
+import type { LocalSession, SessionTally } from "@/features/sessions/session-rules";
 
 import {
   MAX_SESSION_MILLIS,
   STREAK_BONUS_FROM,
   STREAK_BONUS_STEP,
   SCORE_WEIGHTS,
+  accuracyOf,
   dailyStats,
   estimateRecapMinutes,
   formatDuration,
   scoreForSession,
+  scoreForTally,
   startOfDay,
   studyStreakDays,
 } from "./score";
+
+function tally(overrides: Partial<SessionTally> = {}): SessionTally {
+  return {
+    correctCount: 0,
+    wrongCount: 0,
+    passedCount: 0,
+    bestStreakInSession: 0,
+    currentStreak: 0,
+    gameTypesPlayed: [],
+    ...overrides,
+  };
+}
 
 function session(overrides: Partial<LocalSession> = {}): LocalSession {
   return {
@@ -54,6 +68,50 @@ describe("scoreForSession", () => {
   it("gives two bonus steps one past STREAK_BONUS_FROM", () => {
     const value = scoreForSession(session({ bestStreakInSession: STREAK_BONUS_FROM + 1 }));
     expect(value).toBe(STREAK_BONUS_STEP * 2);
+  });
+});
+
+describe("scoreForTally", () => {
+  it("gives no streak bonus at or below STREAK_BONUS_FROM - 1", () => {
+    expect(scoreForTally(tally({ bestStreakInSession: STREAK_BONUS_FROM - 1 }))).toBe(0);
+  });
+
+  it("gives exactly one bonus step at STREAK_BONUS_FROM", () => {
+    expect(scoreForTally(tally({ bestStreakInSession: STREAK_BONUS_FROM }))).toBe(STREAK_BONUS_STEP);
+  });
+
+  it("gives two bonus steps one past STREAK_BONUS_FROM", () => {
+    expect(scoreForTally(tally({ bestStreakInSession: STREAK_BONUS_FROM + 1 }))).toBe(STREAK_BONUS_STEP * 2);
+  });
+
+  it("agrees with scoreForSession for the same counters, across combinations", () => {
+    const combos: (Partial<LocalSession> & Partial<SessionTally>)[] = [
+      { correctCount: 0, wrongCount: 0, passedCount: 0, bestStreakInSession: 0 },
+      { correctCount: 5, wrongCount: 2, passedCount: 3, bestStreakInSession: 1 },
+      { correctCount: 4, wrongCount: 0, passedCount: 0, bestStreakInSession: STREAK_BONUS_FROM },
+      { correctCount: 10, wrongCount: 4, passedCount: 1, bestStreakInSession: STREAK_BONUS_FROM + 3 },
+      { correctCount: 0, wrongCount: 7, passedCount: 0, bestStreakInSession: 2 },
+    ];
+
+    for (const counters of combos) {
+      const s = session(counters);
+      const t = tally(counters);
+      expect(scoreForSession(s)).toBe(scoreForTally(t));
+    }
+  });
+});
+
+describe("accuracyOf", () => {
+  it("is zero when nothing was answered", () => {
+    expect(accuracyOf(0, 0)).toBe(0);
+  });
+
+  it("is 1 when everything was correct", () => {
+    expect(accuracyOf(5, 0)).toBe(1);
+  });
+
+  it("excludes passes: only correct and wrong feed the ratio", () => {
+    expect(accuracyOf(3, 1)).toBe(3 / 4);
   });
 });
 

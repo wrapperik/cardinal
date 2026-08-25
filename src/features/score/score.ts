@@ -5,7 +5,7 @@
  * reasoning as session-rules.ts.
  */
 
-import type { LocalSession } from "@/features/sessions/session-rules";
+import type { LocalSession, SessionTally } from "@/features/sessions/session-rules";
 
 /** Points an answer is worth. A wrong answer still earns: you saw the card. A pass earns nothing — it was never attempted. */
 export const SCORE_WEIGHTS = { correct: 10, wrong: 3, passed: 0 } as const;
@@ -68,13 +68,35 @@ export function startOfDay(at: number): number {
 export function scoreForSession(session: LocalSession): number {
   if (session.endedAt === null) return 0;
 
+  return scoreForTally({
+    correctCount: session.correctCount,
+    wrongCount: session.wrongCount,
+    passedCount: session.passedCount,
+    bestStreakInSession: session.bestStreakInSession,
+    currentStreak: 0,
+    gameTypesPlayed: session.gameTypesPlayed,
+  });
+}
+
+/**
+ * The live equivalent of scoreForSession, over a tally that is still moving.
+ * Both must stay one formula: a HUD that counts differently from the summary
+ * it leads to is worse than no HUD.
+ */
+export function scoreForTally(tally: SessionTally): number {
   const base =
-    session.correctCount * SCORE_WEIGHTS.correct +
-    session.wrongCount * SCORE_WEIGHTS.wrong +
-    session.passedCount * SCORE_WEIGHTS.passed;
-  const streakBonus = Math.max(0, session.bestStreakInSession - (STREAK_BONUS_FROM - 1)) * STREAK_BONUS_STEP;
+    tally.correctCount * SCORE_WEIGHTS.correct +
+    tally.wrongCount * SCORE_WEIGHTS.wrong +
+    tally.passedCount * SCORE_WEIGHTS.passed;
+  const streakBonus = Math.max(0, tally.bestStreakInSession - (STREAK_BONUS_FROM - 1)) * STREAK_BONUS_STEP;
 
   return base + streakBonus;
+}
+
+/** Correct as a fraction of answered. Passes are excluded from the denominator — a passed card was never actually answered right or wrong. 0 when nothing was answered, never NaN. */
+export function accuracyOf(correct: number, wrong: number): number {
+  const answered = correct + wrong;
+  return answered === 0 ? 0 : correct / answered;
 }
 
 /**
@@ -99,7 +121,6 @@ export function dailyStats(sessions: LocalSession[], now: number = Date.now()): 
   const correct = finished.reduce((sum, session) => sum + session.correctCount, 0);
   const wrong = finished.reduce((sum, session) => sum + session.wrongCount, 0);
   const passed = finished.reduce((sum, session) => sum + session.passedCount, 0);
-  const answered = correct + wrong;
   const studyMillis = finished.reduce((sum, session) => {
     const elapsed = (session.endedAt as number) - session.startedAt;
     return sum + Math.min(MAX_SESSION_MILLIS, Math.max(0, elapsed));
@@ -111,7 +132,7 @@ export function dailyStats(sessions: LocalSession[], now: number = Date.now()): 
     correct,
     wrong,
     passed,
-    accuracy: answered === 0 ? 0 : correct / answered,
+    accuracy: accuracyOf(correct, wrong),
     bestStreak: finished.reduce((max, session) => Math.max(max, session.bestStreakInSession), 0),
     sessionCount: finished.length,
     studyMillis,
