@@ -34,6 +34,10 @@ async function createUserDocument(user: User): Promise<void> {
     // first-time user through it before sign-up. The AsyncStorage flag remains
     // the authority on device until streaks are synced.
     onboardingComplete: true,
+    // firestore.rules pins account creation to this value regardless — set it
+    // explicitly anyway so the written document matches UserDoc's shape from
+    // its first write instead of relying on the rule's default to fill it in.
+    role: "student",
   };
 
   await setDoc(reference, {

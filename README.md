@@ -28,6 +28,7 @@ down again without the session ever feeling like a chore.
 ## Table of contents
 
 - [Status](#status)
+- [Submission artefacts](#submission-artefacts)
 - [Tech stack](#tech-stack)
 - [Getting started](#getting-started)
 - [Firebase setup](#firebase-setup)
@@ -41,53 +42,79 @@ down again without the session ever feeling like a chore.
 - [Scoring](#scoring)
 - [The upload flow](#the-upload-flow)
 - [AI extraction with Gemini](#ai-extraction-with-gemini)
+- [Admin dashboard](#admin-dashboard)
 - [Firestore schema](#firestore-schema)
 - [Authentication](#authentication)
 - [Accessibility](#accessibility)
 - [Testing](#testing)
 - [Security rules](#security-rules)
 - [Scripts](#scripts)
-- [Roadmap](#roadmap)
+- [Deployment readiness](#deployment-readiness)
+- [Acknowledgements](#acknowledgements)
 
 ---
 
 ## Status
 
-The app is playable end to end on a device. Onboarding, authentication, the home
-screen, the upload flow and all four game templates are built and wired together.
+Cardinal is a complete cross-platform React Native revision application. It is built
+around four swipe-based game templates and Firebase-backed study content, progress,
+authentication, file storage, and administration.
 
-**What works today**
+**Implemented**
 
-- Gesture-only onboarding: a ball held in a pipe, with no tap target anywhere.
-- Firebase Authentication: email and password sign-up, sign-in and password reset.
-  Sessions persist across launches, and a route gate keeps signed-out users off
-  protected screens.
-- The home screen: a rust nav bar whose plus and gear are held rather than tapped, a
-  row of course pills that is the screen's navigation, the day's score, and four menu
-  rows that follow whichever pill is selected and are opened with a swipe.
-- The upload flow: pick a PDF, text or Markdown file, choose a template, watch
-  extraction run, review the result, and save it as a deck under a course.
-- All four MVP game templates, each fed either by an uploaded deck or by the
-  fixtures the app ships with.
-- A derived daily score, study streak and time-studied figure, computed from finished
-  sessions rather than stored — see [Scoring](#scoring).
-- 267 unit tests across the pure logic modules, run under Vitest.
+- Gesture-only onboarding and navigation, using holds and swipes instead of ordinary
+  tap-to-fire controls.
+- Firebase email/password authentication, password reset, persistent sessions, and a
+  protected route gate.
+- Course, deck, card, session, checkpoint, preference, and progress persistence in
+  Firestore, with an AsyncStorage-backed local cache and outbox for resilient sync.
+- PDF, text, and Markdown upload to Firebase Storage; a Cloud Function uses Gemini to
+  extract, validate, and save structured revision cards.
+- Compass Quiz, True/False Duel, Sequence Swipe, and Match & Release game templates.
+- SM-2 spaced repetition: every answer updates a card's next-review date.
+- Derived study statistics, daily progress, streaks, and a recap/session flow.
+- An admin-only dashboard with server-side aggregates, alerts, recent activity, and
+  custom-claim access control.
+- Firebase security rules, Storage rules, unit tests, function tests, and Firestore
+  emulator rule tests.
 
-**What is not built yet**
+**Known limitation**
 
-- Gemini extraction requires a deployed Cloud Function and its server-side API key.
-  Without those, the upload flow falls back to the bundled demo provider. See
-  [AI extraction with Gemini](#ai-extraction-with-gemini).
-- SM-2 spaced repetition. The document shape is declared in
-  [`src/types/cardinal.ts`](src/types/cardinal.ts), but nothing schedules against it
-  yet.
-- Firestore persistence for decks, cards and progress. Only the `users/{userId}`
-  document is written today; courses and decks live in AsyncStorage on the device.
-- Uploading source files to Firebase Storage. Storage is initialised but unused.
-- A session summary at the end of a recap. Every home menu row now leads somewhere
-  real, but nothing yet closes a recap with a score for the run just played.
-- The accessibility tap-zone overlay. The toggle renders and holds its state, but it
-  does not yet drive anything.
+- The optional accessibility edge-tap overlay is documented in
+  [Accessibility](#accessibility), but remains the next accessibility enhancement.
+
+---
+
+## Submission artefacts
+
+### Demonstration video
+
+> **Video placeholder:** add the final 5–8 minute demo link here before submitting.
+>
+> `INSERT VIDEO LINK`
+
+### Mockups and implementation visuals
+
+Add the final mockups/screenshots to `docs/mockups/` and replace these placeholders
+with image links before submitting.
+
+> **Mockup placeholder 1 — onboarding and gesture language**
+> `docs/mockups/01-onboarding.png`
+
+> **Mockup placeholder 2 — home, courses, and upload flow**
+> `docs/mockups/02-home-upload.png`
+
+> **Mockup placeholder 3 — Compass Quiz and feedback states**
+> `docs/mockups/03-compass-quiz.png`
+
+> **Mockup placeholder 4 — progress and admin dashboard**
+> `docs/mockups/04-progress-dashboard.png`
+
+### Individual contribution
+
+This project was designed and implemented by **Rikus Pretorius**. This includes the
+interaction concept, visual system, React Native application, Firebase integration,
+Gemini extraction pipeline, testing, security rules, and documentation.
 
 ---
 
@@ -106,7 +133,7 @@ screen, the upload flow and all four game templates are built and wired together
 | AI extraction | **Gemini API** | Structured JSON extraction, called only from a Cloud Function |
 | Feedback | **expo-haptics** | Haptic confirmation on every commit |
 | Uploads | **expo-document-picker**, **expo-file-system** | Bring your own study material |
-| Local state | **AsyncStorage** | Courses, decks and the onboarding flag |
+| Local state & sync | **AsyncStorage + Firestore outbox** | Local-first records, cached reads, and queued writes when offline |
 | Testing | **Vitest** | Pure logic modules, run under Node with no native shims |
 | Type | **Afacad** (body), **LED Dot-Matrix** (display) | See [Design system](#design-system) |
 
@@ -137,7 +164,7 @@ npm install
 ### Configure the environment
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
 Fill in the Firebase values from the console, then start the dev server:
@@ -149,7 +176,7 @@ npx expo start
 Press `i` for the iOS Simulator, `a` for an Android emulator, or `w` for web.
 
 Environment variables are read at build time, so restart the dev server after
-editing `.env`.
+editing `.env.local`.
 
 ### Native builds
 
@@ -178,48 +205,21 @@ register the Google Sign-In config plugin and went with it.
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
 2. **Add a Web app** (the `</>` icon). Cardinal uses the Firebase **JS SDK**, so
    register a Web app even though this is a mobile project. Copy the config values
-   into `.env`.
+   into `.env.local`.
 3. **Authentication** then **Sign-in method**: enable **Email/Password**.
 4. **Firestore Database**: create the database in **production mode**.
 5. **Storage**: enable it, for PDF and text uploads.
-6. Deploy the security rules before any real data goes in — see
-   [Security rules](#security-rules).
+6. Deploy the repository's current security rules and indexes before any real data
+   goes in — see [Security rules](#security-rules).
 
 `EXPO_PUBLIC_*` values are inlined into the JS bundle. That is correct for Firebase
 web config, which is not a secret, but it means **Firestore Security Rules are the
 only thing protecting your data**. Model API keys must never carry that prefix.
 
-A starting point that scopes every document to its owner:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      match /progress/{cardId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-    match /decks/{deckId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.auth.uid == resource.data.ownerId;
-      match /cards/{cardId} {
-        allow read: if request.auth != null;
-      }
-    }
-    match /uploads/{uploadId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == resource.data.ownerId;
-    }
-  }
-}
-```
-
-Once SM-2 validation moves into a Cloud Function, tighten
-`users/{userId}/progress` so the client can read it but not write it. Progress that
-the client can write is progress a fast swiper can manufacture.
+The checked-in [`firestore.rules`](firestore.rules) and
+[`storage.rules`](storage.rules) are the source of truth. They validate ownership,
+server-owned fields, monotonic session updates, upload lifecycle fields, and
+admin-role invariants; do not replace them with a simplified starter ruleset.
 
 ---
 
@@ -243,6 +243,7 @@ src/
     progress.tsx             one course's stats, today and all time
     course-settings.tsx      rename, default template, upload into course
     course/[id].tsx          course detail: stats, topics, back tab
+    dashboard.tsx            admin-only aggregate dashboard
     quiz.tsx                 Compass Quiz
     true-false.tsx           True/False Duel
     sequence.tsx             Sequence Swipe
@@ -259,6 +260,7 @@ src/
     theme.ts                 colours, type, spacing, gesture thresholds
 
   features/
+    admin/                   role state, dashboard fetch, formatting and UI parts
     auth/                    provider, service, route gate, validation, errors
     character/roster.ts      the playable puck shapes
     home/                    nav bar, pill nav, score card, menu row, topics
@@ -274,9 +276,15 @@ src/
   lib/
     firebase.ts              web and SSR safe init
     firebase.native.ts       native init, with AsyncStorage auth persistence
+    sync/                    local cache, queued writes, merge and Firestore adapters
 
   types/
     cardinal.ts              Firestore document shapes
+
+functions/
+  src/upload/                Gemini extraction and upload processing
+  src/stats/                 server-owned study-stat refreshes
+  src/admin/                 role claims and dashboard aggregation
 ```
 
 Only screens and layouts belong in `src/app`. Everything else lives elsewhere under
@@ -601,9 +609,10 @@ re-extracted.
 4. **Extract.** The active provider runs and reports progress as a fraction.
 5. **Review.** The card count, the per-template breakdown, the provider that produced
    them, and the suggested course, weighted by the model's own confidence.
-6. **Save.** The deck is written to the local deck store and the course is created if
-   it did not already exist. Courses de-duplicate on title, not id, because uploading
-   twice under "Biology" should file both decks under one course.
+6. **Save.** The server writes the canonical course, deck, and cards to Firestore.
+   The client adopts the result into its local-first store and queues any later edits
+   for sync. Courses de-duplicate on title, not id, because uploading twice under
+   "Biology" should file both decks under one course.
 
 [`play.ts`](src/features/upload/play.ts) is the bridge from stored cards to the shape
 each game screen plays. Every screen keeps its own local round type, because those
@@ -650,7 +659,7 @@ usable without a cloud key.
    npx firebase-tools functions:secrets:set GEMINI_API_KEY
    ```
 
-3. Set `EXPO_PUBLIC_ENABLE_GEMINI_EXTRACTION=1` in the app's untracked `.env` file.
+3. Set `EXPO_PUBLIC_ENABLE_GEMINI_EXTRACTION=1` in the app's untracked `.env.local` file.
 4. Deploy the Function:
 
    ```bash
@@ -703,37 +712,39 @@ a nonsense number never reaches the review screen.
 
 ---
 
+## Admin dashboard
+
+The dashboard fulfils the brief's summary requirement without giving an admin client
+direct cross-user database access. An allowlisted account receives an `admin` custom
+claim through the `syncAdminRole` Cloud Function. The `adminDashboard` callable then
+checks that claim server-side and returns a bounded aggregate of users, content,
+study activity, uploads, alerts, and recent activity.
+
+This keeps raw student records behind the normal owner-scoped Firestore rules while
+still giving an administrator useful project-level insight.
+
 ## Firestore schema
 
-| Path | Fields |
+| Path | Purpose |
 | --- | --- |
-| `users/{userId}` | `displayName`, `email`, `streak`, `createdAt` |
-| `decks/{deckId}` | `title`, `ownerId`, `sourceType` (`upload` or `manual`) |
-| `decks/{deckId}/cards/{cardId}` | `gameType`, `payload`, `difficulty` |
-| `users/{userId}/progress/{cardId}` | `easeFactor`, `interval`, `dueDate`, `lastResult` |
-| `uploads/{uploadId}` | `ownerId`, `fileType`, `status`, `deckId` |
+| `users/{userId}` | Profile, role mirror, streak fields, onboarding state |
+| `users/{userId}/courses/{courseId}` | Course metadata and user-owned course list |
+| `users/{userId}/sessions/{sessionId}` | Completed and in-progress study sessions |
+| `users/{userId}/progress/{cardId}` | SM-2 interval, ease, lapses, and due date |
+| `users/{userId}/stats/summary` | Server-derived study summary |
+| `users/{userId}/preferences/settings` | Synced preferences |
+| `users/{userId}/checkpoints/{courseId}` | Resumable recap position |
+| `decks/{deckId}` / `decks/{deckId}/cards/{cardId}` | Uploaded deck metadata and typed game cards |
+| `uploads/{uploadId}` | Upload lifecycle, storage reference, and extraction result |
 
-`payload` stays loosely typed on purpose, because its shape varies by `gameType`.
-Compass cards store `choices[]` and `correctIndex`, sequence cards store
-`orderedItems[]`, and matching cards store `pairs[]`. On the client this is narrowed
-by the discriminated union `CardDoc` in
-[`src/types/cardinal.ts`](src/types/cardinal.ts), so the compiler enforces the right
-payload for the right game type.
+`payload` remains flexible because each game template has a different card shape. The
+`CardDoc` discriminated union in [`src/types/cardinal.ts`](src/types/cardinal.ts)
+narrows those payloads safely on the client.
 
-Of this schema, only `users/{userId}` is written today, on account creation. Decks
-and courses are stored on the device by
-[`decks.ts`](src/features/upload/decks.ts) and
-[`courses.ts`](src/features/upload/courses.ts), whose record shapes were written to
-map cleanly onto `decks/` and `uploads/` when the sync lands.
-
-**Scheduling** will use **SM-2**, the algorithm behind Anki, adjusting an ease factor
-and interval per card based on recall performance rather than a simplified requeue.
-Validating it in a Cloud Function is what stops a fast swiper manufacturing progress.
-
-**Offline use** will rely on Firestore's built-in offline persistence, with sync
-resolving once the device reconnects. Note that on native the SDK runs on its memory
-cache, since `persistentLocalCache()` is IndexedDB backed and React Native has no
-implementation of it.
+**Scheduling** uses **SM-2**: a pass, wrong answer, or correct answer maps to a recall
+quality and updates the next review interval. The server derives summary statistics
+from session and progress changes, while the client keeps a local cache and a durable
+outbox so the UI remains responsive when connectivity is interrupted.
 
 ---
 
@@ -784,8 +795,10 @@ panel under EDGE TAP ZONES. The overlay it drives is the remaining piece of work
 npm test
 ```
 
-Vitest runs 61 tests across six files, all of them pure modules with no React Native
-imports:
+The client suite covers pure domain logic and selected feature behaviour without
+requiring native shims. It includes extraction validation, authentication routing,
+gesture/game logic, SM-2 scheduling, sync reconciliation/outbox behaviour, and admin
+dashboard formatting.
 
 | File | Covers |
 | --- | --- |
@@ -801,8 +814,7 @@ another pure module must do so relatively. `parse.ts` imports `../course-rules` 
 exactly this reason; type-only imports may still use `@/`, since they are erased
 before the test runs.
 
-A further 38 tests cover the security rules and run separately, against the Firestore
-emulator:
+Security-rule tests run separately against the Firestore emulator:
 
 ```bash
 npm run test:rules
@@ -866,27 +878,30 @@ client-side.
 
 ---
 
-## Roadmap
+## Deployment readiness
 
-| Week | Milestone | Focus |
-| --- | --- | --- |
-| 4 | Foundations | Repository and branching strategy, Expo scaffold, Firebase configuration, auth flow, Firestore and Storage wiring, one static test deck |
-| 5 | Progress phase 1 | Compass Quiz working end to end, with the extraction pipeline underway |
-| 6 | Progress phase 2 | The remaining three templates, SM-2 scheduling, and deployment prep (icon, splash screen) |
-| 7 | Final submission | Accessibility toggle, polish, cross-device testing, README, demonstration video, hand-in 20 August, 14:00 |
+Cardinal is configured as an Expo/React Native application with one shared codebase
+for iOS and Android. It includes a custom icon, splash configuration, responsive
+safe-area handling, and Firebase configuration that is separated from the client
+bundle's secrets. Test on both Android and iOS before final deployment, using:
 
-### Next up
+```bash
+npm run ios
+npm run android
+```
 
-The accessibility overlay, more stats on the daily score card (it currently shows the
-number alone), and a session summary screen at the end of a recap.
+The deployed Firebase backend supplies authentication, Firestore, Storage, Gemini
+extraction, derived statistics, and the admin dashboard. Production credentials and
+admin allowlists remain server-side and are intentionally not committed.
 
-### Beyond the MVP
+## Acknowledgements
 
-Manually created decks, six further templates (slider, audio recall, timed
-elimination, map-pin placement, fill-in-the-blank swipe-select and category sort),
-daily reminder notifications, deck sharing, UI themes, multiplayer quiz duels, and a
-cross-deck analytics dashboard.
+- Expo and the React Native ecosystem.
+- Firebase Authentication, Cloud Firestore, Cloud Storage, and Cloud Functions.
+- Google Gemini API for server-side study-material extraction.
+- `@expo-google-fonts/afacad` for Afacad; LED Dot-Matrix is bundled under
+  [`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt).
 
 ---
 
-*Rikus Pretorius, 240144. UX300 S2.*
+*Rikus Pretorius, UX300 S2.*

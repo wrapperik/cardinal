@@ -297,6 +297,40 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
       });
       await assertFails(deleteDoc(doc(as(ALICE), 'users', ALICE)));
     });
+
+    it('lets a user create their document with no role field, or an explicit student role', async () => {
+      await assertSucceeds(setDoc(doc(as(ALICE), 'users', ALICE), validUser(ALICE)));
+      await assertSucceeds(
+        setDoc(doc(as(BOB), 'users', BOB), { ...validUser(BOB), role: 'student' }),
+      );
+    });
+
+    it('denies creating a document that already claims to be an admin', async () => {
+      await assertFails(
+        setDoc(doc(as(ALICE), 'users', ALICE), { ...validUser(ALICE), role: 'admin' }),
+      );
+    });
+
+    it('denies a client flipping its own role to admin', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', ALICE), validUser(ALICE));
+      });
+      await assertFails(updateDoc(doc(as(ALICE), 'users', ALICE), { role: 'admin' }));
+    });
+
+    it('allows an ordinary profile update on a document that already carries a role', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', ALICE), { ...validUser(ALICE), role: 'student' });
+      });
+      await assertSucceeds(updateDoc(doc(as(ALICE), 'users', ALICE), { displayName: 'Riku 2' }));
+    });
+
+    it('allows an ordinary profile update on a document with no role field at all', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users', ALICE), validUser(ALICE));
+      });
+      await assertSucceeds(updateDoc(doc(as(ALICE), 'users', ALICE), { displayName: 'Riku 2' }));
+    });
   });
 
   describe('stats', () => {

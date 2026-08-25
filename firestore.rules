@@ -22,6 +22,12 @@ rules_version = '2';
  *
  * That last one is the reason a client cannot mint itself a finished upload
  * pointing at someone else's deck.
+ *
+ * A third field, `role` on the user document, is not owned by a trigger —
+ * it is owned by the syncAdminRole Cloud Function and mirrors a Firebase
+ * Auth custom claim. It is pinned to 'student' on create and frozen on
+ * update rather than denied outright, because the field still has to exist
+ * in the shape the client writes; see roleUnchanged() for why.
  */
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -64,6 +70,19 @@ service cloud.firestore {
     }
 
     /**
+     * `role` mirrors the Firebase Auth custom claim that the syncAdminRole
+     * Cloud Function maintains; the claim on the caller's ID token is the
+     * only thing any access decision here or in the app ever trusts. This
+     * field grants nothing by itself — comparing it with the safe two-
+     * argument get() (rather than unchanged(), which would error on a
+     * document that predates this field) is what stops the mirror from ever
+     * being talked into disagreeing with the claim it mirrors.
+     */
+    function roleUnchanged() {
+      return incoming().get('role', 'student') == existing().get('role', 'student');
+    }
+
+    /**
      * The four templates. These strings are persisted in saved decks and read
      * by the extraction parser and all four game screens, so an unknown value
      * is a card no screen can render.
@@ -97,15 +116,21 @@ service cloud.firestore {
                     && incoming().currentStreak == 0
                     && incoming().longestStreak == 0
                     && incoming().lastStudiedDate == null
+                    // A fresh account cannot mint itself an admin any more
+                    // than it can start several days into a streak: absent
+                    // or 'student' is the only honest starting claim.
+                    && incoming().get('role', 'student') == 'student'
                     && isServerTime('createdAt');
 
-      // The client owns its profile; the session trigger owns the streaks.
+      // The client owns its profile; the session trigger owns the streaks;
+      // syncAdminRole() owns the role mirror.
       allow update: if isUser(userId)
                     && unchanged('userId')
                     && unchanged('createdAt')
                     && unchanged('currentStreak')
                     && unchanged('longestStreak')
-                    && unchanged('lastStudiedDate');
+                    && unchanged('lastStudiedDate')
+                    && roleUnchanged();
 
       // Deleting the document would strand the subcollections beneath it,
       // which Firestore does not cascade. Account deletion belongs to a

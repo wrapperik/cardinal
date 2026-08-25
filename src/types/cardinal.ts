@@ -57,6 +57,14 @@ export interface UserDoc {
   lastStudiedDate: Timestamp | null;
   onboardingComplete: boolean;
   createdAt: Timestamp;
+  /**
+   * Mirrors the Firebase Auth custom claim that the syncAdminRole Cloud
+   * Function maintains. createUserDocument() writes 'student' at signup and
+   * firestore.rules pins every write to agree with the claim from then on,
+   * but this field is never itself an access decision — the claim on the ID
+   * token is the only thing that is.
+   */
+  role: 'student' | 'admin';
 }
 
 /**

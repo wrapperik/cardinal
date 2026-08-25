@@ -16,6 +16,7 @@ import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { SwipeAction } from "@/components/swipe-action";
 import { TypedConfirmationDialog } from "@/components/typed-confirmation-dialog";
 import { Colors, Fonts, Motion, Radius, Spacing, Theme } from "@/constants/theme";
+import { useIsAdmin } from "@/features/admin/role";
 import { useAuth } from "@/features/auth/auth-provider";
 import { getAuthErrorMessage } from "@/features/auth/errors";
 import { validateNameChange, validatePasswordChange } from "@/features/auth/validation";
@@ -39,6 +40,7 @@ export default function Settings() {
   const { changePassword, deleteAccount, signOutUser, updateName, user } = useAuth();
   const preferences = usePreferences();
   const syncStatus = usePreferencesSyncStatus();
+  const isAdmin = useIsAdmin();
   const [displayName, setDisplayName] = useState(user?.displayName ?? "STUDENT");
 
   useEffect(() => setDisplayName(user?.displayName ?? "STUDENT"), [user?.displayName]);
@@ -72,6 +74,19 @@ export default function Settings() {
           />
           <ChangePasswordRow onChangePassword={changePassword} />
         </View>
+
+        {isAdmin && (
+          <>
+            <Text style={styles.sectionLabel}>ADMIN</Text>
+            {/* Claim-gated for presentation only — hiding the row from a
+                non-admin is a courtesy, not the boundary. The callable behind
+                the dashboard re-checks the token's custom claim server-side,
+                which is the check that actually matters. */}
+            <View style={styles.profileActions}>
+              <SwipeAction label="DASHBOARD" tone="accent" onConfirm={() => router.push("/dashboard")} />
+            </View>
+          </>
+        )}
 
         <Text style={styles.sectionLabel}>ACCOUNT ACTIONS</Text>
         <View style={styles.profileActions}>

@@ -14,11 +14,19 @@ import {
 } from "./upload/processor";
 import { refreshUserStats } from "./stats/refresh";
 import { deleteAccountData, hasDeleteConfirmation, type DeleteAccountRequest } from "./account/delete-account";
+import { assertAdmin, parseAdminEmails, syncAdminRole as applyAdminRole } from "./admin/roles";
+import { readDashboard } from "./admin/dashboard";
 
 if (getApps().length === 0) initializeApp();
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 const geminiModel = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+
+// Config, not a credential — the same reasoning that keeps GEMINI_MODEL a
+// plain env var rather than a secret. An email allowlist has nothing to keep
+// confidential; it only needs to not be client-writable, which is what the
+// callable boundary below provides.
+const adminAllowlist = parseAdminEmails(process.env.ADMIN_EMAILS);
 
 export const processUpload = onDocumentCreated(
   {
@@ -83,4 +91,26 @@ export const deleteAccount = onCall<DeleteAccountRequest>(async (request) => {
 
   await deleteAccountData(request.auth.uid);
   return { deleted: true };
+});
+
+/** Any signed-in user may call this — it only ever grants what ADMIN_EMAILS already lists. */
+export const syncAdminRole = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "SIGN IN TO CONTINUE.");
+  }
+
+  const admin = await applyAdminRole(request.auth.uid, adminAllowlist);
+  return { admin };
+});
+
+/**
+ * The Admin SDK bypasses Firestore rules entirely, which is exactly why this
+ * is a callable gated by assertAdmin() rather than a set of cross-user read
+ * grants in firestore.rules: a rule that let an admin's account read every
+ * user's data would also let that same admin's client read it directly,
+ * which is a far larger blast radius than one server-side aggregation.
+ */
+export const adminDashboard = onCall(async (request) => {
+  assertAdmin(request.auth);
+  return readDashboard(getFirestore());
 });
