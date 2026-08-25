@@ -1,5 +1,4 @@
 import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -21,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { Colors, Fonts, Spacing, Theme, Trail } from "@/constants/theme";
+import { impact, ImpactFeedbackStyle, notification, NotificationFeedbackType } from "@/lib/haptics";
 import {
   MILESTONES,
   ONBOARDING_PATH,
@@ -108,13 +108,13 @@ export default function Onboarding() {
   const distance = useSharedValue(0);
 
   const triggerStageHaptic = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impact(ImpactFeedbackStyle.Medium);
   };
 
   const handleComplete = async () => {
     if (completed.current) return;
     completed.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    notification(NotificationFeedbackType.Success);
     await completeOnboarding();
     router.replace("/sign-up");
   };

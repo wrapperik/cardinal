@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "@/components/back-button";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { Fonts, Spacing, Theme } from "@/constants/theme";
+import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { AuthField } from "@/features/auth/auth-field";
 import { isValidTitle } from "@/features/upload/course-rules";
 import {
@@ -62,7 +62,7 @@ export default function CourseSettings() {
   const [renamed, setRenamed] = useState(false);
   useEffect(() => {
     if (!renamed) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    notification(NotificationFeedbackType.Success);
     const timer = setTimeout(() => setRenamed(false), CONFIRM_HOLD_MS);
     return () => clearTimeout(timer);
   }, [renamed]);

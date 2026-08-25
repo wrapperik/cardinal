@@ -78,12 +78,10 @@ export interface StatsDoc {
 
 export interface PreferencesDoc {
   userId: string;
-  accessibilityTapZones: boolean;
   hapticsEnabled: boolean;
   dailyReminderEnabled: boolean;
   /** 24-hour local time, "HH:MM". */
   reminderTime: string;
-  theme: string;
   /** Pinned to server time on every write for cross-device reconciliation. */
   updatedAt: Timestamp;
 }

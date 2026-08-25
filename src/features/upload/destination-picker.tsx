@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -10,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
+import { selection } from '@/lib/haptics';
 import type { Course } from '@/features/upload/types';
 
 /**
@@ -74,12 +74,12 @@ export function DestinationPicker({
 
   function release(index: number) {
     if (index < 0 || index >= courses.length) return;
-    Haptics.selectionAsync();
+    selection();
     onSelect(courses[index].id);
   }
 
   function beginCreate() {
-    Haptics.selectionAsync();
+    selection();
     setCreating(true);
   }
 

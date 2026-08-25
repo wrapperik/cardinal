@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -9,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
+import { selection } from '@/lib/haptics';
 
 /**
  * Drag distance that counts as a commit. SignOutRow (settings.tsx)
@@ -52,7 +52,7 @@ export function SwipeAction({
   const drag = useSharedValue(0);
 
   const commit = () => {
-    Haptics.selectionAsync();
+    selection();
     onConfirm();
   };
 

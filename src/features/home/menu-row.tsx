@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -12,6 +11,7 @@ import Animated, {
 import Svg, { Path } from 'react-native-svg';
 
 import { Colors, Fonts, Motion, Radius, Spacing, Theme } from '@/constants/theme';
+import { selection } from '@/lib/haptics';
 
 /**
  * The same 88 / 112 pair every swipe-to-confirm surface in the app uses —
@@ -59,7 +59,7 @@ export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
   const drag = useSharedValue(0);
 
   const commit = () => {
-    Haptics.selectionAsync();
+    selection();
     onPress();
   };
 

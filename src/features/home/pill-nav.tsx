@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { selection } from '@/lib/haptics';
 
 /**
  * Horizontal inset of the pill track. A single constant because the snap
@@ -146,7 +146,7 @@ export function PillNav({ items, activeId, onChange }: PillNavProps) {
       // attached to the finger instead of catching up a beat late.
       if (nearestIndex !== activeIndexRef.current) {
         activeIndexRef.current = nearestIndex;
-        Haptics.selectionAsync();
+        selection();
         onChange(items[nearestIndex].id);
       }
     },

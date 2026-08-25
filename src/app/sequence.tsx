@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -18,6 +17,7 @@ import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/con
 import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
 import { useSequenceRounds } from "@/features/upload/play";
+import { notification, NotificationFeedbackType } from "@/lib/haptics";
 
 /** Row card footprint. Fixed rather than derived from screen height — four
  *  of these plus their gaps have to fit the same on every device, and a
@@ -202,7 +202,7 @@ export default function Sequence() {
 
     committing.current = true;
     solved.value = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    notification(NotificationFeedbackType.Success);
 
     resolveTimeout.current = setTimeout(() => {
       committing.current = false;

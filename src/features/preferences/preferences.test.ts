@@ -42,11 +42,9 @@ describe("preferences sync config", () => {
 
     expect(payload).toMatchObject({
       userId: "user-1",
-      accessibilityTapZones: false,
       hapticsEnabled: true,
       dailyReminderEnabled: false,
       reminderTime: "19:30",
-      theme: "default",
     });
     expect(payload.updatedAt).toBeDefined();
   });
@@ -54,6 +52,16 @@ describe("preferences sync config", () => {
   it("accepts complete preferences and rejects a malformed reminder time", () => {
     expect(isPreferencesRecord(preferences())).toBe(true);
     expect(isPreferencesRecord(preferences({ reminderTime: "7pm" }))).toBe(false);
+  });
+
+  it("accepts legacy records without retired tap-zone and theme fields", () => {
+    expect(isPreferencesRecord({
+      id: "settings",
+      hapticsEnabled: true,
+      dailyReminderEnabled: false,
+      reminderTime: "19:30",
+      updatedAt: 1_000,
+    })).toBe(true);
   });
 });
 

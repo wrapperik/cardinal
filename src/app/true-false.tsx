@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -29,6 +28,7 @@ import { GameHUD } from "@/components/game-hud";
 import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useTrueFalseStatements } from "@/features/upload/play";
+import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import type { TrueFalseStatement } from "@/features/true-false/statements";
 
 /** Edge pill footprint. Tall and narrow so it reads as a lever on the rail,
@@ -150,10 +150,10 @@ export default function TrueFalse() {
     verdictActive.value = true;
     verdictCorrect.value = correct;
     if (!correct) revealSide.value = statement.isTrue ? 1 : 0;
-    Haptics.notificationAsync(
+    notification(
       correct
-        ? Haptics.NotificationFeedbackType.Success
-        : Haptics.NotificationFeedbackType.Error,
+        ? NotificationFeedbackType.Success
+        : NotificationFeedbackType.Error,
     );
 
     verdictTimeout.current = setTimeout(

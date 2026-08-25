@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useRef, type PropsWithChildren, type ReactNode } from "react";
 import {
   Animated,
@@ -13,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
+import { impact, ImpactFeedbackStyle } from "@/lib/haptics";
 
 interface AuthScreenProps extends PropsWithChildren {
   eyebrow: string;
@@ -109,7 +109,7 @@ export function AuthButton({
         accessibilityRole="button"
         disabled={disabled}
         onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          impact(ImpactFeedbackStyle.Light);
           onPress();
         }}
         onPressIn={() => {

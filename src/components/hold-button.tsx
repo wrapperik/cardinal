@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import * as Haptics from "expo-haptics";
 import { StyleSheet } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -12,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Colors, HOLD_MS, Motion, Radius } from "@/constants/theme";
+import { impact, ImpactFeedbackStyle } from "@/lib/haptics";
 
 /** Fixed footprint for both icon buttons, so the fill overlay (below) has a
  *  concrete height to animate towards instead of measuring itself at runtime. */
@@ -60,11 +60,11 @@ export function HoldButton({
   const fired = useSharedValue(false);
 
   const beginHaptic = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impact(ImpactFeedbackStyle.Light);
   };
 
   const fireHold = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impact(ImpactFeedbackStyle.Medium);
     onHold();
   };
 

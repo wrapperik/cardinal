@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -19,6 +18,7 @@ import type { MatchPair, MatchRound } from "@/features/match/rounds";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
+import { notification, NotificationFeedbackType } from "@/lib/haptics";
 
 const ZONE_GAP = 14;
 
@@ -450,7 +450,7 @@ function DraggableTerm({
     const correct = zoneOrder[zonePos] === pairIndex;
     if (correct) {
       matchedFlags[zonePos].value = true;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      notification(NotificationFeedbackType.Success);
       onCorrect(zonePos, pairIndex);
       // No spring-back. The card already stopped inside the zone it hit —
       // the zone's own re-render takes over that same spot with the locked
@@ -459,7 +459,7 @@ function DraggableTerm({
       wrongFlags[zonePos].value = true;
       dx.value = withSpring(0, SETTLE_SPRING);
       dy.value = withSpring(0, SETTLE_SPRING);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notification(NotificationFeedbackType.Error);
       onWrong();
       setTimeout(() => {
         wrongFlags[zonePos].value = false;

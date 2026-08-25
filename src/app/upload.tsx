@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useReducer } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
@@ -7,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "@/components/back-button";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
+import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { addCourse, adoptRemoteCourse, courseById, useCourses } from "@/features/upload/courses";
 import { adoptRemoteDeck, saveDeck } from "@/features/upload/decks";
 import { DestinationPicker } from "@/features/upload/destination-picker";
@@ -184,7 +184,7 @@ export default function Upload() {
   // stage happens to produce while the message is on screen.
   useEffect(() => {
     if (state.stage === "failed") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      notification(NotificationFeedbackType.Warning);
     }
   }, [state.stage]);
 
@@ -192,7 +192,7 @@ export default function Upload() {
   // briefly, then hand back to whatever pushed this screen.
   useEffect(() => {
     if (state.stage !== "saved") return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    notification(NotificationFeedbackType.Success);
     const timer = setTimeout(() => {
       router.back();
     }, SAVED_HOLD_MS);

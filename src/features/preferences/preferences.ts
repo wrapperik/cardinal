@@ -2,11 +2,9 @@ import type { FieldAdapterConfig } from "@/lib/sync/adapter";
 import { createSyncedStore, type SyncedStoreConfig, type SyncStatus } from "@/lib/sync/store";
 
 export interface Preferences {
-  accessibilityTapZones: boolean;
   hapticsEnabled: boolean;
   dailyReminderEnabled: boolean;
   reminderTime: string;
-  theme: string;
 }
 
 export interface PreferencesRecord extends Preferences {
@@ -15,11 +13,9 @@ export interface PreferencesRecord extends Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  accessibilityTapZones: false,
   hapticsEnabled: true,
   dailyReminderEnabled: false,
   reminderTime: "19:30",
-  theme: "default",
 };
 
 const DEFAULT_RECORD: PreferencesRecord = {
@@ -45,12 +41,10 @@ export function isPreferencesRecord(value: unknown): value is PreferencesRecord 
   const candidate = value as Partial<PreferencesRecord>;
   return (
     candidate.id === "settings" &&
-    typeof candidate.accessibilityTapZones === "boolean" &&
     typeof candidate.hapticsEnabled === "boolean" &&
     typeof candidate.dailyReminderEnabled === "boolean" &&
     typeof candidate.reminderTime === "string" &&
     /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(candidate.reminderTime) &&
-    typeof candidate.theme === "string" &&
     typeof candidate.updatedAt === "number" &&
     Number.isFinite(candidate.updatedAt)
   );

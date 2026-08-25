@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -9,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
+import { selection } from '@/lib/haptics';
 import type { TemplateChoice } from '@/features/upload/types';
 import type { GameType } from '@/types/cardinal';
 
@@ -50,7 +50,7 @@ export function TemplatePicker({ value, onChange }: TemplatePickerProps) {
 
   function release(index: number) {
     if (index < 0) return;
-    Haptics.selectionAsync();
+    selection();
     onChange(CHIPS[index].value);
   }
 

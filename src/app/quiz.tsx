@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -29,6 +28,7 @@ import {
 import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useQuizQuestions } from "@/features/upload/play";
+import { notification, NotificationFeedbackType } from "@/lib/haptics";
 
 /** The draggable puck at the compass centre. */
 const CARD_SIZE = 70;
@@ -168,10 +168,10 @@ export default function Quiz() {
     verdictIndex.value = answer;
     verdictCorrect.value = correct;
     if (!correct) revealCorrect.value = question.correctIndex;
-    Haptics.notificationAsync(
+    notification(
       correct
-        ? Haptics.NotificationFeedbackType.Success
-        : Haptics.NotificationFeedbackType.Error,
+        ? NotificationFeedbackType.Success
+        : NotificationFeedbackType.Error,
     );
 
     verdictTimeout.current = setTimeout(

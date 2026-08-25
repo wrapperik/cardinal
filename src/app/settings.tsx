@@ -25,9 +25,9 @@ import {
 /**
  * Settings, as an ordinary pushed screen. No tap target opens it any more
  * either — it's reached by holding the gear icon on home's nav bar — but
- * once inside there is still nothing to tap: the SIGN OUT row and the EDGE
- * TAP ZONES toggle are both drag-only, matching the no-tap grammar the rest
- * of the app uses.
+ * once inside there is still nothing to tap: the SIGN OUT row and HAPTICS
+ * toggle are both drag-only, matching the no-tap grammar the rest of the app
+ * uses.
  */
 export default function Settings() {
   const insets = useSafeAreaInsets();
@@ -54,12 +54,12 @@ export default function Settings() {
         <InfoRow label="SYNC" value={syncStatusLabel(syncStatus)} />
         <SignOutRow onSignOut={signOutUser} />
 
-        <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
-        <AccessibilityRow
-          tapZones={preferences.accessibilityTapZones}
-          onChange={(accessibilityTapZones) => updatePreferences({ accessibilityTapZones })}
+        <Text style={styles.sectionLabel}>FEEDBACK</Text>
+        <ToggleRow
+          label="HAPTICS"
+          value={preferences.hapticsEnabled}
+          onChange={(hapticsEnabled) => updatePreferences({ hapticsEnabled })}
         />
-        {/* TODO(week7): wire to the real tap-zone overlay when the accessibility mode ships. */}
 
         <Text style={styles.sectionLabel}>ABOUT</Text>
         <InfoRow label="VERSION" value="1.0.0" />
@@ -127,21 +127,23 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
 }
 
 /**
- * EDGE TAP ZONES toggle. A drag-only switch — the knob follows the finger
+ * A drag-only preference switch — the knob follows the finger
  * and releasing snaps it to the nearer side, matching the no-tap premise.
  */
-function AccessibilityRow({
-  tapZones,
+function ToggleRow({
+  label,
+  value,
   onChange,
 }: {
-  tapZones: boolean;
+  label: string;
+  value: boolean;
   onChange: (value: boolean) => void;
 }) {
-  const knob = useSharedValue(tapZones ? 1 : 0); // 0 = off, 1 = on
+  const knob = useSharedValue(value ? 1 : 0); // 0 = off, 1 = on
 
   useEffect(() => {
-    knob.value = withSpring(tapZones ? 1 : 0, Motion.snap);
-  }, [knob, tapZones]);
+    knob.value = withSpring(value ? 1 : 0, Motion.snap);
+  }, [knob, value]);
 
   // The child toggle's GestureDetector takes precedence over any ancestor's
   // own gesture automatically (innermost first), so this never fights a
@@ -171,9 +173,9 @@ function AccessibilityRow({
 
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>EDGE TAP ZONES</Text>
+      <Text style={styles.infoLabel}>{label}</Text>
       <View style={styles.toggleWrap}>
-        <Text style={styles.toggleState}>{tapZones ? "ON" : "OFF"}</Text>
+        <Text style={styles.toggleState}>{value ? "ON" : "OFF"}</Text>
         <GestureDetector gesture={toggleDrag}>
           <Animated.View style={[styles.track, trackStyle]}>
             <Animated.View style={[styles.knob, knobStyle]} />
