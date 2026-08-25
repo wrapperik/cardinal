@@ -9,6 +9,8 @@ interface BackButtonProps {
   /** Announced to assistive tech. "BACK" on ordinary screens, "EXIT" in a game. */
   label: string;
   onBack: () => void;
+  /** Home-row destinations return on the opposite side from their entry gesture. */
+  side?: "left" | "right";
 }
 
 /**
@@ -31,11 +33,11 @@ interface BackButtonProps {
  * nav buttons invert this rather than contradict it: they are charcoal
  * because they sit ON rust.
  */
-export function BackButton({ label, onBack }: BackButtonProps) {
+export function BackButton({ label, onBack, side = "left" }: BackButtonProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.button, { top: insets.top + Spacing.md }]}>
+    <View style={[styles.button, { top: insets.top + Spacing.md }, side === "right" ? styles.right : styles.left]}>
       <HoldButton
         glyph={<BackChevron />}
         label={label}
@@ -64,7 +66,8 @@ function BackChevron() {
 const styles = StyleSheet.create({
   button: {
     position: "absolute",
-    left: Spacing.md,
     zIndex: 10,
   },
+  left: { left: Spacing.md },
+  right: { right: Spacing.md },
 });

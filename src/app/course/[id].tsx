@@ -64,7 +64,7 @@ export default function CourseDetail() {
 
       {/* Sibling of the ScrollView, not inside it — riding inside would scroll
           the back button away with the content instead of leaving it pinned. */}
-      <BackButton label="BACK" onBack={() => router.back()} />
+      <BackButton label="BACK" side="right" onBack={() => router.back()} />
     </View>
   );
 }

@@ -134,7 +134,7 @@ export default function CourseSettings() {
 
       {/* Sibling of the ScrollView, not inside it — same reasoning
           course/[id].tsx documents for its own tab. */}
-      <BackButton label="BACK" onBack={() => router.back()} />
+      <BackButton label="BACK" side="right" onBack={() => router.back()} />
     </View>
   );
 }

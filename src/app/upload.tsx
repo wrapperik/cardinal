@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,6 +17,7 @@ import { TEMPLATE_LABELS, TemplatePicker } from "@/features/upload/template-pick
 import type {
   Course,
   ExtractionResult,
+  ExtractionPhase,
   PickedFile,
   TemplateChoice,
 } from "@/features/upload/types";
@@ -28,13 +29,6 @@ import type { CardContent, GameType } from "@/types/cardinal";
  * cards — providers treat this as a target, not a hard cap.
  */
 const CARD_TARGET = 20;
-
-/**
- * How long the "saved" confirmation holds before the screen leaves — long
- * enough to actually read a five-word line, short enough that it never
- * feels like the app is stalling on you.
- */
-const SAVED_HOLD_MS = 1400;
 
 /* -------------------------------------------------------------------------- */
 /* Session state                                                              */
@@ -58,9 +52,11 @@ interface UploadState {
    *  once `review` has a suggestion to fall back to instead). */
   destinationId: string | null;
   progress: number;
+  phase: ExtractionPhase;
   result: ExtractionResult | null;
   error: string | null;
   savedCourseTitle: string | null;
+  savedCourseId: string | null;
   savedCount: number;
 }
 
@@ -71,9 +67,11 @@ const initialState: UploadState = {
   template: "auto",
   destinationId: null,
   progress: 0,
+  phase: "uploading",
   result: null,
   error: null,
   savedCourseTitle: null,
+  savedCourseId: null,
   savedCount: 0,
 };
 
@@ -84,12 +82,13 @@ type Action =
   | { type: "setTemplate"; value: TemplateChoice }
   | { type: "setDestination"; id: string }
   | { type: "extractStart" }
-  | { type: "extractProgress"; fraction: number }
+  | { type: "extractProgress"; fraction: number; phase: ExtractionPhase }
   | { type: "extractSuccess"; result: ExtractionResult }
   | { type: "extractFailed"; message: string }
+  | { type: "dropCard"; index: number }
   | { type: "retry" }
   | { type: "saveStart" }
-  | { type: "saveSuccess"; courseTitle: string; count: number }
+  | { type: "saveSuccess"; courseTitle: string; courseId: string; count: number }
   | { type: "reset" };
 
 function reducer(state: UploadState, action: Action): UploadState {
@@ -105,13 +104,17 @@ function reducer(state: UploadState, action: Action): UploadState {
     case "setDestination":
       return { ...state, destinationId: action.id };
     case "extractStart":
-      return { ...state, stage: "extracting", progress: 0 };
+      return { ...state, stage: "extracting", progress: 0, phase: "uploading" };
     case "extractProgress":
-      return { ...state, progress: action.fraction };
+      return { ...state, progress: action.fraction, phase: action.phase };
     case "extractSuccess":
       return { ...state, stage: "review", result: action.result };
     case "extractFailed":
       return { ...state, stage: "failed", error: action.message };
+    case "dropCard":
+      return state.result
+        ? { ...state, result: { ...state.result, cards: state.result.cards.filter((_, index) => index !== action.index) } }
+        : state;
     case "retry":
       return { ...state, stage: "picked", error: null };
     case "saveStart":
@@ -121,6 +124,7 @@ function reducer(state: UploadState, action: Action): UploadState {
         ...state,
         stage: "saved",
         savedCourseTitle: action.courseTitle,
+        savedCourseId: action.courseId,
         savedCount: action.count,
       };
     case "reset":
@@ -154,6 +158,15 @@ function countByTemplate(cards: CardContent[]): { gameType: GameType; count: num
   return Array.from(counts.entries()).map(([gameType, count]) => ({ gameType, count }));
 }
 
+function cardPreview(card: CardContent): string {
+  switch (card.gameType) {
+    case "compassQuiz": return card.payload.question;
+    case "trueFalseDuel": return card.payload.statement;
+    case "sequenceSwipe": return card.payload.prompt;
+    case "matchRelease": return card.payload.prompt;
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Screen                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -171,6 +184,7 @@ export default function Upload() {
   const courses = useCourses();
 
   const [state, dispatch] = useReducer(reducer, initialState);
+  const extraction = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (courseId) dispatch({ type: "setDestination", id: courseId });
@@ -188,16 +202,8 @@ export default function Upload() {
     }
   }, [state.stage]);
 
-  // The save confirmation is a beat, not a screen it waits on: hold it
-  // briefly, then hand back to whatever pushed this screen.
   useEffect(() => {
-    if (state.stage !== "saved") return;
-    notification(NotificationFeedbackType.Success);
-    const timer = setTimeout(() => {
-      router.back();
-    }, SAVED_HOLD_MS);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (state.stage === "saved") notification(NotificationFeedbackType.Success);
   }, [state.stage]);
 
   async function handlePick() {
@@ -215,6 +221,8 @@ export default function Upload() {
 
   async function handleExtract() {
     if (!state.file) return;
+    const controller = new AbortController();
+    extraction.current = controller;
     dispatch({ type: "extractStart" });
     const outcome = await extractCards(
       {
@@ -222,9 +230,11 @@ export default function Upload() {
         template: state.template,
         courses: courses.map((course) => ({ id: course.id, title: course.title })),
         cardTarget: CARD_TARGET,
+        signal: controller.signal,
       },
-      (fraction) => dispatch({ type: "extractProgress", fraction }),
+      ({ fraction, phase }) => dispatch({ type: "extractProgress", fraction, phase }),
     );
+    if (controller.signal.aborted) return;
     if (outcome.ok) {
       dispatch({ type: "extractSuccess", result: outcome.result });
     } else {
@@ -232,8 +242,18 @@ export default function Upload() {
     }
   }
 
+  function handleCancel() {
+    extraction.current?.abort();
+    extraction.current = null;
+    dispatch({ type: "retry" });
+  }
+
   function handleSave() {
     if (!state.result) return;
+    if (state.result.cards.length === 0) {
+      dispatch({ type: "extractFailed", message: "COULDN'T FIND CARDS IN THAT" });
+      return;
+    }
 
     if (state.result.provider === "gemini") {
       const { canonicalDeck, canonicalCourse } = state.result;
@@ -250,6 +270,7 @@ export default function Upload() {
       dispatch({
         type: "saveSuccess",
         courseTitle: canonicalCourse.title,
+        courseId: canonicalCourse.id,
         count: canonicalDeck.cards.length,
       });
       return;
@@ -273,7 +294,7 @@ export default function Upload() {
       provider: state.result.provider,
     });
 
-    dispatch({ type: "saveSuccess", courseTitle: course.title, count: deck.cards.length });
+    dispatch({ type: "saveSuccess", courseTitle: course.title, courseId: course.id, count: deck.cards.length });
   }
 
   return (
@@ -313,7 +334,7 @@ export default function Upload() {
           )}
 
           {state.stage === "extracting" && state.file && (
-            <ExtractingStage file={state.file} progress={state.progress} />
+            <ExtractingStage file={state.file} progress={state.progress} phase={state.phase} onCancel={handleCancel} />
           )}
 
           {state.stage === "review" && state.result && (
@@ -327,13 +348,13 @@ export default function Upload() {
                 dispatch({ type: "setDestination", id: created.id });
               }}
               onSave={handleSave}
+              onDropCard={(index) => dispatch({ type: "dropCard", index })}
               onDiscard={() => dispatch({ type: "reset" })}
             />
           )}
 
-          {(state.stage === "saving" || state.stage === "saved") && (
-            <SavedStage courseTitle={state.savedCourseTitle} count={state.savedCount} />
-          )}
+          {state.stage === "saving" && <SavedStage courseTitle={state.savedCourseTitle} count={state.savedCount} />}
+          {state.stage === "saved" && <SavedStage courseTitle={state.savedCourseTitle} count={state.savedCount} onStudy={() => router.replace({ pathname: "/recap", params: { courseId: state.savedCourseId ?? "" } })} onDone={() => router.replace("/home")} />}
 
           {state.stage === "failed" && (
             <FailedStage
@@ -409,18 +430,26 @@ function PickedStage({
   );
 }
 
-function ExtractingStage({ file, progress }: { file: PickedFile; progress: number }) {
+function ExtractingStage({ file, progress, phase, onCancel }: { file: PickedFile; progress: number; phase: ExtractionPhase; onCancel: () => void }) {
   const pct = Math.round(progress * 100);
+  const phaseLabel: Record<ExtractionPhase, string> = {
+    uploading: "UPLOADING YOUR FILE",
+    queued: "WAITING FOR THE MODEL",
+    extracting: "READING YOUR MATERIAL",
+    parsing: "WRITING CARDS",
+  };
   return (
     <View style={styles.stageGap}>
       <Text style={styles.filename} numberOfLines={1}>
         {file.name}
       </Text>
       <Text style={styles.provider}>{activeProvider().label.toUpperCase()}</Text>
+      <Text style={styles.copy}>{phaseLabel[phase]}</Text>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${pct}%` }]} />
       </View>
       <Text style={styles.progressPct}>{pct}%</Text>
+      <SwipeAction label="CANCEL" hint="SWIPE RIGHT" onConfirm={onCancel} />
     </View>
   );
 }
@@ -432,6 +461,7 @@ function ReviewStage({
   onDestinationSelect,
   onDestinationCreate,
   onSave,
+  onDropCard,
   onDiscard,
 }: {
   result: ExtractionResult;
@@ -440,6 +470,7 @@ function ReviewStage({
   onDestinationSelect: (id: string) => void;
   onDestinationCreate: (title: string) => void;
   onSave: () => void;
+  onDropCard: (index: number) => void;
   onDiscard: () => void;
 }) {
   const breakdown = countByTemplate(result.cards);
@@ -467,6 +498,14 @@ function ReviewStage({
         ))}
       </View>
 
+      {result.provider !== "gemini" && result.cards.map((card, index) => (
+        <View key={`${card.gameType}-${index}`} style={styles.cardReviewRow}>
+          <Text style={styles.breakdownLine}>{TEMPLATE_LABELS[card.gameType]}</Text>
+          <Text style={styles.note}>{cardPreview(card)}</Text>
+          <SwipeAction label="DROP" hint="SWIPE RIGHT" onConfirm={() => onDropCard(index)} />
+        </View>
+      ))}
+
       <Text style={styles.suggestion}>
         SUGGESTED: {result.suggestedTitle}
         {result.confidence > 0 ? `  ·  ${Math.round(result.confidence * 100)}%` : ""}
@@ -490,12 +529,14 @@ function ReviewStage({
   );
 }
 
-function SavedStage({ courseTitle, count }: { courseTitle: string | null; count: number }) {
+function SavedStage({ courseTitle, count, onStudy, onDone }: { courseTitle: string | null; count: number; onStudy?: () => void; onDone?: () => void }) {
   return (
     <View style={styles.stageGap}>
       <Text style={styles.copy}>
         {count} CARD{count === 1 ? "" : "S"} ADDED TO {courseTitle ?? "—"}
       </Text>
+      {onStudy && <SwipeAction label="STUDY NOW" hint="SWIPE RIGHT" tone="accent" onConfirm={onStudy} />}
+      {onDone && <SwipeAction label="DONE" hint="SWIPE RIGHT" onConfirm={onDone} />}
     </View>
   );
 }
@@ -597,6 +638,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Theme.textMuted,
   },
+  cardReviewRow: { gap: Spacing.sm },
   suggestion: {
     fontFamily: Fonts.bodyBold,
     fontSize: 13,

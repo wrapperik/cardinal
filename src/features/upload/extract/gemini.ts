@@ -7,6 +7,7 @@ import type {
   Course,
   ExtractionFailure,
   ExtractionOutcome,
+  ExtractionProgress,
   ExtractionProvider,
   ExtractionRequest,
   LocalCard,
@@ -246,13 +247,13 @@ function firebaseIsConfigured(): boolean {
   );
 }
 
-async function uploadPickedFile(request: ExtractionRequest, storagePath: string, onProgress?: (fraction: number) => void) {
+async function uploadPickedFile(request: ExtractionRequest, storagePath: string, onProgress?: (progress: ExtractionProgress) => void) {
   const objectRef = ref(storage, storagePath);
   const metadata = { contentType: request.file.mimeType };
 
   if (request.file.base64) {
     await uploadString(objectRef, request.file.base64, "base64", metadata);
-    onProgress?.(0.6);
+    onProgress?.({ fraction: 0.6, phase: "uploading" });
     return;
   }
 
@@ -265,7 +266,7 @@ async function uploadPickedFile(request: ExtractionRequest, storagePath: string,
       "state_changed",
       (snapshot) => {
         const fraction = snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes : 1;
-        onProgress?.(0.05 + fraction * 0.55);
+        onProgress?.({ fraction: 0.05 + fraction * 0.55, phase: "uploading" });
       },
       reject,
       resolve,
@@ -309,7 +310,8 @@ function waitForCompletion(
   uid: string,
   uploadId: string,
   fileName: string,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (progress: ExtractionProgress) => void,
+  signal?: AbortSignal,
 ): Promise<ExtractionOutcome> {
   const uploadRef = doc(db, "uploads", uploadId);
 
@@ -323,8 +325,11 @@ function waitForCompletion(
       settled = true;
       clearTimeout(timeout);
       unsubscribe?.();
+      signal?.removeEventListener("abort", cancel);
       resolve(outcome);
     };
+
+    const cancel = () => finish({ ok: false, reason: "cancelled", message: "EXTRACTION CANCELLED" });
 
     const timeout = setTimeout(() => {
       finish({ ok: false, reason: "network", message: "THE EXTRACTION TOOK TOO LONG — TRY AGAIN" });
@@ -336,7 +341,7 @@ function waitForCompletion(
         const job = snapshot.exists() ? asMap(snapshot.data()) : null;
         if (!job || settled) return;
         if (job.status === "processing") {
-          onProgress?.(0.75);
+          onProgress?.({ fraction: 0.75, phase: "extracting" });
           return;
         }
         if (job.status === "failed") {
@@ -347,10 +352,10 @@ function waitForCompletion(
         if (job.status !== "done" || loadingResult) return;
 
         loadingResult = true;
-        onProgress?.(0.85);
+        onProgress?.({ fraction: 0.85, phase: "parsing" });
         void loadCanonicalResult(uid, uploadId, fileName, job)
           .then((outcome) => {
-            if (outcome.ok) onProgress?.(1);
+            if (outcome.ok) onProgress?.({ fraction: 1, phase: "parsing" });
             finish(outcome);
           })
           .catch((error) => finish({ ok: false, ...mapFirebaseFailure(error) }));
@@ -358,6 +363,8 @@ function waitForCompletion(
       (error) => finish({ ok: false, ...mapFirebaseFailure(error) }),
     );
     unsubscribe = listener;
+    signal?.addEventListener("abort", cancel, { once: true });
+    if (signal?.aborted) cancel();
     // Firebase normally invokes the observer asynchronously. This guard also
     // cleans up correctly if a mocked or future implementation reports an
     // error synchronously before `onSnapshot` returns its unsubscribe handle.
@@ -367,7 +374,7 @@ function waitForCompletion(
 
 async function extract(
   request: ExtractionRequest,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (progress: ExtractionProgress) => void,
 ): Promise<ExtractionOutcome> {
   const user = auth.currentUser;
   if (!user) {
@@ -379,11 +386,11 @@ async function extract(
 
   const uploadId = doc(collection(db, "uploads")).id;
   const storagePath = `uploads/${user.uid}/${uploadId}`;
-  onProgress?.(0.05);
+  onProgress?.({ fraction: 0.05, phase: "uploading" });
 
   try {
     await uploadPickedFile(request, storagePath, onProgress);
-    onProgress?.(0.65);
+    onProgress?.({ fraction: 0.65, phase: "queued" });
     await setDoc(doc(db, "uploads", uploadId), {
       uploadId,
       ownerId: user.uid,
@@ -399,8 +406,8 @@ async function extract(
       createdAt: serverTimestamp(),
       completedAt: null,
     });
-    onProgress?.(0.7);
-    return waitForCompletion(user.uid, uploadId, request.file.name, onProgress);
+    onProgress?.({ fraction: 0.7, phase: "queued" });
+    return waitForCompletion(user.uid, uploadId, request.file.name, onProgress, request.signal);
   } catch (error) {
     return { ok: false, ...mapFirebaseFailure(error) };
   }

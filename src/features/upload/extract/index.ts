@@ -1,6 +1,6 @@
 import { geminiProvider } from "@/features/upload/extract/gemini";
 import { mockProvider } from "@/features/upload/extract/mock";
-import type { ExtractionOutcome, ExtractionRequest } from "@/features/upload/types";
+import type { ExtractionOutcome, ExtractionProgress, ExtractionRequest } from "@/features/upload/types";
 
 /**
  * Firebase owns the Gemini key. The client enables its job-based provider only
@@ -13,7 +13,7 @@ export function activeProvider() {
 
 export function extractCards(
   request: ExtractionRequest,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (progress: ExtractionProgress) => void,
 ): Promise<ExtractionOutcome> {
   return activeProvider().extract(request, onProgress);
 }

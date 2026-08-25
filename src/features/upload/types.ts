@@ -93,6 +93,14 @@ export interface ExtractionRequest {
   courses: Pick<Course, 'id' | 'title'>[];
   /** Roughly how many cards to aim for. Providers treat this as a target. */
   cardTarget: number;
+  /** Cancels client-side waiting and any provider work that can be interrupted. */
+  signal?: AbortSignal;
+}
+
+export type ExtractionPhase = "uploading" | "queued" | "extracting" | "parsing";
+export interface ExtractionProgress {
+  fraction: number;
+  phase: ExtractionPhase;
 }
 
 export interface ExtractionResult {
@@ -115,7 +123,8 @@ export type ExtractionFailure =
   | 'network'
   | 'badResponse'
   | 'unsupportedFile'
-  | 'empty';
+  | 'empty'
+  | 'cancelled';
 
 export type ExtractionOutcome =
   | { ok: true; result: ExtractionResult }
@@ -134,7 +143,7 @@ export interface ExtractionProvider {
   isConfigured: () => boolean;
   extract: (
     request: ExtractionRequest,
-    onProgress?: (fraction: number) => void,
+    onProgress?: (progress: ExtractionProgress) => void,
   ) => Promise<ExtractionOutcome>;
 }
 

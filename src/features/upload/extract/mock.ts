@@ -93,11 +93,16 @@ function buildCard(gameType: GameType, index: number): CardContent {
 
 async function extract(
   request: ExtractionRequest,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (progress: import("@/features/upload/types").ExtractionProgress) => void,
 ): Promise<ExtractionOutcome> {
   for (let step = 1; step <= PROGRESS_STEPS; step += 1) {
     await delay(STEP_DELAY_MS);
-    onProgress?.(step / PROGRESS_STEPS);
+    if (request.signal?.aborted) return { ok: false, reason: "cancelled", message: "EXTRACTION CANCELLED" };
+    const fraction = step / PROGRESS_STEPS;
+    onProgress?.({
+      fraction,
+      phase: fraction <= 0.6 ? "uploading" : fraction <= 0.7 ? "queued" : fraction <= 0.85 ? "extracting" : "parsing",
+    });
   }
 
   const templates = request.template === "auto" ? ALL_TEMPLATES : [request.template];
