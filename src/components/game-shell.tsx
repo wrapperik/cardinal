@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { GameHUD } from "@/components/game-hud";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { Spacing, Theme } from "@/constants/theme";
+import type { RecapRunner } from "@/features/recap/runner";
 
 /**
  * Vertical room the header claims below the safe area. Games pad their own
@@ -16,6 +17,7 @@ interface GameShellProps {
   /** 1-based position in the deck; rendered as the NN/NN readout. */
   step: number;
   total: number;
+  runner: RecapRunner;
   children: ReactNode;
 }
 
@@ -26,11 +28,11 @@ interface GameShellProps {
  * GameHUD, shared with Quiz and True/False, which mount it directly since
  * they have no children slot to nest inside.
  */
-export function GameShell({ step, total, children }: GameShellProps) {
+export function GameShell({ step, total, runner, children }: GameShellProps) {
   return (
     <View style={styles.screen}>
       {children}
-      <GameHUD step={step} total={total} />
+      <GameHUD step={step} total={total} runner={runner} />
     </View>
   );
 }

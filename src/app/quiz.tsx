@@ -158,7 +158,7 @@ export default function Quiz() {
     if (committing.current) return;
 
     if (answer === -1) {
-      runner.report("passed");
+      if (runner.report("passed")) return;
       advanceQuestion();
       return;
     }
@@ -181,7 +181,7 @@ export default function Quiz() {
         committing.current = false;
         // Reported here, not at the top of commit() — the card is only
         // truly answered once its verdict has actually played out on screen.
-        runner.report(correct ? "correct" : "incorrect");
+        if (runner.report(correct ? "correct" : "incorrect")) return;
         advanceQuestion();
       },
       correct ? VERDICT_MS : VERDICT_WRONG_MS,
@@ -250,7 +250,7 @@ export default function Quiz() {
   const total = runner.total(questions.length);
   return (
     <View style={styles.screen}>
-      <GameHUD step={runner.step(index)} total={total} />
+      <GameHUD step={runner.step(index)} total={total} runner={runner} />
 
       <View
         style={[

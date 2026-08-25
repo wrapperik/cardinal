@@ -173,7 +173,7 @@ export default function Match() {
   // Dragged, not tapped — skips with no verdict, same as true-false's Pass.
   function skipRound() {
     if (committing.current) return;
-    runner.report("passed");
+    if (runner.report("passed")) return;
     resetZoneVisuals();
     fumbled.current = false;
     setMatchedAt([null, null, null]);
@@ -187,7 +187,7 @@ export default function Match() {
       committing.current = true;
       advanceTimeout.current = setTimeout(() => {
         committing.current = false;
-        runner.report(fumbled.current ? "incorrect" : "correct");
+        if (runner.report(fumbled.current ? "incorrect" : "correct")) return;
         resetZoneVisuals();
         fumbled.current = false;
         setMatchedAt([null, null, null]);
@@ -241,7 +241,7 @@ export default function Match() {
   });
 
   return (
-    <GameShell step={runner.step(roundIndex)} total={runner.total(total)}>
+    <GameShell step={runner.step(roundIndex)} total={runner.total(total)} runner={runner}>
       <Text style={[styles.prompt, { top: promptTop }]}>{round.prompt}</Text>
 
       {[0, 1, 2].map((i) => (

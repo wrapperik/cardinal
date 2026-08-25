@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
 
 import { gameHref } from "@/features/home/topics";
-import { runAt } from "@/features/recap/recap-rules";
+import { runAt, shouldShowCheckpoint } from "@/features/recap/recap-rules";
 import {
   endRecap,
   getActiveRecap,
@@ -22,8 +22,9 @@ export interface RecapRunner {
   step: (localIndex: number) => number;
   /** Total for the readout: the whole recap when active, else the local round count. */
   total: (localCount: number) => number;
-  /** Report the outcome of the round just finished. No-op when inactive. */
-  report: (result: AnswerResult) => void;
+  /** Reports the outcome of the round just finished and returns true when a
+   *  checkpoint has replaced the game screen. */
+  report: (result: AnswerResult) => boolean;
   /** Called instead of router.back() when a screen runs out of rounds. */
   finishLeg: () => void;
   /** Called from an exit gesture. Ends the session but leaves the checkpoint to resume from. */
@@ -83,7 +84,7 @@ export function useRecapRunner(): RecapRunner {
   // its own `committing` ref, so reading `localTally` from this render
   // closure (rather than inside a state updater) is safe — there is no
   // back-to-back call within the same tick to race against.
-  function report(result: AnswerResult) {
+  function report(result: AnswerResult): boolean {
     if (active) {
       // Read before AND after: scoreForTally is not additive per-answer — it
       // recomputes the streak bonus from the tally's current peak streak each
@@ -97,10 +98,15 @@ export function useRecapRunner(): RecapRunner {
         awardKey.current += 1;
         setLastAward({ amount: scoreForTally(after) - scoreForTally(before), correct: result === "correct", key: awardKey.current });
       }
-      return;
+      const current = getActiveRecap();
+      if (current && shouldShowCheckpoint(current.index, current.plan.cards.length)) {
+        router.replace("/checkpoint");
+        return true;
+      }
+      return false;
     }
 
-    if (result === "passed") return; // no session, and passes never move localTally anyway
+    if (result === "passed") return false; // no session, and passes never move localTally anyway
 
     // Mirrors recordAnswer's counting exactly (session-rules.ts) but without
     // gameTypesPlayed bookkeeping — this tally is display-only and never
@@ -118,6 +124,7 @@ export function useRecapRunner(): RecapRunner {
     awardKey.current += 1;
     setLastAward({ amount: scoreForTally(next) - scoreForTally(localTally), correct: result === "correct", key: awardKey.current });
     setLocalTally(next);
+    return false;
   }
 
   function finishLeg() {

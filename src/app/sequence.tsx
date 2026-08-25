@@ -183,7 +183,7 @@ export default function Sequence() {
 
   function skipRound() {
     if (committing.current) return;
-    runner.report("passed");
+    if (runner.report("passed")) return;
     advanceRound();
   }
 
@@ -206,7 +206,7 @@ export default function Sequence() {
 
     resolveTimeout.current = setTimeout(() => {
       committing.current = false;
-      runner.report("correct");
+      if (runner.report("correct")) return;
       advanceRound();
     }, RESOLVE_HOLD_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,7 +233,7 @@ export default function Sequence() {
   }));
 
   return (
-    <GameShell step={runner.step(roundIndex)} total={runner.total(rounds.length)}>
+    <GameShell step={runner.step(roundIndex)} total={runner.total(rounds.length)} runner={runner}>
       <View style={styles.fill}>
         <View style={{ height: insets.top + GAME_HEADER_H }} />
 

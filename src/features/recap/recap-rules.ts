@@ -14,6 +14,14 @@ import type { ProgressRecord } from "@/features/progress/progress";
 import type { LocalCard, LocalDeck } from "@/features/upload/types";
 import type { AnswerResult, GameType } from "@/types/cardinal";
 
+/** A recap pauses after this many answered cards, unless it has finished. */
+export const CHECKPOINT_EVERY = 10;
+
+/** Whether `index` (the next card to play) lands on a non-terminal pause. */
+export function shouldShowCheckpoint(index: number, total: number): boolean {
+  return index > 0 && index < total && index % CHECKPOINT_EVERY === 0;
+}
+
 /** A persisted card enriched with the deck needed to update its schedule. */
 export type RecapCard = LocalCard & { deckId: string };
 

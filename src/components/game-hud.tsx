@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "@/components/back-button";
 import { RestartButton } from "@/components/restart-button";
 import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
-import { useRecapRunner } from "@/features/recap/runner";
+import type { RecapRunner } from "@/features/recap/runner";
 
 /** Same dim used by the (now-retired) course row's meta text — the one other
  *  place in the app that needed a bone label reading as secondary. */
@@ -22,6 +22,8 @@ interface GameHUDProps {
   /** 1-based position in the deck; rendered as the NN/NN readout. */
   step: number;
   total: number;
+  /** The same runner that records answers for the game screen. */
+  runner: RecapRunner;
 }
 
 /**
@@ -35,9 +37,8 @@ interface GameHUDProps {
  * this is the one component that actually owns it — GameShell is now just
  * one of two places that mount it.
  */
-export function GameHUD({ step, total }: GameHUDProps) {
+export function GameHUD({ step, total, runner }: GameHUDProps) {
   const insets = useSafeAreaInsets();
-  const runner = useRecapRunner();
 
   const progressLabel = `${String(step).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 

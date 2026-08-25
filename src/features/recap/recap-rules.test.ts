@@ -10,6 +10,7 @@ import {
   resumeIndex,
   runAt,
   sanitiseCheckpoints,
+  shouldShowCheckpoint,
   type Checkpoint,
   type RecapPlan,
   type RecapState,
@@ -424,6 +425,16 @@ describe("isRecapComplete", () => {
       tally: emptyTally(),
     };
     expect(isRecapComplete(state)).toBe(true);
+  });
+});
+
+describe("shouldShowCheckpoint", () => {
+  it("pauses after every ten answered cards, but never after the final card", () => {
+    expect(shouldShowCheckpoint(0, 40)).toBe(false);
+    expect(shouldShowCheckpoint(9, 40)).toBe(false);
+    expect(shouldShowCheckpoint(10, 40)).toBe(true);
+    expect(shouldShowCheckpoint(20, 40)).toBe(true);
+    expect(shouldShowCheckpoint(40, 40)).toBe(false);
   });
 });
 

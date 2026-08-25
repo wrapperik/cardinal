@@ -53,6 +53,11 @@ export function HoldButton({
 }: HoldButtonProps) {
   const scale = useSharedValue(1);
   const fill = useSharedValue(0);
+  // onHold navigates (back/restart), which unmounts this button while the
+  // finger may still be down. The gesture keeps delivering onFinalize /
+  // onTouchesUp after that, and writing to shared values for a view that's
+  // already gone crashes the native side — so once fired, no more writes.
+  const fired = useSharedValue(false);
 
   const beginHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -64,6 +69,8 @@ export function HoldButton({
   };
 
   const release = () => {
+    "worklet";
+    if (fired.value) return;
     scale.value = withSpring(1, Motion.press);
     fill.value = withTiming(0, { duration: RELEASE_MS });
   };
@@ -77,6 +84,7 @@ export function HoldButton({
       runOnJS(beginHaptic)();
     })
     .onStart(() => {
+      fired.value = true;
       runOnJS(fireHold)();
     })
     .onFinalize(() => {
