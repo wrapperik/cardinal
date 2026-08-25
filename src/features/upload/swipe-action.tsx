@@ -11,7 +11,7 @@ import Animated, {
 import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
 
 /**
- * Drag distance that counts as a commit. SignOutRow (settings-panel.tsx)
+ * Drag distance that counts as a commit. SignOutRow (settings.tsx)
  * uses this same 88 / 112 pair travelling left; reusing the numbers keeps
  * every swipe-to-confirm row in the app feeling like the same gesture at
  * the same weight, just pointed in whichever direction reads as "forward"

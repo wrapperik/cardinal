@@ -13,9 +13,10 @@ import { Colors, Fonts, Spacing, Theme } from '@/constants/theme';
 import type { Course } from '@/features/upload/types';
 
 /**
- * Finger travel per row. Unlike ITEM_STEP in pill-row.tsx — which measures
- * cumulative translation from wherever the hold began, because that pill is
- * reached by pressing a completely different row first — this list is
+ * Finger travel per row. Unlike ITEM_STEP in the home screen's course pill
+ * strip — which measures cumulative translation from wherever the hold
+ * began, because that pill is reached by pressing a completely different
+ * row first — this list is
  * touched directly, so the index comes from the finger's absolute position
  * inside the list rather than how far it has moved since touch-down.
  */
@@ -46,8 +47,8 @@ interface DestinationPickerProps {
 }
 
 /**
- * Where the upload gets filed. Same hold-and-slide grammar as PillMenu/
- * pill-row — one Gesture.Pan, the row under the finger highlights as it
+ * Where the upload gets filed. Same hold-and-slide grammar as PillMenu —
+ * one Gesture.Pan, the row under the finger highlights as it
  * moves, releasing chooses it — but computed from one Pan over the whole
  * list rather than a GestureDetector per row, per the index-from-position
  * approach above.

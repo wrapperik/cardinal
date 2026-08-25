@@ -131,3 +131,39 @@ export function addCourse(title: string, gameType: GameType = "compassQuiz"): Co
   store.put(course);
   return course;
 }
+
+/**
+ * Renames a course in place. Seeded courses are refused — the `Course` doc
+ * comment in types.ts is explicit that they "can never be renamed out from
+ * under the demo decks" — so a seeded record comes back unchanged rather
+ * than erroring, the same shape a no-op has everywhere else in this file.
+ * An unknown id or a title that normalises to empty also return unchanged,
+ * the latter so a blank submission cannot silently blank a course's title.
+ */
+export function renameCourse(id: string, title: string): Course | undefined {
+  const course = store.getRecords().find((existing) => existing.id === id);
+  if (!course) return undefined;
+  if (course.seeded) return course;
+
+  const normalised = normaliseTitle(title);
+  if (!normalised) return course;
+
+  const updated: Course = { ...course, title: normalised };
+  store.put(updated);
+  return updated;
+}
+
+/**
+ * Changes a course's default extraction template. Allowed on seeded courses
+ * — unlike the title, the doc comment on `Course` only protects the name;
+ * seeded courses "otherwise take uploads like any other course", template
+ * included.
+ */
+export function setCourseTemplate(id: string, gameType: GameType): Course | undefined {
+  const course = store.getRecords().find((existing) => existing.id === id);
+  if (!course) return undefined;
+
+  const updated: Course = { ...course, gameType };
+  store.put(updated);
+  return updated;
+}

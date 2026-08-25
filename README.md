@@ -38,6 +38,7 @@ down again without the session ever feeling like a chore.
 - [Onboarding](#onboarding)
 - [Home and navigation](#home-and-navigation)
 - [The four game templates](#the-four-game-templates)
+- [Scoring](#scoring)
 - [The upload flow](#the-upload-flow)
 - [AI extraction with Gemini](#ai-extraction-with-gemini)
 - [Firestore schema](#firestore-schema)
@@ -61,14 +62,16 @@ screen, the upload flow and all four game templates are built and wired together
 - Firebase Authentication: email and password sign-up, sign-in and password reset.
   Sessions persist across launches, and a route gate keeps signed-out users off
   protected screens.
-- The home screen: a drifting marquee row of courses as ambience, a swipeable course
-  row per course — right for a recap, left for its detail screen — and a settings
-  panel dragged in from the right edge.
+- The home screen: a rust nav bar whose plus and gear are held rather than tapped, a
+  row of course pills that is the screen's navigation, the day's score, and four menu
+  rows that follow whichever pill is selected and are opened with a swipe.
 - The upload flow: pick a PDF, text or Markdown file, choose a template, watch
   extraction run, review the result, and save it as a deck under a course.
 - All four MVP game templates, each fed either by an uploaded deck or by the
   fixtures the app ships with.
-- 60 unit tests across six pure logic modules, run under Vitest.
+- A derived daily score, study streak and time-studied figure, computed from finished
+  sessions rather than stored — see [Scoring](#scoring).
+- 267 unit tests across the pure logic modules, run under Vitest.
 
 **What is not built yet**
 
@@ -81,8 +84,8 @@ screen, the upload flow and all four game templates are built and wired together
 - Firestore persistence for decks, cards and progress. Only the `users/{userId}`
   document is written today; courses and decks live in AsyncStorage on the device.
 - Uploading source files to Firebase Storage. Storage is initialised but unused.
-- The session summary, streak and past scores screens. The home menu rows for
-  "QUICK RECAP" and "PAST SCORES" are deliberately inert until those screens exist.
+- A session summary at the end of a recap. Every home menu row now leads somewhere
+  real, but nothing yet closes a recap with a score for the run just played.
 - The accessibility tap-zone overlay. The toggle renders and holds its state, but it
   does not yet drive anything.
 
@@ -234,7 +237,11 @@ src/
     index.tsx                onboarding, the pipe and ball screen
     sign-in.tsx              email, password and password reset
     sign-up.tsx              account creation
-    home.tsx                 pill row, course list, settings tab, upload tab
+    home.tsx                 nav bar, course pills, daily score, menu rows
+    settings.tsx             account, accessibility, about
+    upload.tsx               the whole upload and extraction flow
+    progress.tsx             one course's stats, today and all time
+    course-settings.tsx      rename, default template, upload into course
     course/[id].tsx          course detail: stats, topics, back tab
     quiz.tsx                 Compass Quiz
     true-false.tsx           True/False Duel
@@ -242,9 +249,9 @@ src/
     match.tsx                Match and Release
 
   components/                shared UI with no feature knowledge
-    game-shell.tsx           header, progress readout and the exit sled
-    pull-tab.tsx             the edge tab every drawer is dragged by
-    bottom-pull-tab.tsx      the same idea, rotated for the upload sheet
+    game-shell.tsx           charcoal field, progress readout and the back button
+    hold-button.tsx          the circular hold-to-activate disc, used everywhere
+    back-button.tsx          that disc, with a chevron, wired to leave the screen
     character-mark.tsx       the player puck, drawn from the roster
     dot-cluster.tsx
 
@@ -254,13 +261,14 @@ src/
   features/
     auth/                    provider, service, route gate, validation, errors
     character/roster.ts      the playable puck shapes
-    home/                    pill row, course row, settings panel, topics
+    home/                    nav bar, pill nav, score card, menu row, topics
     onboarding/path.ts       arc-length pipe geometry, pure and worklet safe
+    score/score.ts           the daily score, study streak and time studied
     quiz/                    Compass Quiz fixtures
     true-false/              True/False fixtures
     sequence/                Sequence fixtures
     match/                   Match fixtures and zone layout maths
-    upload/                  picker, courses, decks, sheet, and:
+    upload/                  picker, courses, decks, template picker, and:
       extract/               provider selection, prompt, parser, demo provider
 
   lib/
@@ -287,9 +295,9 @@ React Native has no implementation of it.
 
 **State lives in module-level stores.** `features/upload/courses.ts` and
 `features/upload/decks.ts` are small stores exposed through `useSyncExternalStore`
-rather than React context. Courses are read from the home screen, the upload sheet
-and the review step, and threading a provider through the router layout for one array
-is more plumbing than it is worth. Both hydrate from AsyncStorage once at import and
+rather than React context. Courses are read from the home screen, the upload screen,
+the review step and both course screens, and threading a provider through the router
+layout for one array is more plumbing than it is worth. Both hydrate from AsyncStorage once at import and
 write back on every commit, fire and forget.
 
 **Pure modules are separated deliberately.** `course-rules.ts`, `extract/parse.ts`,
@@ -298,11 +306,14 @@ no React Native imports, so Vitest can exercise them directly under Node with no
 native shims. That is where the awkward input lives: model output, whatever
 AsyncStorage handed back after a botched migration, and half-typed forms.
 
-**Games render home as their own backdrop.** Every template imports `Home` and draws
-it behind an exit sled, so dragging the exit tab pulls home across the game rather
-than shoving the game aside. That is why the game routes set `animation: 'none'` in
-the root stack: the screens animate themselves, in both directions, and the stack's
-own push transition would play a second slide over the top of that one.
+**Screens animate themselves as little as possible.** Every route rides the stack's
+own `slide_from_right`, and no screen hand-rolls an entrance. Games used to import
+`Home` and draw it behind a sled so that dragging an edge tab pulled home across the
+game — which meant every template mounted a second copy of the home screen, and every
+game route had to opt out of the stack's transition with `animation: 'none'` to avoid
+animating twice. A held back button just pops, which deletes both the second Home and
+the opt-out. `recap` is the one route still on `animation: 'none'`,
+because it is a dispatcher that replaces itself before anything is ever visible.
 
 ---
 
@@ -338,9 +349,19 @@ All card text is uppercase, and the app applies no casing on the client. That ru
 enforced at the two points where text enters the system: `normaliseTitle` for course
 titles, and the parser for everything a model returns.
 
-All colour and type tokens live in
+Three more token groups sit alongside the palette, each there to stop the same value
+being guessed at twice:
+
+| Group | Holds | Why it is shared |
+| --- | --- | --- |
+| `Radius` | `pill`, `card`, `header` | Named for the thing they round, so a card and a header block cannot disagree by two pixels because two screens each guessed at "about twenty" |
+| `Motion` | `press`, `snap`, `settle` springs | A knob, a row and a whole panel should not settle at three different speeds; the app previously had four near-identical copies of the same two configs |
+| `HOLD_MS` | 420ms | How long any hold-to-activate control must be held. Every button in the app is one of these, so a different dwell anywhere would read as that one being broken |
+| `EDGE_PILL_HEIGHT` | 44 | The pass and edge pills across the four game templates, which have to agree with each other |
+
+All colour, type, radius and motion tokens live in
 [`src/constants/theme.ts`](src/constants/theme.ts). Use the token, never a raw hex
-value or font filename.
+value, font filename or spring literal.
 
 ---
 
@@ -409,22 +430,67 @@ never shown again.
 
 ## Home and navigation
 
-One row of course pills drifts beneath the wordmark as pure ambience — nothing in it
-responds to touch. Below it, a scrollable list of course rows is the actual content,
-and every interaction is a swipe.
+A rust header block carries the wordmark and two circular icon buttons, with the
+course pills beneath them. Everything below sits on charcoal: the day's score, then
+a stack of menu rows. **The pills are the navigation** — whichever one is selected
+drives every row, badge and destination on the screen, so there is one source of
+"which course" for the whole surface rather than a selection per control.
 
-- **Swipe a course row right** to fire a quick recap: it routes through the recap
-  dispatcher, which resumes an in-progress recap or starts a new one, carrying the
-  course id so the game deals that course's cards.
-- **Swipe a course row left** to open that course's detail screen — its stats and
-  the topics its uploaded material actually covers.
-- **The settings panel** is dragged in from a tab on the right edge. It shows the
-  signed-in account, the accessibility toggle, and a sign-out control that is itself
-  a swipe.
-- **The upload sheet** is dragged up from a tab at the bottom edge.
+- **Swipe the pills** left or right to move between courses. The row snaps so the
+  active pill lands flush against the left inset, one pill per swipe, and selection is
+  derived live from the scroll offset rather than waiting for the momentum to end —
+  that is what makes the rows underneath feel attached to the finger. A pill can also
+  be pressed, which scrolls it into place and lets the same scroll handler do the
+  selecting, so a press can never select by a second, separate path.
 
-The pill row and the course list are the same data, so a course created by an upload
-appears on the home screen without a second source of truth to keep in step.
+  The track carries roughly a viewport of empty space after the last pill. A
+  ScrollView cannot scroll past `contentWidth - viewportWidth`, so without that
+  padding the last pill's snap offset lies outside the scrollable range entirely and
+  the row drifts to a stop short of it — the one place the snapping would visibly
+  give up.
+- **Hold the plus** to open the upload screen, **hold the gear** for settings. Both
+  swell under the finger and fill from the bottom over `HOLD_MS`, so the hold is
+  legible rather than a guess at how long to wait. They hold rather than tap because
+  Cardinal has no tap-to-fire controls anywhere — an icon button that fired on touch
+  would be the one control in the app that broke that promise.
+- **Swipe a menu row left to right** to open it. The four are QUICK RECAP (badged
+  with its estimated length, or DEMO for a sample course that plays shipped
+  fixtures), TOPICS (how many the material covers), VIEW PROGRESS (what this course
+  has scored today) and COURSE SETTINGS. Rust fills in from the edge the swipe
+  starts at, trailing the finger by a beat rather than tracking it exactly, and the
+  row commits at the same 88px every other swipe-to-confirm surface in the app uses.
+  A swipe rather than a tap because these four rows are the whole screen below the
+  score card, and a row that fires on touch is a row a thumb can fire while
+  scrolling past it.
+- **DAILY SCORE is deliberately global**, not per course. The label says the day, not
+  the subject, so it must read the same whichever pill is selected.
+
+The pills and the rows are the same data, so a course created by an upload appears
+on the home screen without a second source of truth to keep in step.
+
+### Transitions and the way back
+
+Every screen is pushed onto the stack with a standard slide, and every screen is left
+the same way: **hold the back button in its top-left corner**. It is the same
+`HoldButton` as home's nav icons — the disc swells, a fill rises over `HOLD_MS`, and
+the screen pops when the fill completes.
+
+Two earlier designs collapsed into this one. First the exit was a sled that dragged a
+live preview of home across whatever screen you were on, which meant every game
+mounted a second copy of the home screen and every game route had to opt out of the
+stack's transition to avoid animating twice. Then it was a plain edge tab you dragged
+and released. Now it is a hold, because the app had ended up with two navigation
+grammars — hold a circle on home, drag a tab everywhere else — and only needed one.
+
+`BackButton` is always rust and takes no colour prop. Every screen carrying one is
+charcoal, and both darker discs in the palette sit close enough to that background
+that the one control able to leave the screen is the one you would have to hunt for.
+Home's nav buttons are charcoal rather than rust, which inverts the rule rather than
+breaking it: they sit *on* rust.
+
+The system's interactive pop stays off app-wide. Leaving is now a deliberate hold on a
+visible control, and an edge swipe that popped a game mid-run would discard it on an
+accident.
 
 ---
 
@@ -456,9 +522,10 @@ Design decisions worth knowing:
   lucky.
 - **Match zones are shuffled per round**, so the term list and the zone list never
   line up. The whole point is reading the definitions, not the order.
-- **The way out is a drag, everywhere.** `GameShell` owns the header, the NN/NN
-  progress readout and the exit sled. Quiz and True/False build the same sled inline,
-  because their backdrops differ.
+- **The way out is a hold, everywhere.** `GameShell` owns the charcoal field, the
+  NN/NN progress readout and the back button. Quiz and True/False position themselves
+  against the full viewport rather than using the shell, so they mount `BackButton`
+  directly — but it is the same component and the same 420ms hold.
 
 Any uploaded concept, a history timeline, a set of definitions, a run of true or false
 facts, plays through this same small set of mechanics rather than needing a bespoke
@@ -466,9 +533,53 @@ interface for every subject.
 
 ---
 
+## Scoring
+
+[`score.ts`](src/features/score/score.ts) is pure and derived — it reads finished
+sessions and computes, it never writes. That is what lets the daily score appear on
+home without a new Firestore field, a migration, or a second number to keep in step
+with the sessions it is a summary of.
+
+**The formula.** Ten points for a correct answer, three for a wrong one, none for a
+pass. A wrong answer still earns because you saw the card; a pass earns nothing
+because it was never attempted — the same reasoning `RecallQuality` already uses when
+it grades a pass below even a wrong answer. On top of that, each session pays a bonus
+of five points per streak step at or past three. Two right answers in a row is luck,
+not a run, so the bonus starts where a streak starts meaning something.
+
+Details that matter more than they look:
+
+- **Only finished sessions count**, everywhere. An open session's counters and its
+  elapsed time are both still moving, so folding one in would understate or overstate
+  the figure depending on exactly when the screen happened to render.
+- **The day boundary is local midnight**, not a UTC modulo. A "daily" score has to
+  match the calendar day the player is living in.
+- **The study streak walks calendar days, not 24-hour blocks.** A local day is 23 or
+  25 hours long on the two days a year the clocks move, so fixed-width bucketing
+  drifts an hour out of step from the first DST change onwards and starts filing
+  sessions under the wrong day.
+- **A streak survives until a whole day is missed.** If today is still empty the walk
+  starts at yesterday, rather than dropping to zero the moment midnight passes and
+  before the player has had a chance to study.
+- **Time studied is clamped per session** to 90 minutes, so a session left open
+  overnight cannot inflate the figure by however long it sat idle.
+- **Passes are excluded from the accuracy denominator**, matching `summariseSessions`
+  — a passed card was never answered right or wrong, and counting it against the
+  player would punish the one outcome that explicitly is not a wrong answer.
+
+VIEW PROGRESS puts the rest on screen: today's score, cards, time and accuracy; the
+all-time totals from `summariseSessions`; the study streak; and how many cards are
+due. The streak there is global rather than per course on purpose — showing up is
+about showing up, not about which subject you happened to open.
+
+---
+
 ## The upload flow
 
-The sheet runs a small state machine, declared as `UploadStage` in
+[`upload.tsx`](src/app/upload.tsx) is a pushed screen reached by holding the plus on
+home's nav bar, or by the UPLOAD INTO THIS COURSE action on a course's settings
+screen — which passes its `courseId` as a route param, so the material arrives
+pre-filed. It runs a small state machine, declared as `UploadStage` in
 [`src/features/upload/types.ts`](src/features/upload/types.ts):
 
 `idle` to `picked` to `extracting` to `review` to `saving` to `saved`, with `failed`
@@ -641,7 +752,7 @@ The routing rules are a pure function,
   work.
 - Signed out and onboarded: go to `/sign-in` from anywhere that is not already an
   auth screen. Matching only `/` here left sign-out with no visible effect, since it
-  is triggered from the settings panel on `/home`.
+  is triggered from `/settings`, which is pushed on top of `/home`.
 
 Sign-in, sign-up and sign-out all update the local session immediately rather than
 waiting for Firebase to emit the same state, which closes the brief window where the
@@ -766,8 +877,8 @@ client-side.
 
 ### Next up
 
-Firestore sync for decks and progress, SM-2 scheduling, the
-session summary and streak screens, and the accessibility overlay.
+The accessibility overlay, more stats on the daily score card (it currently shows the
+number alone), and a session summary screen at the end of a recap.
 
 ### Beyond the MVP
 

@@ -19,19 +19,14 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 
-import Home from "@/app/home";
 import BgGrid from "@/assets/images/BG-Grid.svg";
 import {
   DOT_CLUSTER_HEIGHT,
   DOT_CLUSTER_WIDTH,
   DotCluster,
 } from "@/components/dot-cluster";
-import {
-  PULL_TAB_HEIGHT,
-  PULL_TAB_WIDTH,
-  PullTab,
-} from "@/components/pull-tab";
-import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { BackButton } from "@/components/back-button";
+import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useTrueFalseStatements } from "@/features/upload/play";
 import type { TrueFalseStatement } from "@/features/true-false/statements";
@@ -50,11 +45,6 @@ const PILL_VISIBLE = 0.75;
  *  the statement text — past ~10° that stops looking like commitment and
  *  starts looking like the text is falling over. */
 const ROTATION_MAX = 10;
-
-/** How far the exit tab pokes into the screen while it is closed. */
-const TAB_PEEK = PULL_TAB_WIDTH;
-/** Extra width tucked under home's edge so the tab never shows a seam. */
-const TAB_TUCK = 40;
 
 /** Gentle settle — mirrors the spring used for the onboarding and home tabs. */
 const SETTLE_SPRING = { damping: 16, stiffness: 140, mass: 0.9 } as const;
@@ -252,255 +242,163 @@ export default function TrueFalse() {
     }),
   }));
 
-  // 0 = only the tab peeking in at the right edge, 1 = home has covered the screen.
-  const exitProgress = useSharedValue(0);
-  // 1 = fully off to the right, 0 = settled. The stack renders this screen with
-  // no animation of its own, so the entrance is ours to play.
-  const entryProgress = useSharedValue(1);
-  // Home rides on the sled, so it only needs to exist once the drag is live —
-  // no reason to pay for a second Home's marquee timers for the whole game.
-  const [previewHome, setPreviewHome] = useState(false);
-
-  useEffect(() => {
-    entryProgress.value = withSpring(0, SETTLE_SPRING);
-  }, [entryProgress]);
-
-  const exitDrag = Gesture.Pan()
-    .activeOffsetX([-12, 12])
-    .onBegin(() => {
-      runOnJS(setPreviewHome)(true);
-    })
-    .onChange((e) => {
-      exitProgress.value = Math.min(
-        1,
-        Math.max(0, exitProgress.value - e.changeX / screenW),
-      );
-    })
-    .onEnd((e) => {
-      const leaving =
-        e.velocityX < -600
-          ? true
-          : e.velocityX > 600
-            ? false
-            : exitProgress.value > 0.35;
-      if (leaving) {
-        // Wrapped rather than `runOnJS(router.back)` — handing a detached method
-        // across the bridge drops its binding to the router. The preview stays
-        // mounted through the pop: it is what the user is looking at by then.
-        exitProgress.value = withTiming(1, { duration: 200 }, (done) => {
-          if (done) runOnJS(leaveTrueFalse)();
-        });
-        return;
-      }
-      exitProgress.value = withSpring(0, SETTLE_SPRING, (done) => {
-        if (done) runOnJS(setPreviewHome)(false);
-      });
-    })
-    .onFinalize(() => {
-      // A touch that never cleared activeOffsetX gets no onEnd, so nothing would
-      // ever tear the preview back down. Brushing the tab must not leave a whole
-      // second Home mounted and animating away off the right edge.
-      if (exitProgress.value === 0) runOnJS(setPreviewHome)(false);
-    });
-
-  // The screen itself only ever plays its entrance. Leaving is home arriving
-  // over the top of it, not the screen sliding away.
-  const screenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: screenW * entryProgress.value }],
-  }));
-
-  // Closed, the sled sits one tab-width short of the right edge so only the tab
-  // shows. Open, it has travelled a full screen width to the left.
-  const sledStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: screenW - TAB_PEEK - exitProgress.value * screenW },
-    ],
-  }));
-
   const total = runner.total(statements.length);
   const progressLabel = `${String(runner.step(index)).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (
-    <View style={styles.root}>
-      <Animated.View style={[styles.screen, screenStyle]}>
-        {/* Purely ambient — the SVG already carries its own low opacity, so it
-            fades out on its own with no extra opacity layered on here. */}
-        <BgGrid
-          width={GRID_SIZE}
-          height={GRID_SIZE}
-          style={[styles.grid, { left: -GRID_SIZE / 2, top: -GRID_SIZE / 2 }]}
-          pointerEvents="none"
-        />
-        <BgGrid
-          width={GRID_SIZE}
-          height={GRID_SIZE}
-          style={[
-            styles.grid,
-            { left: screenW - GRID_SIZE / 2, top: screenH - GRID_SIZE / 2 },
-          ]}
-          pointerEvents="none"
-        />
+    <View style={styles.screen}>
+      {/* Purely ambient — the SVG already carries its own low opacity, so it
+          fades out on its own with no extra opacity layered on here. */}
+      <BgGrid
+        width={GRID_SIZE}
+        height={GRID_SIZE}
+        style={[styles.grid, { left: -GRID_SIZE / 2, top: -GRID_SIZE / 2 }]}
+        pointerEvents="none"
+      />
+      <BgGrid
+        width={GRID_SIZE}
+        height={GRID_SIZE}
+        style={[
+          styles.grid,
+          { left: screenW - GRID_SIZE / 2, top: screenH - GRID_SIZE / 2 },
+        ]}
+        pointerEvents="none"
+      />
 
-        {/* Anchored on their own edge pill now, not the card, so they have to
-            render this early — behind the progress label, pills, and dot
-            clusters, so bloom washes the backdrop instead of dulling them. */}
-        <DirectionGlow
-          direction="left"
-          color={Colors.rust}
-          dx={dx}
-          dy={dy}
-          left={leftPillCentreX - GLOW_SIZE / 2}
-          top={pillTop + PILL_H / 2 - GLOW_SIZE / 2}
-          size={GLOW_SIZE}
-        />
-        <DirectionGlow
-          direction="right"
-          color={Colors.blue}
-          dx={dx}
-          dy={dy}
-          left={rightPillCentreX - GLOW_SIZE / 2}
-          top={pillTop + PILL_H / 2 - GLOW_SIZE / 2}
-          size={GLOW_SIZE}
-        />
+      {/* Anchored on their own edge pill now, not the card, so they have to
+          render this early — behind the progress label, pills, and dot
+          clusters, so bloom washes the backdrop instead of dulling them. */}
+      <DirectionGlow
+        direction="left"
+        color={Colors.rust}
+        dx={dx}
+        dy={dy}
+        left={leftPillCentreX - GLOW_SIZE / 2}
+        top={pillTop + PILL_H / 2 - GLOW_SIZE / 2}
+        size={GLOW_SIZE}
+      />
+      <DirectionGlow
+        direction="right"
+        color={Colors.blue}
+        dx={dx}
+        dy={dy}
+        left={rightPillCentreX - GLOW_SIZE / 2}
+        top={pillTop + PILL_H / 2 - GLOW_SIZE / 2}
+        size={GLOW_SIZE}
+      />
 
-        <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
-          {progressLabel}
-        </Text>
+      <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
+        {progressLabel}
+      </Text>
 
-        <EdgePill
-          side="left"
-          label="FALSE"
-          backgroundColor={Colors.rust}
-          dx={dx}
-          dy={dy}
-          revealSide={revealSide}
-          style={{ left: leftPillLeft, top: pillTop }}
-        />
-        <EdgePill
-          side="right"
-          label="TRUE"
-          backgroundColor={Colors.blue}
-          dx={dx}
-          dy={dy}
-          revealSide={revealSide}
-          style={{ left: rightPillLeft, top: pillTop }}
-        />
+      <EdgePill
+        side="left"
+        label="FALSE"
+        backgroundColor={Colors.rust}
+        dx={dx}
+        dy={dy}
+        revealSide={revealSide}
+        style={{ left: leftPillLeft, top: pillTop }}
+      />
+      <EdgePill
+        side="right"
+        label="TRUE"
+        backgroundColor={Colors.blue}
+        dx={dx}
+        dy={dy}
+        revealSide={revealSide}
+        style={{ left: rightPillLeft, top: pillTop }}
+      />
 
-        <DotCluster
-          color={Colors.rust}
-          style={[
-            styles.dotCluster,
-            {
-              left: leftPillCentreX - DOT_CLUSTER_WIDTH / 2,
-              top: pillTop - DOT_CLUSTER_HEIGHT - Spacing.sm,
-            },
-          ]}
-        />
-        <DotCluster
-          color={Colors.rust}
-          style={[
-            styles.dotCluster,
-            {
-              left: leftPillCentreX - DOT_CLUSTER_WIDTH / 2,
-              top: pillTop + PILL_H + Spacing.sm,
-            },
-          ]}
-        />
-        <DotCluster
-          color={Colors.blue}
-          mirrored
-          style={[
-            styles.dotCluster,
-            {
-              left: rightPillCentreX - DOT_CLUSTER_WIDTH / 2,
-              top: pillTop - DOT_CLUSTER_HEIGHT - Spacing.sm,
-            },
-          ]}
-        />
-        <DotCluster
-          color={Colors.blue}
-          mirrored
-          style={[
-            styles.dotCluster,
-            {
-              left: rightPillCentreX - DOT_CLUSTER_WIDTH / 2,
-              top: pillTop + PILL_H + Spacing.sm,
-            },
-          ]}
-        />
+      <DotCluster
+        color={Colors.rust}
+        style={[
+          styles.dotCluster,
+          {
+            left: leftPillCentreX - DOT_CLUSTER_WIDTH / 2,
+            top: pillTop - DOT_CLUSTER_HEIGHT - Spacing.sm,
+          },
+        ]}
+      />
+      <DotCluster
+        color={Colors.rust}
+        style={[
+          styles.dotCluster,
+          {
+            left: leftPillCentreX - DOT_CLUSTER_WIDTH / 2,
+            top: pillTop + PILL_H + Spacing.sm,
+          },
+        ]}
+      />
+      <DotCluster
+        color={Colors.blue}
+        mirrored
+        style={[
+          styles.dotCluster,
+          {
+            left: rightPillCentreX - DOT_CLUSTER_WIDTH / 2,
+            top: pillTop - DOT_CLUSTER_HEIGHT - Spacing.sm,
+          },
+        ]}
+      />
+      <DotCluster
+        color={Colors.blue}
+        mirrored
+        style={[
+          styles.dotCluster,
+          {
+            left: rightPillCentreX - DOT_CLUSTER_WIDTH / 2,
+            top: pillTop + PILL_H + Spacing.sm,
+          },
+        ]}
+      />
 
-        <GestureDetector gesture={drag}>
-          <Animated.View
-            style={[
-              styles.card,
-              {
-                left: cardLeft,
-                top: cardTop,
-                width: CARD_DIAMETER,
-                height: CARD_DIAMETER,
-                borderRadius: CARD_DIAMETER / 2,
-                // The largest square that fits inside a circle has a side of
-                // D/√2, so this inset is what keeps every line of text off the
-                // curve rather than just the middle one.
-                paddingHorizontal: CARD_DIAMETER * 0.146,
-              },
-              cardStyle,
-              cardFillStyle,
-            ]}
-          >
-            <Animated.Text
-              style={[styles.statementText, statementColorStyle]}
-              numberOfLines={5}
-              adjustsFontSizeToFit
-            >
-              {statement.statement}
-            </Animated.Text>
-          </Animated.View>
-        </GestureDetector>
-
-        <View style={[styles.passWrap, { bottom: insets.bottom + Spacing.xl }]}>
-          <View style={styles.passPill}>
-            <View style={styles.passBadge}>
-              <Svg width={10} height={10}>
-                <Path
-                  d="M2 2 L8 8 M8 2 L2 8"
-                  stroke={Colors.bone}
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                />
-              </Svg>
-            </View>
-            <Text style={styles.passText}>PASS</Text>
-          </View>
-        </View>
-
-        {/* The way out, built exactly like the settings tab on home: one wide
-            sled with the tab on the left and the screen it reveals attached to
-            its right. The tab belongs to the surface it brings in, so dragging
-            it pulls home across the screen rather than shoving this screen aside. */}
+      <GestureDetector gesture={drag}>
         <Animated.View
-          style={[styles.sled, { width: screenW + TAB_PEEK }, sledStyle]}
-          pointerEvents="box-none"
+          style={[
+            styles.card,
+            {
+              left: cardLeft,
+              top: cardTop,
+              width: CARD_DIAMETER,
+              height: CARD_DIAMETER,
+              borderRadius: CARD_DIAMETER / 2,
+              // The largest square that fits inside a circle has a side of
+              // D/√2, so this inset is what keeps every line of text off the
+              // curve rather than just the middle one.
+              paddingHorizontal: CARD_DIAMETER * 0.146,
+            },
+            cardStyle,
+            cardFillStyle,
+          ]}
         >
-          <GestureDetector gesture={exitDrag}>
-            <PullTab
-              label="EXIT"
-              backgroundColor={Colors.rust}
-              extraWidth={TAB_TUCK}
-              style={[styles.exitTab, { top: insets.top + Spacing.md }]}
-            />
-          </GestureDetector>
-
-          {/* A preview only — the real home takes over the instant the pop
-              lands, so nothing here should ever accept a touch. */}
-          <View
-            style={[styles.homePreview, { width: screenW }]}
-            pointerEvents="none"
+          <Animated.Text
+            style={[styles.statementText, statementColorStyle]}
+            numberOfLines={5}
+            adjustsFontSizeToFit
           >
-            {previewHome && <Home />}
-          </View>
+            {statement.statement}
+          </Animated.Text>
         </Animated.View>
-      </Animated.View>
+      </GestureDetector>
+
+      <View style={[styles.passWrap, { bottom: insets.bottom + Spacing.xl }]}>
+        <View style={styles.passPill}>
+          <View style={styles.passBadge}>
+            <Svg width={10} height={10}>
+              <Path
+                d="M2 2 L8 8 M8 2 L2 8"
+                stroke={Colors.bone}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+              />
+            </Svg>
+          </View>
+          <Text style={styles.passText}>PASS</Text>
+        </View>
+      </View>
+
+      <BackButton label="EXIT" onBack={leaveTrueFalse} />
     </View>
   );
 }
@@ -628,12 +526,6 @@ function DirectionGlow({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    // Home's rust, showing through in the gap the screen has not covered yet
-    // while it slides in on mount.
-    backgroundColor: Colors.rust,
-  },
   screen: {
     flex: 1,
     backgroundColor: Theme.background,
@@ -651,26 +543,6 @@ const styles = StyleSheet.create({
     color: Theme.text,
     letterSpacing: 2,
     marginTop: 8,
-  },
-  sled: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 10,
-  },
-  exitTab: {
-    // Inside the sled's own bounds rather than hanging off its left edge:
-    // Android clips children that overflow their parent, so a tab positioned
-    // outside would neither draw nor take touches there.
-    position: "absolute",
-    left: 0,
-  },
-  homePreview: {
-    position: "absolute",
-    left: TAB_PEEK,
-    top: 0,
-    bottom: 0,
   },
   pill: {
     position: "absolute",
@@ -716,7 +588,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   passPill: {
-    height: PULL_TAB_HEIGHT,
+    height: EDGE_PILL_HEIGHT,
     borderRadius: 999,
     backgroundColor: Colors.rust,
     flexDirection: "row",

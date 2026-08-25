@@ -14,8 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { GameShell, GAME_HEADER_H } from "@/components/game-shell";
-import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
-import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
 import { useSequenceRounds } from "@/features/upload/play";
@@ -462,7 +461,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   passPill: {
-    height: PULL_TAB_HEIGHT,
+    height: EDGE_PILL_HEIGHT,
     borderRadius: 999,
     backgroundColor: Colors.rust,
     flexDirection: "row",

@@ -2,17 +2,17 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ExitSled } from "@/components/exit-sled";
-import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
+import { BackButton } from "@/components/back-button";
+import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { Fonts, Spacing, Theme } from "@/constants/theme";
 import { courseStats } from "@/features/upload/course-stats";
 import { useCourses } from "@/features/upload/courses";
 import { useDecks } from "@/features/upload/decks";
 
-/** Same clearance game screens get from GAME_HEADER_H — the BACK tab sits at
- *  insets.top + Spacing.md, PULL_TAB_HEIGHT tall, so content needs to start
- *  past that or its top edge renders hidden behind the tab. */
-const CONTENT_TOP_CLEARANCE = PULL_TAB_HEIGHT + Spacing.lg;
+/** Same clearance game screens get from GAME_HEADER_H — the BACK button sits
+ *  at insets.top + Spacing.md, HOLD_BUTTON_SIZE tall, so content needs to
+ *  start past that or its top edge renders hidden behind the button. */
+const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
 
 /**
  * Course detail. Minimal for now — chunk 5 fills this in with
@@ -63,11 +63,8 @@ export default function CourseDetail() {
       </ScrollView>
 
       {/* Sibling of the ScrollView, not inside it — riding inside would scroll
-          the exit tab away with the content instead of leaving it pinned.
-          Course detail sits to the right of Home in the app's spatial model,
-          so its tab lives on the left edge: drag right, Home arrives from
-          the left — the mirror of how games (right edge, drag left) exit. */}
-      <ExitSled label="BACK" onLeave={() => router.back()} edge="left" />
+          the back button away with the content instead of leaving it pinned. */}
+      <BackButton label="BACK" onBack={() => router.back()} />
     </View>
   );
 }

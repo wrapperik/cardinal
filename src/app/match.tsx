@@ -14,8 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { GAME_HEADER_H, GameShell } from "@/components/game-shell";
-import { PULL_TAB_HEIGHT } from "@/components/pull-tab";
-import { Colors, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
+import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/constants/theme";
 import type { MatchPair, MatchRound } from "@/features/match/rounds";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useMatchRounds } from "@/features/upload/play";
@@ -181,7 +180,7 @@ export default function Match() {
   const promptTop = insets.top + GAME_HEADER_H + Spacing.lg;
   const promptBottom = promptTop + PROMPT_RESERVED_H;
 
-  const passPillTop = screenH - (insets.bottom + Spacing.xl) - PULL_TAB_HEIGHT;
+  const passPillTop = screenH - (insets.bottom + Spacing.xl) - EDGE_PILL_HEIGHT;
   const termCardTop = passPillTop - Spacing.lg - TERM_CARD_H;
 
   const availableH = termCardTop - promptBottom;
@@ -573,7 +572,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   passPill: {
-    height: PULL_TAB_HEIGHT,
+    height: EDGE_PILL_HEIGHT,
     borderRadius: 999,
     backgroundColor: Colors.rust,
     flexDirection: "row",

@@ -18,9 +18,6 @@ import { AuthProvider } from '@/features/auth/auth-provider';
 
 SplashScreen.preventAutoHideAsync();
 
-/** Shared by every game route, so the two can never drift apart. */
-const GAME_SCREEN = { animation: 'none', gestureEnabled: false } as const;
-
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Afacad_400Regular,
@@ -47,24 +44,22 @@ export default function RootLayout() {
               screenOptions={{
                 headerShown: false,
                 contentStyle: { backgroundColor: Theme.background },
-                // Exiting is a swipe, never a tap — keep gesture dismissal on.
-                gestureEnabled: true,
+                // Explicit rather than left to the platform default, so iOS
+                // and Android push the same way.
+                animation: 'slide_from_right',
+                // Leaving a screen is a deliberate hold on a visible button
+                // now, not a swipe. An edge swipe left on to pop a game
+                // mid-run would discard it on an accidental brush.
+                gestureEnabled: false,
               }}
             >
               <Stack.Screen name="sign-up" options={{ animation: 'fade' }} />
               <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
-              {/* Every game animates itself, in both directions: its exit tab drags
-                  home in over the top. Leaving the stack's own push/pop animation
-                  on would play a second slide over that one — hence 'none', and no
-                  edge-swipe to race it. */}
-              <Stack.Screen name="quiz" options={GAME_SCREEN} />
-              <Stack.Screen name="true-false" options={GAME_SCREEN} />
-              <Stack.Screen name="sequence" options={GAME_SCREEN} />
-              <Stack.Screen name="match" options={GAME_SCREEN} />
-              {/* Dispatcher only — it replaces itself before anything would
-                  ever be visible to animate, so it rides the same no-animation
-                  options as the games it hands off to. */}
-              <Stack.Screen name="recap" options={GAME_SCREEN} />
+              {/* Dispatcher only — it replaces itself before anything is ever
+                  visible, so animating it in would slide a blank charcoal
+                  screen into view for a beat before the game it hands off to
+                  slides in on top of that. */}
+              <Stack.Screen name="recap" options={{ animation: 'none' }} />
             </Stack>
             <AuthGate />
           </View>

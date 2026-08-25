@@ -28,6 +28,9 @@ export const Theme = {
   glassEdge: 'rgba(217, 217, 217, 0.45)',
   /** Tint sitting over the blur, so the capsule reads as glass on a flat backdrop. */
   glassTint: 'rgba(217, 217, 217, 0.12)',
+  /** Separator between stacked rows. Dimmer than glassEdge, which has to hold
+   *  a capsule's outline; this only has to divide two blocks of the same colour. */
+  hairline: 'rgba(217, 217, 217, 0.14)',
 } as const;
 
 /**
@@ -82,3 +85,49 @@ export const Gestures = {
 } as const;
 
 export const Spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 40 } as const;
+
+/** Height of the edge and pass pills in the game templates. A shared control
+ *  height, not a leftover — sequence, true/false and match all size their
+ *  pills from it, and they must agree or the three templates read as three
+ *  different heights of the "same" control. */
+export const EDGE_PILL_HEIGHT = 44;
+
+/**
+ * Corner radii. Named for the thing they round rather than for their value,
+ * so a card, a header block and a badge can never disagree by two pixels
+ * because two screens each guessed at "about twenty".
+ */
+export const Radius = {
+  /** Anything capsule-shaped: pills, badges, pull tabs. */
+  pill: 999,
+  /** Panels that sit on the background — the score card, a stat block. */
+  card: 20,
+  /** The rust header block's lower corners on home. */
+  header: 28,
+} as const;
+
+/**
+ * Spring presets. Reanimated springs are three loose numbers that read as
+ * noise at the call site, and the app already had four near-identical copies
+ * of the same two configs scattered across screens. Naming them by the
+ * gesture they belong to is what keeps a knob, a row and a whole panel from
+ * quietly settling at three different speeds.
+ */
+export const Motion = {
+  /** A control shrinking or swelling under a finger. Fast, negligible overshoot. */
+  press: { damping: 15, stiffness: 320, mass: 0.6 },
+  /** A row or knob snapping back once a drag lets go. */
+  snap: { damping: 18, stiffness: 220, mass: 0.7 },
+  /** A whole panel or screen settling into place. Heavier, so it reads as mass. */
+  settle: { damping: 16, stiffness: 140, mass: 0.9 },
+} as const;
+
+/**
+ * How long a hold-to-activate control must be held before it fires.
+ *
+ * Long enough that a brush or a scroll that starts on the icon never opens a
+ * screen, short enough that a deliberate press does not feel like waiting.
+ * Shared rather than per-icon: the plus and the gear sit side by side, and a
+ * different dwell on each would read as one of them being broken.
+ */
+export const HOLD_MS = 420;

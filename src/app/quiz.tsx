@@ -14,14 +14,10 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
 
-import Home from "@/app/home";
 import BgGrid from "@/assets/images/BG-Grid.svg";
 import { CharacterMark } from "@/components/character-mark";
-import {
-  PULL_TAB_HEIGHT,
-  PULL_TAB_WIDTH,
-  PullTab,
-} from "@/components/pull-tab";
+import { BackButton } from "@/components/back-button";
+import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import {
   Colors,
   Fonts,
@@ -51,11 +47,6 @@ const LETTERS = ["A", "B", "C"] as const;
  *  never a choice, which is why it has no entry here. */
 const CHOICE_DIRECTION = ["west", "north", "east"] as const;
 
-/** How far the exit tab pokes into the quiz while it is closed. */
-const TAB_PEEK = PULL_TAB_WIDTH;
-/** Extra width tucked under home's edge so the tab never shows a seam. */
-const TAB_TUCK = 40;
-
 /** How far behind the drag vector each successive ghost sits. */
 const TRAIL_LAG = 0.2;
 
@@ -81,7 +72,7 @@ const boxAt = (c: { x: number; y: number }, size: number) => ({
  * Compass Quiz. The question and its three lettered options are read at the
  * top; the answer is given at the bottom by dragging the puck toward A, B or C,
  * with south always Pass. There is nothing to tap, including the way out: the
- * exit tab is dragged, not pressed, just like the settings tab on home.
+ * EXIT button is held, not pressed, just like every other button in the app.
  */
 export default function Quiz() {
   const insets = useSafeAreaInsets();
@@ -247,233 +238,135 @@ export default function Quiz() {
     ],
   }));
 
-  // 0 = only the tab peeking in at the right edge, 1 = home has covered the quiz.
-  const exitProgress = useSharedValue(0);
-  // 1 = fully off to the right, 0 = settled. The stack renders this screen with
-  // no animation of its own, so the entrance is ours to play.
-  const entryProgress = useSharedValue(1);
-  // Home rides on the sled, so it only needs to exist once the drag is live —
-  // no reason to pay for a second Home's marquee timers for the whole quiz.
-  const [previewHome, setPreviewHome] = useState(false);
-
-  useEffect(() => {
-    entryProgress.value = withSpring(0, SETTLE_SPRING);
-  }, [entryProgress]);
-
-  const exitDrag = Gesture.Pan()
-    .activeOffsetX([-12, 12])
-    .onBegin(() => {
-      runOnJS(setPreviewHome)(true);
-    })
-    .onChange((e) => {
-      exitProgress.value = Math.min(
-        1,
-        Math.max(0, exitProgress.value - e.changeX / screenW),
-      );
-    })
-    .onEnd((e) => {
-      const leaving =
-        e.velocityX < -600
-          ? true
-          : e.velocityX > 600
-            ? false
-            : exitProgress.value > 0.35;
-      if (leaving) {
-        // Wrapped rather than `runOnJS(router.back)` — handing a detached method
-        // across the bridge drops its binding to the router. The preview stays
-        // mounted through the pop: it is what the user is looking at by then.
-        exitProgress.value = withTiming(1, { duration: 200 }, (done) => {
-          if (done) runOnJS(leaveQuiz)();
-        });
-        return;
-      }
-      exitProgress.value = withSpring(0, SETTLE_SPRING, (done) => {
-        if (done) runOnJS(setPreviewHome)(false);
-      });
-    })
-    .onFinalize(() => {
-      // A touch that never cleared activeOffsetX gets no onEnd, so nothing would
-      // ever tear the preview back down. Brushing the tab must not leave a whole
-      // second Home mounted and animating away off the right edge.
-      if (exitProgress.value === 0) runOnJS(setPreviewHome)(false);
-    });
-
-  // The quiz itself only ever plays its entrance. Leaving is home arriving over
-  // the top of it, not the quiz sliding away.
-  const screenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: screenW * entryProgress.value }],
-  }));
-
-  // Closed, the sled sits one tab-width short of the right edge so only the tab
-  // shows. Open, it has travelled a full screen width to the left.
-  const sledStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: screenW - TAB_PEEK - exitProgress.value * screenW },
-    ],
-  }));
-
   const total = runner.total(questions.length);
   const progressLabel = `${String(runner.step(index)).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   return (
-    <View style={styles.root}>
-      <Animated.View style={[styles.screen, screenStyle]}>
-        <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
-          {progressLabel}
-        </Text>
+    <View style={styles.screen}>
+      <Text style={[styles.progress, { top: insets.top + Spacing.md }]}>
+        {progressLabel}
+      </Text>
+
+      <View
+        style={[
+          styles.body,
+          {
+            // Clears the progress label and the EXIT button, both absolute.
+            paddingTop: insets.top + HOLD_BUTTON_SIZE + Spacing.lg,
+            paddingBottom:
+              insets.bottom + (compactHeight ? Spacing.xs : Spacing.lg),
+          },
+        ]}
+      >
+        <Animated.View key={index} entering={FadeIn.duration(220)}>
+          <Text style={styles.question}>{question.prompt}</Text>
+
+          <View style={styles.options}>
+            {question.choices.map((choice, i) => (
+              <OptionRow
+                key={i}
+                index={i}
+                label={choice}
+                verdictIndex={verdictIndex}
+                verdictCorrect={verdictCorrect}
+                revealCorrect={revealCorrect}
+              />
+            ))}
+          </View>
+        </Animated.View>
 
         <View
           style={[
-            styles.body,
-            {
-              // Clears the progress label and the exit tab, both absolute.
-              paddingTop: insets.top + PULL_TAB_HEIGHT + Spacing.lg,
-              paddingBottom:
-                insets.bottom + (compactHeight ? Spacing.xs : Spacing.lg),
-            },
+            styles.compassWrap,
+            compactHeight && styles.compassWrapCompact,
           ]}
         >
-          <Animated.View key={index} entering={FadeIn.duration(220)}>
-            <Text style={styles.question}>{question.prompt}</Text>
+          <View style={{ width: COMPASS_SIZE, height: COMPASS_SIZE }}>
+            <BgGrid
+              width={COMPASS_SIZE * 1.2}
+              height={COMPASS_SIZE * 1.2}
+              style={[
+                styles.grid,
+                { left: -COMPASS_SIZE * 0.1, top: -COMPASS_SIZE * 0.1 },
+              ]}
+            />
 
-            <View style={styles.options}>
-              {question.choices.map((choice, i) => (
-                <OptionRow
-                  key={i}
-                  index={i}
-                  label={choice}
-                  verdictIndex={verdictIndex}
-                  verdictCorrect={verdictCorrect}
-                  revealCorrect={revealCorrect}
-                />
-              ))}
-            </View>
-          </Animated.View>
-
-          <View
-            style={[
-              styles.compassWrap,
-              compactHeight && styles.compassWrapCompact,
-            ]}
-          >
-            <View style={{ width: COMPASS_SIZE, height: COMPASS_SIZE }}>
-              <BgGrid
-                width={COMPASS_SIZE * 1.2}
-                height={COMPASS_SIZE * 1.2}
-                style={[
-                  styles.grid,
-                  { left: -COMPASS_SIZE * 0.1, top: -COMPASS_SIZE * 0.1 },
-                ]}
+            <Svg
+              width={RING_RADIUS * 2 + 2}
+              height={RING_RADIUS * 2 + 2}
+              style={[
+                styles.ring,
+                boxAt({ x: CENTRE, y: CENTRE }, RING_RADIUS * 2 + 2),
+              ]}
+            >
+              <Circle
+                cx={RING_RADIUS + 1}
+                cy={RING_RADIUS + 1}
+                r={RING_RADIUS}
+                stroke={Colors.bone}
+                strokeWidth={1}
+                fill="none"
               />
+            </Svg>
 
-              <Svg
-                width={RING_RADIUS * 2 + 2}
-                height={RING_RADIUS * 2 + 2}
-                style={[
-                  styles.ring,
-                  boxAt({ x: CENTRE, y: CENTRE }, RING_RADIUS * 2 + 2),
-                ]}
-              >
-                <Circle
-                  cx={RING_RADIUS + 1}
-                  cy={RING_RADIUS + 1}
-                  r={RING_RADIUS}
+            {/* Direction glows sit behind the tokens, so render them first. */}
+            {(["north", "south", "east", "west"] as const).map((d) => (
+              <DirectionGlow
+                key={d}
+                direction={d}
+                dx={dx}
+                dy={dy}
+                {...boxAt(CENTRES[d], CARD_SIZE * 1.6)}
+              />
+            ))}
+
+            {LETTERS.map((_, i) => (
+              <AnswerToken
+                key={i}
+                index={i}
+                verdictIndex={verdictIndex}
+                verdictCorrect={verdictCorrect}
+                revealCorrect={revealCorrect}
+                {...boxAt(CENTRES[CHOICE_DIRECTION[i]], TOKEN_SIZE)}
+              />
+            ))}
+
+            <View style={[styles.passToken, boxAt(CENTRES.south, TOKEN_SIZE)]}>
+              <Svg width={20} height={20}>
+                <Path
+                  d="M3 3 L17 17 M17 3 L3 17"
                   stroke={Colors.bone}
-                  strokeWidth={1}
-                  fill="none"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
                 />
               </Svg>
-
-              {/* Direction glows sit behind the tokens, so render them first. */}
-              {(["north", "south", "east", "west"] as const).map((d) => (
-                <DirectionGlow
-                  key={d}
-                  direction={d}
-                  dx={dx}
-                  dy={dy}
-                  {...boxAt(CENTRES[d], CARD_SIZE * 1.6)}
-                />
-              ))}
-
-              {LETTERS.map((_, i) => (
-                <AnswerToken
-                  key={i}
-                  index={i}
-                  verdictIndex={verdictIndex}
-                  verdictCorrect={verdictCorrect}
-                  revealCorrect={revealCorrect}
-                  {...boxAt(CENTRES[CHOICE_DIRECTION[i]], TOKEN_SIZE)}
-                />
-              ))}
-
-              <View
-                style={[styles.passToken, boxAt(CENTRES.south, TOKEN_SIZE)]}
-              >
-                <Svg width={20} height={20}>
-                  <Path
-                    d="M3 3 L17 17 M17 3 L3 17"
-                    stroke={Colors.bone}
-                    strokeWidth={2.5}
-                    strokeLinecap="round"
-                  />
-                </Svg>
-              </View>
-
-              {/* Furthest ghost first, so the nearer brighter ones paint over it. */}
-              {[2, 1, 0].map((i) => (
-                <Ghost
-                  key={i}
-                  index={i}
-                  dx={dx}
-                  dy={dy}
-                  left={cardLeft}
-                  top={cardTop}
-                  characterId={equippedId}
-                />
-              ))}
-
-              <GestureDetector gesture={drag}>
-                <Animated.View
-                  style={[
-                    styles.card,
-                    { left: cardLeft, top: cardTop },
-                    cardStyle,
-                  ]}
-                >
-                  <CharacterMark characterId={equippedId} size={CARD_SIZE} />
-                </Animated.View>
-              </GestureDetector>
             </View>
+
+            {/* Furthest ghost first, so the nearer brighter ones paint over it. */}
+            {[2, 1, 0].map((i) => (
+              <Ghost
+                key={i}
+                index={i}
+                dx={dx}
+                dy={dy}
+                left={cardLeft}
+                top={cardTop}
+                characterId={equippedId}
+              />
+            ))}
+
+            <GestureDetector gesture={drag}>
+              <Animated.View
+                style={[styles.card, { left: cardLeft, top: cardTop }, cardStyle]}
+              >
+                <CharacterMark characterId={equippedId} size={CARD_SIZE} />
+              </Animated.View>
+            </GestureDetector>
           </View>
         </View>
+      </View>
 
-        {/* The way out, built exactly like the settings tab on home: one wide
-            sled with the tab on the left and the screen it reveals attached to
-            its right. The tab belongs to the surface it brings in, so dragging
-            it pulls home across the quiz rather than shoving the quiz aside. */}
-        <Animated.View
-          style={[styles.sled, { width: screenW + TAB_PEEK }, sledStyle]}
-          pointerEvents="box-none"
-        >
-          <GestureDetector gesture={exitDrag}>
-            <PullTab
-              label="EXIT"
-              backgroundColor={Colors.rust}
-              extraWidth={TAB_TUCK}
-              style={[styles.exitTab, { top: insets.top + Spacing.md }]}
-            />
-          </GestureDetector>
-
-          {/* A preview only — the real home takes over the instant the pop
-              lands, so nothing here should ever accept a touch. */}
-          <View
-            style={[styles.homePreview, { width: screenW }]}
-            pointerEvents="none"
-          >
-            {previewHome && <Home />}
-          </View>
-        </Animated.View>
-      </Animated.View>
+      <BackButton label="EXIT" onBack={leaveQuiz} />
     </View>
   );
 }
@@ -670,12 +563,6 @@ function Ghost({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    // Home's rust, showing through in the gap the quiz has not covered yet
-    // while it slides in on mount.
-    backgroundColor: Colors.rust,
-  },
   screen: {
     flex: 1,
     backgroundColor: Theme.background,
@@ -690,26 +577,6 @@ const styles = StyleSheet.create({
     color: Theme.text,
     letterSpacing: 2,
     marginTop: 8,
-  },
-  sled: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 10,
-  },
-  exitTab: {
-    // Inside the sled's own bounds rather than hanging off its left edge:
-    // Android clips children that overflow their parent, so a tab positioned
-    // outside would neither draw nor take touches there.
-    position: "absolute",
-    left: 0,
-  },
-  homePreview: {
-    position: "absolute",
-    left: TAB_PEEK,
-    top: 0,
-    bottom: 0,
   },
   body: {
     flex: 1,

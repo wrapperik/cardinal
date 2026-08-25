@@ -1,5 +1,6 @@
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   interpolateColor,
@@ -10,8 +11,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { PULL_TAB_WIDTH, PullTab } from "@/components/pull-tab";
-import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
+import { BackButton } from "@/components/back-button";
+import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
+import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-provider";
 import {
   syncStatusLabel,
@@ -20,109 +22,52 @@ import {
   usePreferencesSyncStatus,
 } from "@/features/preferences/preferences";
 
-/** How far the tab pokes into the screen when the panel is closed. */
-const TAB_PEEK = PULL_TAB_WIDTH;
-/** Extra width tucked under the panel edge so the tab never shows a seam. */
-const TAB_TUCK = 40;
-
-const PANEL_SPRING = { damping: 18, stiffness: 140, mass: 0.9 } as const;
-
 /**
- * Full-screen settings panel, dragged into view by the tab peeking in from the
- * right edge. There is no tap target anywhere — the tab and the open panel share
- * one Pan gesture, so pulling either direction is what opens and closes it.
- *
- * The whole thing is one wide sled: tab on the left, panel to its right. The tab
- * has to live INSIDE the dragged view's bounds rather than hanging off its left
- * edge, because Android clips children that overflow their parent — a tab
- * positioned outside would neither draw nor take touches there.
+ * Settings, as an ordinary pushed screen. No tap target opens it any more
+ * either — it's reached by holding the gear icon on home's nav bar — but
+ * once inside there is still nothing to tap: the SIGN OUT row and the EDGE
+ * TAP ZONES toggle are both drag-only, matching the no-tap grammar the rest
+ * of the app uses.
  */
-export function SettingsPanel() {
+export default function Settings() {
   const insets = useSafeAreaInsets();
-  const { width: screenW } = useWindowDimensions();
+  const router = useRouter();
   const { signOutUser, user } = useAuth();
   const preferences = usePreferences();
   const syncStatus = usePreferencesSyncStatus();
 
-  // 0 = closed, 1 = open.
-  const progress = useSharedValue(0);
-
-  const sledStyle = useAnimatedStyle(() => ({
-    // Closed, the sled sits one tab-width short of the right edge, so only the
-    // tab shows. Open, it has travelled a full screen width to the left.
-    transform: [{ translateX: screenW - TAB_PEEK - progress.value * screenW }],
-  }));
-
-  // Two instances of the same pan, because one Gesture object cannot be attached
-  // to two views. The tab carries one; the open panel carries the other so it can
-  // be pushed back. The sled itself stays untouchable, or its full-height column
-  // down the right edge would swallow every gesture that started there.
-  const makeDrag = () =>
-    Gesture.Pan()
-      // Deliberate: a dozen pixels of sideways travel before this takes over, so
-      // brushing past the tab never drags the settings screen out.
-      .activeOffsetX([-12, 12])
-      .onChange((e) => {
-        // Dragging left (negative changeX) opens it.
-        progress.value = Math.min(
-          1,
-          Math.max(0, progress.value - e.changeX / screenW),
-        );
-      })
-      .onEnd((e) => {
-        // A decisive flick wins over position, so a short fast pull still opens it.
-        const open =
-          e.velocityX < -600
-            ? true
-            : e.velocityX > 600
-              ? false
-              : progress.value > 0.4;
-        progress.value = withSpring(open ? 1 : 0, PANEL_SPRING);
-      });
-
   return (
-    <Animated.View
-      style={[styles.sled, { width: screenW + TAB_PEEK }, sledStyle]}
-      pointerEvents="box-none"
-    >
-      <GestureDetector gesture={makeDrag()}>
-        <PullTab
-          label="SETTINGS"
-          backgroundColor={Colors.charcoal}
-          extraWidth={TAB_TUCK}
-          style={[styles.tab, { top: insets.top + Spacing.md }]}
+    <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          // Clears the BACK button, exactly like course detail's own clearance.
+          paddingTop: insets.top + HOLD_BUTTON_SIZE + Spacing.lg,
+          paddingHorizontal: Spacing.lg,
+        }}
+      >
+        <Text style={styles.heading}>SETTINGS</Text>
+
+        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <InfoRow label="NAME" value={user?.displayName ?? "STUDENT"} />
+        <InfoRow label="EMAIL" value={user?.email ?? "—"} />
+        <InfoRow label="SYNC" value={syncStatusLabel(syncStatus)} />
+        <SignOutRow onSignOut={signOutUser} />
+
+        <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
+        <AccessibilityRow
+          tapZones={preferences.accessibilityTapZones}
+          onChange={(accessibilityTapZones) => updatePreferences({ accessibilityTapZones })}
         />
-      </GestureDetector>
+        {/* TODO(week7): wire to the real tap-zone overlay when the accessibility mode ships. */}
 
-      <GestureDetector gesture={makeDrag()}>
-        <View style={[styles.panel, { width: screenW }]}>
-          <View style={{ paddingTop: insets.top + Spacing.xl }}>
-            <Text style={styles.heading}>SETTINGS</Text>
+        <Text style={styles.sectionLabel}>ABOUT</Text>
+        <InfoRow label="VERSION" value="1.0.0" />
+        <InfoRow label="BUILD" value="WEEK 5" />
+      </ScrollView>
 
-            <Text style={styles.sectionLabel}>ACCOUNT</Text>
-            <InfoRow label="NAME" value={user?.displayName ?? "STUDENT"} />
-            <InfoRow label="EMAIL" value={user?.email ?? "—"} />
-            <InfoRow label="SYNC" value={syncStatusLabel(syncStatus)} />
-            <SignOutRow onSignOut={signOutUser} />
-
-            <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
-            <AccessibilityRow
-              tapZones={preferences.accessibilityTapZones}
-              onChange={(accessibilityTapZones) => updatePreferences({ accessibilityTapZones })}
-            />
-            {/* TODO(week7): wire to the real tap-zone overlay when the accessibility mode ships. */}
-
-            <Text style={styles.sectionLabel}>ABOUT</Text>
-            <InfoRow label="VERSION" value="1.0.0" />
-            <InfoRow label="BUILD" value="WEEK 5" />
-          </View>
-
-          <Text style={[styles.hint, { bottom: insets.bottom + Spacing.xl }]}>
-            DRAG RIGHT TO CLOSE
-          </Text>
-        </View>
-      </GestureDetector>
-    </Animated.View>
+      <BackButton label="BACK" onBack={() => router.back()} />
+    </View>
   );
 }
 
@@ -138,7 +83,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** A deliberate left swipe prevents accidental sign-out inside a draggable panel. */
+/** A deliberate left swipe guards a destructive, irreversible action — the
+ *  same reasoning SwipeAction generalises for the upload flow, just applied
+ *  to the one row in the app that can't be undone by swiping again. */
 function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
   const [error, setError] = useState(false);
   const drag = useSharedValue(0);
@@ -159,11 +106,7 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
     })
     .onEnd(() => {
       if (drag.value < -88) runOnJS(signOut)();
-      drag.value = withSpring(0, {
-        damping: 18,
-        stiffness: 220,
-        mass: 0.7,
-      });
+      drag.value = withSpring(0, Motion.snap);
     });
 
   const dragStyle = useAnimatedStyle(() => ({
@@ -197,15 +140,12 @@ function AccessibilityRow({
   const knob = useSharedValue(tapZones ? 1 : 0); // 0 = off, 1 = on
 
   useEffect(() => {
-    knob.value = withSpring(tapZones ? 1 : 0, {
-      damping: 18,
-      stiffness: 220,
-      mass: 0.7,
-    });
+    knob.value = withSpring(tapZones ? 1 : 0, Motion.snap);
   }, [knob, tapZones]);
 
-  // The child toggle's GestureDetector takes precedence over the panel's
-  // close-drag automatically (innermost first), so this never fights the sled.
+  // The child toggle's GestureDetector takes precedence over any ancestor's
+  // own gesture automatically (innermost first), so this never fights a
+  // scroll or the back button.
   const toggleDrag = Gesture.Pan()
     .activeOffsetX([-6, 6])
     .onChange((e) => {
@@ -213,11 +153,7 @@ function AccessibilityRow({
     })
     .onEnd(() => {
       const on = knob.value > 0.5;
-      knob.value = withSpring(on ? 1 : 0, {
-        damping: 18,
-        stiffness: 220,
-        mass: 0.7,
-      });
+      knob.value = withSpring(on ? 1 : 0, Motion.snap);
       runOnJS(onChange)(on);
     });
 
@@ -249,24 +185,9 @@ function AccessibilityRow({
 }
 
 const styles = StyleSheet.create({
-  sled: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 10,
-  },
-  tab: {
-    position: "absolute",
-    left: 0,
-  },
-  panel: {
-    position: "absolute",
-    left: TAB_PEEK,
-    top: 0,
-    bottom: 0,
+  container: {
+    flex: 1,
     backgroundColor: Theme.background,
-    paddingHorizontal: Spacing.lg,
   },
   heading: {
     fontFamily: Fonts.display,
@@ -351,13 +272,5 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: Colors.bone,
-  },
-  hint: {
-    position: "absolute",
-    left: Spacing.lg,
-    right: Spacing.lg,
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: Theme.textMuted,
   },
 });

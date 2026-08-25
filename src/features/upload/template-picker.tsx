@@ -22,7 +22,7 @@ const CHIPS: { value: TemplateChoice; label: string }[] = [
   { value: 'matchRelease', label: 'MATCH' },
 ];
 
-/** Reused by upload-sheet.tsx for the review screen's per-template card
+/** Reused by upload.tsx for the review stage's per-template card
  *  breakdown, so the two surfaces never disagree about what to call a
  *  template. */
 export const TEMPLATE_LABELS: Record<GameType, string> = {
