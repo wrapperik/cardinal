@@ -67,6 +67,21 @@ interface Deck {
 }
 
 describe("createSyncedStore remote hydration", () => {
+  it("exposes when its first local snapshot is ready for rendering", async () => {
+    const store = createSyncedStore<{ id: string; updatedAt: number }>({
+      name: "hydration-state",
+      collectionPath: () => "records",
+      pathIsOwnerScoped: false,
+      field: { idField: "recordId", ownerIdField: "ownerId", timestampFields: ["updatedAt"] },
+      remoteUpdatedAtField: "updatedAt",
+      isValid: (value): value is { id: string; updatedAt: number } =>
+        !!value && typeof value === "object" && "id" in value && "updatedAt" in value,
+    });
+
+    expect(store.isHydrated()).toBe(false);
+    await vi.waitFor(() => expect(store.isHydrated()).toBe(true));
+  });
+
   it("adopts a cloud record after the store fills its child data", async () => {
     const config: SyncedStoreConfig<Deck> & {
       hydrateRemote: (input: { id: string; data: Record<string, unknown> }) => Promise<Deck | null>;

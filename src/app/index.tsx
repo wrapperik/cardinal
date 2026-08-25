@@ -29,6 +29,7 @@ import {
   stageAtDistance,
 } from "@/features/onboarding/path";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useReducedMotion } from "@/lib/accessibility";
 
 /** One line per stage, shown centred once the ball has passed that milestone. */
 const STAGES = [
@@ -99,6 +100,7 @@ export default function Onboarding() {
   const router = useRouter();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { completeOnboarding } = useAuth();
+  const reducedMotion = useReducedMotion();
 
   const [stage, setStage] = useState(0);
   const completed = useRef(false);
@@ -152,6 +154,11 @@ export default function Onboarding() {
   // value changes, so the moment the ball stopped the trail would freeze at full
   // spread instead of decaying away behind it.
   useFrameCallback(() => {
+    if (reducedMotion) {
+      lastDistance.value = distance.value;
+      trail.value = 0;
+      return;
+    }
     const delta = distance.value - lastDistance.value;
     lastDistance.value = distance.value;
     // Direction only, never magnitude. Scaling the trail by speed made it stretch
@@ -298,7 +305,7 @@ export default function Onboarding() {
 
         {/* Furthest ghost first, so the nearer brighter ones paint over it. With
             solid fills the paint order is the depth order. */}
-        {Array.from({ length: TRAIL_COUNT }, (_, i) => TRAIL_COUNT - 1 - i).map(
+        {!reducedMotion && Array.from({ length: TRAIL_COUNT }, (_, i) => TRAIL_COUNT - 1 - i).map(
           (i) => (
             <Ghost key={i} index={i} distance={distance} trail={trail} />
           ),

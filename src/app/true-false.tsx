@@ -29,6 +29,7 @@ import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/con
 import { useRecapRunner } from "@/features/recap/runner";
 import { useTrueFalseStatements } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
+import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 import type { TrueFalseStatement } from "@/features/true-false/statements";
 
 /** Edge pill footprint. Tall and narrow so it reads as a lever on the rail,
@@ -66,6 +67,7 @@ const VERDICT_WRONG_MS = 1100;
 export default function TrueFalse() {
   const insets = useSafeAreaInsets();
   const runner = useRecapRunner();
+  const reducedMotion = useReducedMotion();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Roughly two thirds of the width, per the reference. The card wants dark
@@ -166,7 +168,7 @@ export default function TrueFalse() {
         if (runner.report(correct ? "correct" : "incorrect")) return;
         advanceStatement();
       },
-      correct ? VERDICT_MS : VERDICT_WRONG_MS,
+      motionDuration(reducedMotion, correct ? VERDICT_MS : VERDICT_WRONG_MS),
     );
   }
 

@@ -5,13 +5,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
+import { SkeletonBlock } from "@/components/skeleton-block";
 import { Fonts, Spacing, Theme } from "@/constants/theme";
-import { useProgress } from "@/features/progress/progress";
+import { useProgress, useProgressHydrated } from "@/features/progress/progress";
 import { dailyStats, formatDuration, studyStreakDays } from "@/features/score/score";
 import { summariseSessions } from "@/features/sessions/session-rules";
-import { sessionsForCourse, useSessions } from "@/features/sessions/sessions";
-import { useCourses } from "@/features/upload/courses";
-import { useDecks } from "@/features/upload/decks";
+import { sessionsForCourse, useSessions, useSessionsHydrated } from "@/features/sessions/sessions";
+import { courseStats } from "@/features/upload/course-stats";
+import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
+import { useDecks, useDecksHydrated } from "@/features/upload/decks";
+import { SwipeAction } from "@/features/upload/swipe-action";
+import { useDelayedSkeleton } from "@/lib/loading";
 
 const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
 
@@ -35,8 +39,18 @@ export default function Progress() {
   const decks = useDecks();
   const sessions = useSessions();
   const progress = useProgress();
+  const coursesHydrated = useCoursesHydrated();
+  const decksHydrated = useDecksHydrated();
+  const sessionsHydrated = useSessionsHydrated();
+  const progressHydrated = useProgressHydrated();
+  const hydrated = coursesHydrated && decksHydrated && sessionsHydrated && progressHydrated;
+  const showSkeleton = useDelayedSkeleton(hydrated);
 
   const course = courseId ? courses.find((c) => c.id === courseId) : undefined;
+  const cardCount = useMemo(
+    () => (courseId ? courseStats(decks, courseId).cardCount : 0),
+    [courseId, decks],
+  );
 
   const today = useMemo(
     () => dailyStats(sessionsForCourse(sessions, courseId ?? "")),
@@ -68,30 +82,52 @@ export default function Progress() {
           paddingBottom: insets.bottom + Spacing.xl,
         }}
       >
-        <Text style={styles.heading}>{course?.title ?? "—"}</Text>
-        <Text style={styles.sectionLabel}>PROGRESS</Text>
+        {showSkeleton ? (
+          <ProgressSkeleton />
+        ) : !course ? (
+          <ProgressEmpty title="COURSE NOT FOUND" message="RETURN HOME TO CHOOSE A COURSE." />
+        ) : cardCount === 0 && !course.seeded ? (
+          <ProgressEmpty
+            title="NO CARDS YET"
+            message="UPLOAD MATERIAL TO BUILD YOUR FIRST RECAP."
+            actionLabel="UPLOAD MATERIAL"
+            onAction={() => router.replace({ pathname: "/upload", params: { courseId: course.id } })}
+          />
+        ) : allTime.sessionCount === 0 ? (
+          <ProgressEmpty
+            title={course.seeded ? "TRY THE DEMO" : "READY FOR YOUR FIRST RECAP"}
+            message={course.seeded ? "QUICK RECAP STARTS THE SAMPLE DECK." : "QUICK RECAP WILL START YOUR STUDY HISTORY."}
+            actionLabel="QUICK RECAP"
+            onAction={() => router.replace({ pathname: "/recap", params: { courseId: course.id } })}
+          />
+        ) : (
+          <>
+            <Text style={styles.heading}>{course.title}</Text>
+            <Text style={styles.sectionLabel}>PROGRESS</Text>
 
-        <Text style={styles.groupLabel}>TODAY</Text>
-        <StatRow label="SCORE" value={String(today.score)} />
-        <StatRow label="CARDS STUDIED" value={String(today.cardsStudied)} />
-        <StatRow label="TIME STUDIED" value={formatDuration(today.studyMillis)} />
-        <StatRow label="ACCURACY" value={pct(today.accuracy)} />
-        <StatRow label="BEST STREAK" value={String(today.bestStreak)} />
+            <Text style={styles.groupLabel}>TODAY</Text>
+            <StatRow label="SCORE" value={String(today.score)} />
+            <StatRow label="CARDS STUDIED" value={String(today.cardsStudied)} />
+            <StatRow label="TIME STUDIED" value={formatDuration(today.studyMillis)} />
+            <StatRow label="ACCURACY" value={pct(today.accuracy)} />
+            <StatRow label="BEST STREAK" value={String(today.bestStreak)} />
 
-        <Text style={styles.groupLabel}>ALL TIME</Text>
-        <StatRow label="SESSIONS" value={String(allTime.sessionCount)} />
-        <StatRow label="CORRECT" value={String(allTime.totalCorrect)} />
-        <StatRow label="WRONG" value={String(allTime.totalWrong)} />
-        <StatRow label="ACCURACY" value={pct(allTime.accuracy)} />
-        <StatRow label="BEST STREAK" value={String(allTime.bestStreak)} />
-        <StatRow
-          label="LAST STUDIED"
-          value={allTime.lastStudiedAt ? new Date(allTime.lastStudiedAt).toLocaleDateString() : "—"}
-        />
+            <Text style={styles.groupLabel}>ALL TIME</Text>
+            <StatRow label="SESSIONS" value={String(allTime.sessionCount)} />
+            <StatRow label="CORRECT" value={String(allTime.totalCorrect)} />
+            <StatRow label="WRONG" value={String(allTime.totalWrong)} />
+            <StatRow label="ACCURACY" value={pct(allTime.accuracy)} />
+            <StatRow label="BEST STREAK" value={String(allTime.bestStreak)} />
+            <StatRow
+              label="LAST STUDIED"
+              value={allTime.lastStudiedAt ? new Date(allTime.lastStudiedAt).toLocaleDateString() : "—"}
+            />
 
-        <Text style={styles.groupLabel}>OVERALL</Text>
-        <StatRow label="STUDY STREAK" value={`${streak} DAY${streak === 1 ? "" : "S"}`} />
-        <StatRow label="CARDS DUE" value={String(dueCount)} />
+            <Text style={styles.groupLabel}>OVERALL</Text>
+            <StatRow label="STUDY STREAK" value={`${streak} DAY${streak === 1 ? "" : "S"}`} />
+            <StatRow label="CARDS DUE" value={String(dueCount)} />
+          </>
+        )}
       </ScrollView>
 
       {/* Sibling of the ScrollView, not inside it — riding inside would
@@ -112,6 +148,36 @@ function StatRow({ label, value }: { label: string; value: string }) {
       <Text numberOfLines={1} ellipsizeMode="middle" style={styles.statValue}>
         {value}
       </Text>
+    </View>
+  );
+}
+
+function ProgressEmpty({
+  title,
+  message,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.heading}>{title}</Text>
+      <Text style={styles.emptyCopy}>{message}</Text>
+      {actionLabel && onAction && <SwipeAction label={actionLabel} tone="accent" onConfirm={onAction} />}
+    </View>
+  );
+}
+
+function ProgressSkeleton() {
+  return (
+    <View style={styles.skeleton}>
+      <SkeletonBlock style={styles.headingSkeleton} />
+      <SkeletonBlock style={styles.labelSkeleton} />
+      {[0, 1, 2, 3, 4].map((index) => <SkeletonBlock key={index} style={styles.statSkeleton} />)}
     </View>
   );
 }
@@ -163,4 +229,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Theme.textMuted,
   },
+  emptyState: {
+    gap: Spacing.lg,
+  },
+  emptyCopy: {
+    fontFamily: Fonts.body,
+    fontSize: 16,
+    lineHeight: 22,
+    color: Theme.textMuted,
+  },
+  skeleton: { gap: Spacing.md },
+  headingSkeleton: { width: 220, height: 42 },
+  labelSkeleton: { width: 100, height: 14, marginBottom: Spacing.lg },
+  statSkeleton: { height: 48 },
 });

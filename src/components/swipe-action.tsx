@@ -4,6 +4,7 @@ import Animated, { runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, w
 
 import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
 import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from "@/constants/gestures";
+import { useReducedMotion } from "@/lib/accessibility";
 import { selection } from "@/lib/haptics";
 
 export interface SwipeActionProps {
@@ -17,6 +18,7 @@ export interface SwipeActionProps {
 
 /** The shared Cardinal swipe row, including the delayed fill used on Home. */
 export function SwipeAction({ label, hint, onConfirm, tone = "default", direction = "right", disabled = false }: SwipeActionProps) {
+  const reducedMotion = useReducedMotion();
   const drag = useSharedValue(0);
   const sign = direction === "right" ? 1 : -1;
   const commit = () => { selection(); onConfirm(); };
@@ -29,9 +31,9 @@ export function SwipeAction({ label, hint, onConfirm, tone = "default", directio
     })
     .onEnd(() => {
       if (drag.value * sign > SWIPE_COMMIT_DISTANCE) runOnJS(commit)();
-      drag.value = withSpring(0, Motion.snap);
+      drag.value = reducedMotion ? 0 : withSpring(0, Motion.snap);
     });
-  const fillDrag = useDerivedValue(() => withSpring(Math.abs(drag.value), DELAYED_FILL_SPRING));
+  const fillDrag = useDerivedValue(() => reducedMotion ? Math.abs(drag.value) : withSpring(Math.abs(drag.value), DELAYED_FILL_SPRING));
   const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateX: drag.value }] }));
   const fillStyle = useAnimatedStyle(() => ({ width: `${Math.max(0, Math.min(100, (fillDrag.value / SWIPE_COMMIT_DISTANCE) * 100))}%` }));
   const fillColor = tone === "default" ? Theme.surface : Colors.rust;

@@ -3,16 +3,18 @@ import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SkeletonBlock } from "@/components/skeleton-block";
 import { Colors, Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { HomeNavBar } from "@/features/home/nav-bar";
 import { MenuRow } from "@/features/home/menu-row";
 import { PillNav } from "@/features/home/pill-nav";
 import { ScoreCard } from "@/features/home/score-card";
 import { dailyStats, estimateRecapMinutes, EMPTY_DAILY } from "@/features/score/score";
-import { sessionsForCourse, useSessions } from "@/features/sessions/sessions";
+import { sessionsForCourse, useSessions, useSessionsHydrated } from "@/features/sessions/sessions";
 import { courseStats } from "@/features/upload/course-stats";
-import { useCourses } from "@/features/upload/courses";
-import { useDecks } from "@/features/upload/decks";
+import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
+import { useDecks, useDecksHydrated } from "@/features/upload/decks";
+import { useDelayedSkeleton } from "@/lib/loading";
 
 /**
  * Home: a rust header (wordmark, the two hold-to-activate icons, the course
@@ -28,6 +30,11 @@ export default function Home() {
   const courses = useCourses();
   const decks = useDecks();
   const sessions = useSessions();
+  const coursesHydrated = useCoursesHydrated();
+  const decksHydrated = useDecksHydrated();
+  const sessionsHydrated = useSessionsHydrated();
+  const hydrated = coursesHydrated && decksHydrated && sessionsHydrated;
+  const showSkeleton = useDelayedSkeleton(hydrated);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   // Resolved with a fallback rather than synced via an effect: the screen
@@ -77,7 +84,7 @@ export default function Home() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <HomeNavBar onUpload={onUpload} onSettings={onSettings} />
-        <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />
+        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
       </View>
 
       <ScrollView
@@ -92,11 +99,9 @@ export default function Home() {
             single object and reads better close to the edges, while the rows
             want their separators running the full width of the screen with
             only their contents inset. */}
-        <View style={styles.cardWrap}>
-          <ScoreCard label="DAILY SCORE" value={String(todayScore)} />
-        </View>
+        {showSkeleton ? <HomeSkeleton /> : <View style={styles.cardWrap}><ScoreCard label="DAILY SCORE" value={String(todayScore)} /></View>}
 
-        {active ? (
+        {!showSkeleton && active ? (
           <View>
             <MenuRow
               label="QUICK RECAP"
@@ -124,13 +129,35 @@ export default function Home() {
               last
             />
           </View>
-        ) : (
+        ) : !showSkeleton ? (
           // Unreachable in practice — the seeded courses mean courses.length
           // is never 0 — but the row stack must not render broken if that
           // ever changes.
           <Text style={styles.empty}>HOLD THE PLUS TO ADD YOUR FIRST COURSE</Text>
-        )}
+        ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+function PillSkeleton() {
+  return (
+    <View style={styles.pillSkeleton}>
+      <SkeletonBlock style={styles.pillShort} />
+      <SkeletonBlock style={styles.pillLong} />
+    </View>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <View>
+      <View style={styles.cardWrap}>
+        <SkeletonBlock style={styles.scoreSkeleton} />
+      </View>
+      <View style={styles.rowSkeletons}>
+        {[0, 1, 2, 3].map((index) => <SkeletonBlock key={index} style={styles.rowSkeleton} />)}
+      </View>
     </View>
   );
 }
@@ -156,6 +183,21 @@ const styles = StyleSheet.create({
   },
   cardWrap: {
     paddingHorizontal: Spacing.sm,
+  },
+  pillSkeleton: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  pillShort: { width: 108, height: 48, borderRadius: Radius.pill },
+  pillLong: { width: 148, height: 48, borderRadius: Radius.pill },
+  scoreSkeleton: { height: 96 },
+  rowSkeletons: { marginTop: Spacing.lg },
+  rowSkeleton: {
+    height: 92,
+    borderRadius: 0,
+    marginBottom: StyleSheet.hairlineWidth,
+    backgroundColor: Theme.surface,
   },
   // Carries its own inset, since the body no longer pads its children.
   empty: {

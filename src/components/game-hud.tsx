@@ -13,6 +13,7 @@ import { BackButton } from "@/components/back-button";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { RestartButton } from "@/components/restart-button";
 import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
+import { useReducedMotion } from "@/lib/accessibility";
 import type { RecapRunner } from "@/features/recap/runner";
 
 /** Same dim used by the (now-retired) course row's meta text — the one other
@@ -41,17 +42,17 @@ interface GameHUDProps {
 export function GameHUD({ step, total, runner }: GameHUDProps) {
   const insets = useSafeAreaInsets();
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   const progressLabel = `${String(step).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
 
   const scorePulse = useSharedValue(1);
   useEffect(() => {
-    scorePulse.value = withSequence(
-      withSpring(1.15, Motion.press),
-      withSpring(1, Motion.press),
-    );
+    scorePulse.value = reducedMotion
+      ? 1
+      : withSequence(withSpring(1.15, Motion.press), withSpring(1, Motion.press));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runner.score]);
+  }, [reducedMotion, runner.score]);
   const scoreStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scorePulse.value }],
   }));
@@ -62,10 +63,10 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
     if (!runner.lastAward) return;
     awardOpacity.value = 0;
     awardRise.value = 0;
-    awardOpacity.value = withTiming(1, { duration: 600 });
-    awardRise.value = withTiming(-24, { duration: 600 });
+    awardOpacity.value = reducedMotion ? 1 : withTiming(1, { duration: 600 });
+    awardRise.value = reducedMotion ? -24 : withTiming(-24, { duration: 600 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runner.lastAward?.key]);
+  }, [reducedMotion, runner.lastAward?.key]);
   const awardStyle = useAnimatedStyle(() => ({
     opacity: awardOpacity.value,
     transform: [{ translateY: awardRise.value }],
@@ -94,7 +95,17 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
         </View>
       </View>
 
-      <BackButton label="EXIT" side="right" onBack={() => runner.abandon()} />
+      <BackButton
+        label="EXIT"
+        side="right"
+        hint={runner.active ? "Hold to leave. Your progress is saved at the last checkpoint." : undefined}
+        onBack={() => runner.abandon()}
+      />
+      {runner.active && (
+        <Text style={[styles.exitHint, { top: insets.top + Spacing.md + 58 }]}>
+          PROGRESS SAVES AT YOUR LAST CHECKPOINT
+        </Text>
+      )}
       {/* Nothing to restart from on the very first card. */}
       {step > 1 && !confirmRestart && <RestartButton onRestart={() => setConfirmRestart(true)} />}
       <ConfirmationDialog
@@ -147,5 +158,15 @@ const styles = StyleSheet.create({
   },
   awardMuted: {
     opacity: MUTED_BONE_OPACITY,
+  },
+  exitHint: {
+    position: "absolute",
+    right: Spacing.md,
+    width: 170,
+    textAlign: "right",
+    fontFamily: Fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.7,
+    color: Theme.textMuted,
   },
 });

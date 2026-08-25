@@ -12,6 +12,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { Colors, Fonts, Motion, Radius, Spacing, Theme } from '@/constants/theme';
 import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from '@/constants/gestures';
+import { useReducedMotion } from '@/lib/accessibility';
 import { selection } from '@/lib/haptics';
 
 /**
@@ -45,6 +46,7 @@ interface MenuRowProps {
  * something the row cannot deliver.
  */
 export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
+  const reducedMotion = useReducedMotion();
   const drag = useSharedValue(0);
 
   const commit = () => {
@@ -62,14 +64,14 @@ export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
     })
     .onEnd(() => {
       if (drag.value > SWIPE_COMMIT_DISTANCE) runOnJS(commit)();
-      drag.value = withSpring(0, Motion.snap);
+      drag.value = reducedMotion ? 0 : withSpring(0, Motion.snap);
     });
 
   // The fill's own position, chasing the drag rather than equal to it.
   // Returning an animation from useDerivedValue re-targets the spring every
   // time `drag` moves, which is what makes the fill trail the finger going
   // out and then catch up on the way back.
-  const fillDrag = useDerivedValue(() => withSpring(drag.value, DELAYED_FILL_SPRING));
+  const fillDrag = useDerivedValue(() => reducedMotion ? drag.value : withSpring(drag.value, DELAYED_FILL_SPRING));
 
   const contentStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: drag.value }],

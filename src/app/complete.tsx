@@ -9,6 +9,7 @@ import { useLastRun } from "@/features/recap/last-run";
 import { dailyStats, formatDuration, studyStreakDays } from "@/features/score/score";
 import { useSessions } from "@/features/sessions/sessions";
 import { SwipeAction } from "@/features/upload/swipe-action";
+import { useReducedMotion } from "@/lib/accessibility";
 
 /** Score, then each breakdown row this many ms after the last — a one-line
  *  change to gate behind reduced motion once that lands (see D1). */
@@ -34,6 +35,7 @@ export default function Complete() {
   const router = useRouter();
   const run = useLastRun();
   const sessions = useSessions();
+  const reducedMotion = useReducedMotion();
 
   // Memoised for the same reason home.tsx memoises its own: both walk the
   // entire session history, and neither has any business rerunning on a
@@ -67,7 +69,7 @@ export default function Complete() {
           </>
         ) : (
           <>
-            <Animated.View entering={FadeInDown.delay(SCORE_DELAY_MS).duration(280)}>
+            <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(SCORE_DELAY_MS).duration(280)}>
               <Text style={styles.label}>COURSE COMPLETE</Text>
               <Text style={styles.courseTitle}>{run.courseTitle}</Text>
               <Text
@@ -80,17 +82,18 @@ export default function Complete() {
               </Text>
             </Animated.View>
 
-            <StatRow label="CARDS" value={String(run.cardsAnswered)} delay={ROW_STAGGER_MS} />
-            <StatRow label="ACCURACY" value={pct(run.accuracy)} delay={ROW_STAGGER_MS * 2} />
-            <StatRow label="BEST STREAK" value={String(run.bestStreak)} delay={ROW_STAGGER_MS * 3} />
-            <StatRow label="TIME" value={formatDuration(run.millis)} delay={ROW_STAGGER_MS * 4} />
+            <StatRow label="CARDS" value={String(run.cardsAnswered)} delay={ROW_STAGGER_MS} reducedMotion={reducedMotion} />
+            <StatRow label="ACCURACY" value={pct(run.accuracy)} delay={ROW_STAGGER_MS * 2} reducedMotion={reducedMotion} />
+            <StatRow label="BEST STREAK" value={String(run.bestStreak)} delay={ROW_STAGGER_MS * 3} reducedMotion={reducedMotion} />
+            <StatRow label="TIME" value={formatDuration(run.millis)} delay={ROW_STAGGER_MS * 4} reducedMotion={reducedMotion} />
 
             <Text style={styles.groupLabel}>TODAY</Text>
-            <StatRow label="SCORE" value={String(today.score)} delay={ROW_STAGGER_MS * 5} />
+            <StatRow label="SCORE" value={String(today.score)} delay={ROW_STAGGER_MS * 5} reducedMotion={reducedMotion} />
             <StatRow
               label="STUDY STREAK"
               value={`${streak} DAY${streak === 1 ? "" : "S"}`}
               delay={ROW_STAGGER_MS * 6}
+              reducedMotion={reducedMotion}
             />
 
             <View style={styles.gap} />
@@ -115,9 +118,9 @@ export default function Complete() {
   );
 }
 
-function StatRow({ label, value, delay }: { label: string; value: string; delay: number }) {
+function StatRow({ label, value, delay, reducedMotion }: { label: string; value: string; delay: number; reducedMotion: boolean }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(280)} style={styles.statRow}>
+    <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(delay).duration(280)} style={styles.statRow}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text numberOfLines={1} ellipsizeMode="middle" style={styles.statValue}>
         {value}

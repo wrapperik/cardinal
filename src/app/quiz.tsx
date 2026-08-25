@@ -29,6 +29,7 @@ import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
 import { useRecapRunner } from "@/features/recap/runner";
 import { useQuizQuestions } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
+import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
 /** The draggable puck at the compass centre. */
 const CARD_SIZE = 70;
@@ -81,6 +82,7 @@ export default function Quiz() {
   // const { equippedId } = useCharacter();
   const equippedId = DEFAULT_CHARACTER_ID;
   const compactHeight = screenH < 650;
+  const reducedMotion = useReducedMotion();
 
   // Three separate ceilings, whichever bites first. Width alone is not enough:
   // the question and its three options now sit above the compass, and on a
@@ -184,7 +186,7 @@ export default function Quiz() {
         if (runner.report(correct ? "correct" : "incorrect")) return;
         advanceQuestion();
       },
-      correct ? VERDICT_MS : VERDICT_WRONG_MS,
+      motionDuration(reducedMotion, correct ? VERDICT_MS : VERDICT_WRONG_MS),
     );
   }
 
@@ -263,7 +265,7 @@ export default function Quiz() {
           },
         ]}
       >
-        <Animated.View key={index} entering={FadeIn.duration(220)}>
+        <Animated.View key={index} entering={reducedMotion ? undefined : FadeIn.duration(220)}>
           <Text style={styles.question}>{question.prompt}</Text>
 
           <View style={styles.options}>

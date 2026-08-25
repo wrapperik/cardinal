@@ -12,6 +12,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Colors, HOLD_MS, Motion, Radius } from "@/constants/theme";
+import { useReducedMotion } from "@/lib/accessibility";
 import { impact, ImpactFeedbackStyle } from "@/lib/haptics";
 
 /** Fixed footprint for both icon buttons, so the fill overlay (below) has a
@@ -52,6 +53,7 @@ export function HoldButton({
   onHold,
   backgroundColor = Colors.charcoal,
 }: HoldButtonProps) {
+  const reducedMotion = useReducedMotion();
   const scale = useSharedValue(1);
   const fill = useSharedValue(0);
   // onHold navigates (back/restart), which unmounts this button while the
@@ -81,16 +83,16 @@ export function HoldButton({
   const release = () => {
     "worklet";
     if (fired.value) return;
-    scale.value = withSpring(1, Motion.press);
-    fill.value = withTiming(0, { duration: RELEASE_MS });
+    scale.value = reducedMotion ? 1 : withSpring(1, Motion.press);
+    fill.value = reducedMotion ? 0 : withTiming(0, { duration: RELEASE_MS });
   };
 
   const gesture = Gesture.LongPress()
     .minDuration(HOLD_MS)
     .maxDistance(24)
     .onBegin(() => {
-      scale.value = withSpring(1.1, Motion.press);
-      fill.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear });
+      scale.value = reducedMotion ? 1.1 : withSpring(1.1, Motion.press);
+      fill.value = reducedMotion ? 1 : withTiming(1, { duration: HOLD_MS, easing: Easing.linear });
       runOnJS(beginHaptic)();
     })
     .onStart(() => {

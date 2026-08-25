@@ -19,6 +19,7 @@ import { useRecapRunner } from "@/features/recap/runner";
 import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
+import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
 const ZONE_GAP = 14;
 
@@ -57,6 +58,7 @@ const PASS_FOLLOW_DAMPING = 0.4;
 export default function Match() {
   const insets = useSafeAreaInsets();
   const runner = useRecapRunner();
+  const reducedMotion = useReducedMotion();
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const [roundIndex, setRoundIndex] = useState(0);
@@ -192,10 +194,10 @@ export default function Match() {
         fumbled.current = false;
         setMatchedAt([null, null, null]);
         advanceRound();
-      }, ROUND_HOLD_MS);
+      }, motionDuration(reducedMotion, ROUND_HOLD_MS));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedAt]);
+  }, [matchedAt, reducedMotion]);
 
   // Everything below is deterministic from insets/screen size, never from
   // onLayout — the drag's hit-test has to be able to trust it mid-gesture.
@@ -261,7 +263,7 @@ export default function Match() {
       ))}
 
       {currentPairIndex !== -1 && (
-        <DraggableTerm
+          <DraggableTerm
           key={`${roundIndex}-${currentPairIndex}`}
           term={round.pairs[currentPairIndex].term}
           pairIndex={currentPairIndex}
@@ -277,7 +279,8 @@ export default function Match() {
           wrongFlags={wrongFlags}
           hoverZone={hoverZone}
           onCorrect={handleCorrect}
-          onWrong={handleWrong}
+            onWrong={handleWrong}
+            reducedMotion={reducedMotion}
         />
       )}
 
@@ -413,6 +416,7 @@ interface DraggableTermProps {
   hoverZone: SharedValue<number>;
   onCorrect: (zonePos: number, pairIndex: number) => void;
   onWrong: () => void;
+  reducedMotion: boolean;
 }
 
 /**
@@ -436,6 +440,7 @@ function DraggableTerm({
   hoverZone,
   onCorrect,
   onWrong,
+  reducedMotion,
 }: DraggableTermProps) {
   const dx = useSharedValue(0);
   const dy = useSharedValue(0);
@@ -463,7 +468,7 @@ function DraggableTerm({
       onWrong();
       setTimeout(() => {
         wrongFlags[zonePos].value = false;
-      }, WRONG_FLASH_MS);
+      }, motionDuration(reducedMotion, WRONG_FLASH_MS));
     }
   }
 

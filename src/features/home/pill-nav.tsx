@@ -11,6 +11,7 @@ import {
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { selection } from '@/lib/haptics';
+import { useReducedMotion } from '@/lib/accessibility';
 
 /**
  * Horizontal inset of the pill track. A single constant because the snap
@@ -47,6 +48,7 @@ interface PillNavProps {
  * would actively fight the thing this row has become.
  */
 export function PillNav({ items, activeId, onChange }: PillNavProps) {
+  const reducedMotion = useReducedMotion();
   const scrollRef = useRef<ScrollView>(null);
   const measured = useRef<(Measurement | undefined)[]>([]);
   const [layout, setLayout] = useState<Measurement[]>([]);
@@ -160,9 +162,9 @@ export function PillNav({ items, activeId, onChange }: PillNavProps) {
       // Only moves the scroll position — the scroll handler above is the
       // single place selection happens, so a press can't select once by
       // its own logic and again when the resulting scroll settles.
-      scrollRef.current?.scrollTo({ x: offset, animated: true });
+      scrollRef.current?.scrollTo({ x: offset, animated: !reducedMotion });
     },
-    [offsets],
+    [offsets, reducedMotion],
   );
 
   if (items.length === 0) return null;

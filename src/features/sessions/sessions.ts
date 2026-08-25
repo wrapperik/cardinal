@@ -35,6 +35,10 @@ export function useSessions(): LocalSession[] {
   return store.useRecords();
 }
 
+export function useSessionsHydrated(): boolean {
+  return store.useHydrated();
+}
+
 export function getSessions(): LocalSession[] {
   return store.getRecords();
 }

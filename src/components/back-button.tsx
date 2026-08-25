@@ -8,6 +8,8 @@ import { Colors, Spacing } from "@/constants/theme";
 interface BackButtonProps {
   /** Announced to assistive tech. "BACK" on ordinary screens, "EXIT" in a game. */
   label: string;
+  /** Describes the consequence where leaving does more than navigate back. */
+  hint?: string;
   onBack: () => void;
   /** Back controls live on the right; kept as a prop for exceptional layouts. */
   side?: "left" | "right";
@@ -33,7 +35,7 @@ interface BackButtonProps {
  * nav buttons invert this rather than contradict it: they are charcoal
  * because they sit ON rust.
  */
-export function BackButton({ label, onBack, side = "right" }: BackButtonProps) {
+export function BackButton({ label, hint, onBack, side = "right" }: BackButtonProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -41,6 +43,7 @@ export function BackButton({ label, onBack, side = "right" }: BackButtonProps) {
       <HoldButton
         glyph={<BackChevron />}
         label={label}
+        hint={hint}
         onHold={onBack}
         backgroundColor={Colors.rust}
       />

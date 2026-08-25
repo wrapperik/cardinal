@@ -61,6 +61,10 @@ export function useProgress(): ProgressRecord[] {
   return store.useRecords();
 }
 
+export function useProgressHydrated(): boolean {
+  return store.useHydrated();
+}
+
 export function getProgress(): ProgressRecord[] {
   return store.getRecords();
 }

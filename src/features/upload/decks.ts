@@ -51,6 +51,10 @@ export function useDecks(): LocalDeck[] {
   return store.useRecords();
 }
 
+export function useDecksHydrated(): boolean {
+  return store.useHydrated();
+}
+
 export function getDecks(): LocalDeck[] {
   return store.getRecords();
 }

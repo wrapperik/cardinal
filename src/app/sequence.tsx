@@ -18,6 +18,7 @@ import { useRecapRunner } from "@/features/recap/runner";
 import type { SequenceRound } from "@/features/sequence/rounds";
 import { useSequenceRounds } from "@/features/upload/play";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
+import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
 /** Row card footprint. Fixed rather than derived from screen height — four
  *  of these plus their gaps have to fit the same on every device, and a
@@ -79,6 +80,7 @@ function clamp(value: number, min: number, max: number) {
 export default function Sequence() {
   const insets = useSafeAreaInsets();
   const runner = useRecapRunner();
+  const reducedMotion = useReducedMotion();
 
   // The uploaded deck for whichever course was opened, or the shipped fixtures
   // when this was reached without one.
@@ -208,9 +210,9 @@ export default function Sequence() {
       committing.current = false;
       if (runner.report("correct")) return;
       advanceRound();
-    }, RESOLVE_HOLD_MS);
+    }, motionDuration(reducedMotion, RESOLVE_HOLD_MS));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, itemOrder, roundIndex, solved]);
+  }, [board, itemOrder, roundIndex, reducedMotion, solved]);
 
   const passDrag = Gesture.Pan()
     .onChange((e) => {

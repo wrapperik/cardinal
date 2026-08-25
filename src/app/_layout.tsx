@@ -10,15 +10,18 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ReduceMotion, ReducedMotionConfig } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Theme } from '@/constants/theme';
 import { AuthGate } from '@/features/auth/auth-gate';
 import { AuthProvider } from '@/features/auth/auth-provider';
+import { useReducedMotion } from '@/lib/accessibility';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const reducedMotion = useReducedMotion();
   const [fontsLoaded, fontError] = useFonts({
     Afacad_400Regular,
     Afacad_500Medium,
@@ -39,6 +42,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <View style={styles.viewport}>
+            <ReducedMotionConfig mode={reducedMotion ? ReduceMotion.Always : ReduceMotion.Never} />
             <StatusBar style="light" />
             <Stack
               screenOptions={{
@@ -49,15 +53,15 @@ export default function RootLayout() {
                 // button's chevron always points left, so a screen popped by
                 // it should exit the way that arrow points rather than the
                 // platform-default rightward pop.
-                animation: 'slide_from_left',
+                animation: reducedMotion ? 'none' : 'slide_from_left',
                 // Leaving a screen is a deliberate hold on a visible button
                 // now, not a swipe. An edge swipe left on to pop a game
                 // mid-run would discard it on an accidental brush.
                 gestureEnabled: false,
               }}
             >
-              <Stack.Screen name="sign-up" options={{ animation: 'fade' }} />
-              <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
+              <Stack.Screen name="sign-up" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              <Stack.Screen name="sign-in" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
               {/* Dispatcher only — it replaces itself before anything is ever
                   visible, so animating it in would slide a blank charcoal
                   screen into view for a beat before the game it hands off to

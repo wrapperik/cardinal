@@ -99,6 +99,10 @@ export function useCourses(): Course[] {
   return store.useRecords();
 }
 
+export function useCoursesHydrated(): boolean {
+  return store.useHydrated();
+}
+
 export function getCourses(): Course[] {
   return store.getRecords();
 }

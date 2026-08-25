@@ -147,6 +147,9 @@ export interface SyncedStoreConfig<T extends { id: string }> {
 export interface SyncedStore<T extends { id: string }> {
   useRecords(): T[];
   getRecords(): T[];
+  /** True once the current account's local cache has been read. */
+  useHydrated(): boolean;
+  isHydrated(): boolean;
   /** Listener readiness and queued writes, for concise live sync UI. */
   useSyncStatus(): SyncStatus;
   /** Applies a create or edit immediately and syncs it in the background. */
@@ -183,6 +186,9 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   let listenerReady = false;
   let listenerFailed = false;
   let syncStatus: SyncStatus = "offline";
+  // Server rendering has no device cache to await. Native/web clients begin
+  // false so first-frame seed values are never presented as restored data.
+  let hydrated = typeof window === "undefined";
 
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((listener) => listener());
@@ -432,6 +438,8 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   async function hydrate(nextUid: string | null) {
     const token = ++hydrationToken;
     uid = nextUid;
+    hydrated = false;
+    notify();
     listenerReady = false;
     listenerFailed = false;
     refreshSyncStatus();
@@ -490,6 +498,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     snapshot = merge(normalised.filter(config.isValid), config.seeds ?? []);
     meta = rawMeta ? (JSON.parse(rawMeta) as MetaMap) : {};
     outbox = rawOutbox ? (JSON.parse(rawOutbox) as OutboxOp[]) : [];
+    hydrated = true;
     notify();
 
     attachFirestoreListener();
@@ -589,6 +598,8 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   return {
     useRecords: () => useSyncExternalStore(subscribe, getSnapshot),
     getRecords: () => snapshot,
+    useHydrated: () => useSyncExternalStore(subscribe, () => hydrated),
+    isHydrated: () => hydrated,
     useSyncStatus: () => useSyncExternalStore(subscribe, () => syncStatus),
     put,
     adoptRemote,
