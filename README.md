@@ -1,7 +1,3 @@
-<style>
-a { color: #C53D23; }
-</style>
-
 # Cardinal
 
 **The direction you swipe is the answer.**
@@ -89,26 +85,23 @@ authentication, file storage, and administration.
 
 ### Demonstration video
 
-> **Video placeholder:** add the final 5–8 minute demo link here before submitting.
->
-> `INSERT VIDEO LINK`
+**[Watch the Cardinal demonstration video on YouTube](https://youtu.be/275TFCt4XFM)**
 
 ### Mockups and implementation visuals
 
-Add the final mockups/screenshots to `docs/mockups/` and replace these placeholders
-with image links before submitting.
+The final mockups show the implemented visual system and the main study journey.
 
-> **Mockup placeholder 1 — onboarding and gesture language**
-> `docs/mockups/01-onboarding.png`
+#### Home and course navigation
 
-> **Mockup placeholder 2 — home, courses, and upload flow**
-> `docs/mockups/02-home-upload.png`
+![Cardinal home screen mockup showing course navigation, daily progress and the app icon](assets/images/Mockup01.png)
 
-> **Mockup placeholder 3 — Compass Quiz and feedback states**
-> `docs/mockups/03-compass-quiz.png`
+#### Compass Quiz and course results
 
-> **Mockup placeholder 4 — progress and admin dashboard**
-> `docs/mockups/04-progress-dashboard.png`
+![Cardinal mockup showing the Compass Quiz interaction and a completed course summary](assets/images/Mockup02.png)
+
+#### Game variety and checkpoint feedback
+
+![Cardinal mockup showing multiple game templates and the mid-session checkpoint screen](assets/images/Mockup03.png)
 
 ### Individual contribution
 
@@ -127,7 +120,7 @@ Gemini extraction pipeline, testing, security rules, and documentation.
 | Gestures | **react-native-gesture-handler** | Native-thread pan recognition |
 | Animation | **react-native-reanimated** | Drag physics, edge glow, snap-back, all on the UI thread |
 | Auth | **Firebase Authentication** | Email and password, with sessions that persist |
-| Database | **Cloud Firestore** | User documents today, decks, cards and progress next |
+| Database | **Cloud Firestore** | Synced users, courses, decks, cards, sessions, progress and preferences |
 | File storage | **Firebase Storage** | Uploaded PDF and text source files |
 | Server logic | **Firebase Cloud Functions** | Holds the Gemini key, runs extraction, and validates server-owned results |
 | AI extraction | **Gemini API** | Structured JSON extraction, called only from a Cloud Function |
@@ -159,6 +152,7 @@ Gemini extraction pipeline, testing, security rules, and documentation.
 
 ```bash
 npm install
+npm --prefix functions install
 ```
 
 ### Configure the environment
@@ -211,6 +205,14 @@ register the Google Sign-In config plugin and went with it.
 5. **Storage**: enable it, for PDF and text uploads.
 6. Deploy the repository's current security rules and indexes before any real data
    goes in — see [Security rules](#security-rules).
+7. Configure the Gemini secret and server-side admin allowlist as described in
+   [AI extraction with Gemini](#ai-extraction-with-gemini) and
+   [Admin dashboard](#admin-dashboard).
+8. Deploy the backend:
+
+   ```bash
+   npx firebase-tools deploy --only functions,firestore:rules,firestore:indexes,storage
+   ```
 
 `EXPO_PUBLIC_*` values are inlined into the JS bundle. That is correct for Firebase
 web config, which is not a secret, but it means **Firestore Security Rules are the
@@ -301,12 +303,12 @@ persistence, which is what keeps a returning user signed in. Firestore runs on i
 memory cache on native, because `persistentLocalCache()` is IndexedDB backed and
 React Native has no implementation of it.
 
-**State lives in module-level stores.** `features/upload/courses.ts` and
-`features/upload/decks.ts` are small stores exposed through `useSyncExternalStore`
-rather than React context. Courses are read from the home screen, the upload screen,
-the review step and both course screens, and threading a provider through the router
-layout for one array is more plumbing than it is worth. Both hydrate from AsyncStorage once at import and
-write back on every commit, fire and forget.
+**State is local-first and synced.** Courses, decks, sessions, progress, checkpoints,
+and preferences use the shared `createSyncedStore` foundation in `src/lib/sync/`.
+Each store exposes `useSyncExternalStore`, hydrates an account-scoped AsyncStorage
+cache, listens for Firestore changes, and drains a durable write outbox when a
+connection is available. The UI therefore updates immediately without treating the
+device cache as the final source of truth.
 
 **Pure modules are separated deliberately.** `course-rules.ts`, `extract/parse.ts`,
 `match/layout.ts`, `auth/routing.ts`, `auth/validation.ts` and `auth/errors.ts` have
@@ -723,6 +725,19 @@ study activity, uploads, alerts, and recent activity.
 This keeps raw student records behind the normal owner-scoped Firestore rules while
 still giving an administrator useful project-level insight.
 
+### Admin configuration
+
+The allowlist is server-side configuration and is not committed. Create
+`functions/.env` with the accounts that should receive the admin claim:
+
+```dotenv
+ADMIN_EMAILS=first@example.com,second@example.com
+```
+
+Deploy the role and dashboard functions after changing the allowlist. A newly granted
+admin should sign out and back in once so Firebase refreshes the ID token containing
+the custom claim.
+
 ## Firestore schema
 
 | Path | Purpose |
@@ -795,24 +810,18 @@ panel under EDGE TAP ZONES. The overlay it drives is the remaining piece of work
 npm test
 ```
 
-The client suite covers pure domain logic and selected feature behaviour without
-requiring native shims. It includes extraction validation, authentication routing,
-gesture/game logic, SM-2 scheduling, sync reconciliation/outbox behaviour, and admin
-dashboard formatting.
+The client suite covers extraction validation, authentication routing, game and
+gesture rules, SM-2 scheduling, sessions and recaps, local-first sync, preferences,
+statistics, and admin-dashboard behaviour. `vitest.config.mts` maps the same `@/`
+aliases used by Metro and TypeScript, so production imports are tested without being
+rewritten for the test runner.
 
-| File | Covers |
-| --- | --- |
-| [`extract/parse.test.ts`](src/features/upload/extract/parse.test.ts) | Malformed and adversarial model output |
-| [`course-rules.test.ts`](src/features/upload/course-rules.test.ts) | Title normalisation, slugs, seeding, merging stored data |
-| [`auth-gate.test.ts`](src/features/auth/auth-gate.test.ts) | Every redirect decision |
-| [`validation.test.ts`](src/features/auth/validation.test.ts) | Sign-in and sign-up form rules |
-| [`errors.test.ts`](src/features/auth/errors.test.ts) | Firebase error code mapping |
-| [`layout.test.ts`](src/features/match/layout.test.ts) | Match zone height maths |
+Cloud Function tests cover upload processing, safe error handling, statistics,
+account deletion, admin roles, and dashboard aggregation:
 
-Note that Vitest has no alias resolution configured, so a pure module that imports
-another pure module must do so relatively. `parse.ts` imports `../course-rules` for
-exactly this reason; type-only imports may still use `@/`, since they are erased
-before the test runs.
+```bash
+npm --prefix functions run check
+```
 
 Security-rule tests run separately against the Firestore emulator:
 
@@ -855,7 +864,7 @@ the filename, which makes them collision-free and write-once.
 npx firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
-Two constraints worth knowing before writing the sync layer: a deck update must set
+The sync layer respects two important constraints: a deck update must set
 `updatedAt: serverTimestamp()` or it is rejected, and course title uniqueness is not
 enforceable in rules, since rules cannot query — `addCourse()` handles that
 client-side.
@@ -871,6 +880,7 @@ client-side.
 | `npm run android` | Build and run the Android development build |
 | `npm run web` | Start the web build |
 | `npm test` | Run the Vitest suite |
+| `npm --prefix functions run check` | Build and test Firebase Functions |
 | `npm run test:rules` | Run the security rules tests against the Firestore emulator |
 | `npm run lint` | Lint |
 | `npx tsc --noEmit` | Typecheck |
