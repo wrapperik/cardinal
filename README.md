@@ -914,4 +914,4 @@ admin allowlists remain server-side and are intentionally not committed.
 
 ---
 
-*Rikus Pretorius, UX300 S2.*
+*Rikus Pretorius, DV300 S2.*
