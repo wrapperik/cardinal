@@ -15,7 +15,7 @@ import { useDecks } from "@/features/upload/decks";
 const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
 
 /**
- * Course detail. Minimal for now — chunk 5 fills this in with
+ * Course detail. Minimal for now — a later pass fills this in with
  * continue-from-checkpoint, uploading straight into this course, and past
  * scores read from the sessions store. Today it just proves the course is
  * real: title, stats, and whatever topics its cards actually cover.
