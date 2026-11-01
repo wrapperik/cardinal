@@ -20,7 +20,7 @@ import { useReducedMotion } from '@/lib/accessibility';
  * a padding and a subtraction that drifted apart would park every pill one
  * inset off, which is exactly the kind of bug two literals invite.
  */
-const EDGE_INSET = Spacing.md;
+const EDGE_INSET = Spacing.sm;
 
 /** Where a pill sits and how wide it is. The width is only needed for the
  *  last pill, to work out how much empty track has to follow it. */
@@ -237,16 +237,18 @@ function Pill({
 }
 
 const styles = StyleSheet.create({
+  // Compact segments inside home's floating course bar: only the selected
+  // course is filled, the rest are bare labels, so the bar reads as one
+  // control with a single highlighted choice rather than a row of buttons.
   content: {
     paddingHorizontal: EDGE_INSET,
-    gap: Spacing.md,
+    gap: Spacing.xs,
+    alignItems: 'center',
   },
   pill: {
-    borderWidth: 2,
-    borderColor: Colors.bone,
     borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
     // Course titles are user-supplied and unbounded; without a cap a long
     // one can produce a pill wider than the screen, which also breaks
     // snapping since its snap offset would exceed the scrollable range.
@@ -260,7 +262,7 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontFamily: Fonts.bodyBold,
-    fontSize: 18,
+    fontSize: 14,
     letterSpacing: 1,
   },
   pillTextActive: {
@@ -268,5 +270,6 @@ const styles = StyleSheet.create({
   },
   pillTextInactive: {
     color: Colors.bone,
+    opacity: 0.6,
   },
 });

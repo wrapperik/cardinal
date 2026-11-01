@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
+import { BlurView } from "expo-blur";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -164,20 +165,28 @@ export default function Home() {
           // ever changes.
           <Text style={styles.empty}>{traditional ? "TAP" : "HOLD"} THE PLUS TO ADD YOUR FIRST COURSE</Text>
         )}
+
+        {!showSkeleton && <HelpButton />}
       </ScrollView>
 
-      {/* Docked along the bottom edge, in thumb reach, like a tab bar. Each
-          switch ripples a shimmer up through the rows above it (see
-          ROW_RIPPLE_MS), so it reads as driving them. */}
+      {/* A floating glass bar in thumb reach, like a tab bar, rather than a
+          full-width slab: the rows stay visible behind it and it reads as a
+          control, not a second screen. The fixed COURSE label names what the
+          pills are without spending a row on a heading. Each switch ripples
+          a shimmer up through the rows (see ROW_RIPPLE_MS), so it reads as
+          driving them. */}
       <View
-        style={[styles.dock, { paddingBottom: insets.bottom + Spacing.md }]}
-        onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
+        style={[styles.dockWrap, { bottom: insets.bottom + Spacing.sm }]}
+        onLayout={(event) => setDockHeight(event.nativeEvent.layout.height + insets.bottom + Spacing.sm)}
       >
-        <Text style={styles.dockTitle} accessibilityRole="header">COURSE PICKER</Text>
-        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
+        <BlurView intensity={30} tint="dark" style={styles.dock}>
+          <Text style={styles.dockLabel} accessibilityRole="header">COURSE</Text>
+          <View style={styles.dockDivider} />
+          <View style={styles.dockTrack}>
+            {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
+          </View>
+        </BlurView>
       </View>
-
-      <HelpButton bottomOffset={dockHeight} />
     </View>
   );
 }
@@ -221,36 +230,54 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     gap: Spacing.lg,
   },
-  dock: {
+  // Carries the shadow; the blur below has to clip to its radius, and a
+  // clipping view can't cast one on iOS.
+  dockWrap: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: Spacing.lg,
-    backgroundColor: Theme.surface,
-    borderTopLeftRadius: Radius.header,
-    borderTopRightRadius: Radius.header,
+    left: Spacing.md,
+    right: Spacing.md,
+    borderRadius: Radius.pill,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
-  // Same eyebrow as the section labels in settings, inset to line up with
-  // the first pill.
-  dockTitle: {
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
+  dock: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 56,
+    borderRadius: Radius.pill,
+    // Required, or the blur ignores borderRadius and renders as a square.
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Theme.glassEdge,
+    backgroundColor: "rgba(43, 43, 43, 0.82)",
+  },
+  dockLabel: {
+    paddingLeft: Spacing.lg,
+    paddingRight: Spacing.md,
     fontFamily: Fonts.bodyBold,
-    fontSize: 12,
+    fontSize: 11,
     letterSpacing: 2,
     color: Theme.textMuted,
   },
+  dockDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 24,
+    backgroundColor: Theme.glassEdge,
+  },
+  dockTrack: { flex: 1 },
   cardWrap: {
     paddingHorizontal: Spacing.sm,
   },
   pillSkeleton: {
     flexDirection: "row",
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.md,
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
   },
-  pillShort: { width: 108, height: 48, borderRadius: Radius.pill },
-  pillLong: { width: 148, height: 48, borderRadius: Radius.pill },
+  pillShort: { width: 96, height: 36, borderRadius: Radius.pill },
+  pillLong: { width: 128, height: 36, borderRadius: Radius.pill },
   summarySkeleton: { height: 112, backgroundColor: "rgba(0, 0, 0, 0.16)" },
   rowSkeleton: {
     height: 92,
