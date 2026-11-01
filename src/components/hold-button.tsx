@@ -1,3 +1,4 @@
+import { GlassView } from "expo-glass-effect";
 import { useCallback, type ReactNode } from "react";
 import { useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet } from "react-native";
@@ -14,6 +15,7 @@ import Animated, {
 import { Colors, HOLD_MS, Motion, Radius } from "@/constants/theme";
 import { useReducedMotion } from "@/lib/accessibility";
 import { useTraditionalUx } from "@/features/preferences/preferences";
+import { useLiquidGlass } from "@/lib/liquid-glass";
 import { impact, ImpactFeedbackStyle } from "@/lib/haptics";
 
 /** Fixed footprint for both icon buttons, so the fill overlay (below) has a
@@ -24,6 +26,27 @@ export const HOLD_BUTTON_SIZE = 52;
  *  shorter than HOLD_MS itself — the fill should read as "letting go", not
  *  as a second commitment of equal weight to the hold that built it. */
 const RELEASE_MS = 160;
+
+/** Rust, translucent enough that the glass still bends what's behind it. */
+const GLASS_TINT = "rgba(197, 61, 35, 0.6)";
+
+/**
+ * With Liquid Glass on, every icon button becomes the same rust-tinted
+ * glass disc, whatever colour its caller asked for — the glass is the
+ * button's identity there, and mixing charcoal and rust discs would read as
+ * two kinds of control. Without it, the caller's solid colour as before.
+ */
+function useFace(backgroundColor: string) {
+  const glass = useLiquidGlass();
+  return {
+    glass,
+    faceStyle: { backgroundColor: glass ? "transparent" : backgroundColor },
+  };
+}
+
+function GlassFace() {
+  return <GlassView glassEffectStyle="regular" tintColor={GLASS_TINT} style={styles.glassFace} />;
+}
 
 interface HoldButtonProps {
   glyph: ReactNode;
@@ -65,6 +88,7 @@ function TapButton({
   backgroundColor = Colors.charcoal,
 }: HoldButtonProps) {
   const reducedMotion = useReducedMotion();
+  const { glass, faceStyle } = useFace(backgroundColor);
   const scale = useSharedValue(1);
   const fill = useSharedValue(0);
 
@@ -97,7 +121,8 @@ function TapButton({
         onHold();
       }}
     >
-      <Animated.View style={[styles.button, { backgroundColor }, circleStyle]}>
+      <Animated.View style={[styles.button, faceStyle, circleStyle]}>
+        {glass && <GlassFace />}
         <Animated.View style={[styles.tapFill, fillStyle]} />
         {glyph}
       </Animated.View>
@@ -113,6 +138,7 @@ function GestureHoldButton({
   backgroundColor = Colors.charcoal,
 }: HoldButtonProps) {
   const reducedMotion = useReducedMotion();
+  const { glass, faceStyle } = useFace(backgroundColor);
   const scale = useSharedValue(1);
   const fill = useSharedValue(0);
   // onHold navigates (back/restart), which unmounts this button while the
@@ -189,7 +215,7 @@ function GestureHoldButton({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View
-        style={[styles.button, { backgroundColor }, circleStyle]}
+        style={[styles.button, faceStyle, circleStyle]}
         hitSlop={12}
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -199,6 +225,7 @@ function GestureHoldButton({
         // cannot operate.
         onAccessibilityTap={fireHold}
       >
+        {glass && <GlassFace />}
         <Animated.View style={[styles.fill, fillStyle]} />
         {/* Rendered after the fill so the glyph always paints on top and
             stays readable at every point of the rise, not just at rest. */}
@@ -225,6 +252,10 @@ const styles = StyleSheet.create({
     height: HOLD_BUTTON_SIZE,
     backgroundColor: Colors.bone,
     opacity: 0.18,
+  },
+  glassFace: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: Radius.pill,
   },
   // A flat wash over the whole disc, for the instant a tap is pressed.
   tapFill: {
