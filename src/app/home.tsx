@@ -173,6 +173,7 @@ export default function Home() {
         style={[styles.dock, { paddingBottom: insets.bottom + Spacing.md }]}
         onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
       >
+        <Text style={styles.dockTitle} accessibilityRole="header">COURSE PICKER</Text>
         {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
       </View>
 
@@ -225,10 +226,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.lg,
     backgroundColor: Theme.surface,
     borderTopLeftRadius: Radius.header,
     borderTopRightRadius: Radius.header,
+  },
+  // Same eyebrow as the section labels in settings, inset to line up with
+  // the first pill.
+  dockTitle: {
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    fontFamily: Fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 2,
+    color: Theme.textMuted,
   },
   cardWrap: {
     paddingHorizontal: Spacing.sm,
