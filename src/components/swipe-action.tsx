@@ -83,14 +83,19 @@ function toneFill(tone: NonNullable<SwipeActionProps["tone"]>) {
  * - `accent`: the primary, solid bone with charcoal lettering.
  * - `default`, `calm`: the neutral secondary, on the surface colour.
  * - `light`: a lighter grey secondary.
- * - `destructive`: a rust outline — the one place red is the honest signal.
+ * - `destructive`: solid rust with white lettering — the one place red is
+ *   the honest signal, carried by the fill so the words stay readable.
  */
 function TapAction({ label, onConfirm, tone = "default", disabled = false, icon }: SwipeActionProps) {
   const compact = useContext(CompactContext);
   const destructive = tone === "destructive";
   const primary = tone === "accent";
-  const background = primary ? Colors.bone : tone === "light" ? TrailDark[2] : Theme.surface;
-  const foreground = destructive ? Theme.accentText : primary ? Colors.charcoal : Colors.bone;
+  const background = primary
+    ? Colors.bone
+    : destructive
+      ? Colors.rust
+      : tone === "light" ? TrailDark[2] : Theme.surface;
+  const foreground = destructive ? Theme.onAccent : primary ? Colors.charcoal : Colors.bone;
   const text = icon === "plus" ? label.replace(/^\+\s*/, "") : label;
   return (
     <Pressable
@@ -104,7 +109,6 @@ function TapAction({ label, onConfirm, tone = "default", disabled = false, icon 
         styles.tapRow,
         compact && styles.tapCompact,
         { backgroundColor: background },
-        destructive && { borderWidth: 2, borderColor: Theme.accentText },
         pressed && styles.tapPressed,
         disabled && styles.disabled,
       ]}

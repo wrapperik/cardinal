@@ -22,12 +22,6 @@ export const Theme = {
   text: Colors.bone,
   /** Secondary text. #8A8A8A measured 3.0:1 on settings cards; this clears 4.5:1 on every dark surface. */
   textMuted: '#ABABAB',
-  /**
-   * Rust lifted for TEXT, ICONS and OUTLINES on the dark surfaces. Colors.rust
-   * itself is only 2.3:1 on charcoal, unreadable as a label; keep it for fills
-   * and the wordmark, and use this wherever rust has to be read.
-   */
-  accentText: '#F29680',
   /** Text on a solid rust fill. Bone manages 3.7:1 there; white clears 5:1. */
   onAccent: '#FFFFFF',
   correct: Colors.blue,

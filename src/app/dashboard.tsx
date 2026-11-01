@@ -70,19 +70,19 @@ export default function Dashboard() {
 
           {/* First among the groups — an alert is the thing an admin opened
               this screen to find, so it shouldn't wait behind five groups of
-              otherwise-healthy counts. Critical ones read in rust so
-              severity shows before the words are read. */}
+              otherwise-healthy counts. Critical ones get a solid rust tile
+              so severity shows before the words are read. */}
           <ListGroup
             title="ALERTS"
-            iconless
             footer={snapshot.truncated ? "Figures are capped at the first records read." : undefined}
           >
             {snapshot.alerts.length === 0 ? (
-              <ListInfoRow label="NOTHING NEEDS ATTENTION" />
+              <ListInfoRow icon="check" label="NOTHING NEEDS ATTENTION" />
             ) : (
               snapshot.alerts.map((alert) => (
                 <ListInfoRow
                   key={alert.id}
+                  icon="info"
                   label={alert.label}
                   detail={alert.detail}
                   value={formatCount(alert.count)}

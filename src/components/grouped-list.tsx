@@ -79,7 +79,9 @@ interface RowProps {
 }
 
 function RowBody({ icon, label, detail, value, destructive, chevron }: RowProps & { chevron?: boolean }) {
-  const tint = destructive ? Theme.accentText : Colors.bone;
+  // Destructive rows put the rust in the tile, filled solid behind a white
+  // glyph; the label itself stays white, since rust text is unreadable here.
+  const tint = destructive ? Theme.onAccent : Colors.bone;
   return (
     <>
       {icon && (
@@ -353,7 +355,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: TILE,
   },
-  tileDestructive: { backgroundColor: "rgba(197, 61, 35, 0.1)" },
+  tileDestructive: { backgroundColor: Colors.rust },
   labelBlock: { flex: 1, gap: 2 },
   detail: {
     fontFamily: Fonts.body,
@@ -367,7 +369,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: Theme.text,
   },
-  labelDestructive: { color: Theme.accentText },
+  labelDestructive: { color: Theme.text },
   value: {
     maxWidth: "45%",
     fontFamily: Fonts.body,

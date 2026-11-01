@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { InlineError } from "@/components/inline-error";
 import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
 import { impact, ImpactFeedbackStyle } from "@/lib/haptics";
 
@@ -90,9 +91,11 @@ export function AuthNotice({
   tone = "error",
 }: PropsWithChildren<{ tone?: "error" | "success" }>) {
   return (
-    <Text style={[styles.notice, tone === "success" && styles.noticeSuccess]}>
-      {children}
-    </Text>
+    tone === "success" ? (
+      <Text style={styles.notice}>{children}</Text>
+    ) : (
+      <InlineError centered style={styles.noticeError}>{children}</InlineError>
+    )
   );
 }
 
@@ -160,7 +163,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodyBold,
     fontSize: 12,
     letterSpacing: 2,
-    color: Theme.accentText,
+    // A small rust tag: the accent fills the container, the text stays white.
+    color: Theme.onAccent,
+    backgroundColor: Colors.rust,
+    alignSelf: "flex-start",
+    overflow: "hidden",
+    borderRadius: 999,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
     marginBottom: Spacing.sm,
   },
   title: {
@@ -200,7 +210,11 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodyBold,
     fontSize: 14,
     letterSpacing: 0.4,
-    color: Theme.accentText,
+    // White words, rust underline: the accent marks it as a link without
+    // asking the dark rust to carry readable text.
+    color: Theme.text,
+    textDecorationLine: "underline",
+    textDecorationColor: Colors.rust,
     textAlign: "center",
     paddingVertical: Spacing.xs,
   },
@@ -210,9 +224,9 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body,
     fontSize: 14,
     lineHeight: 19,
-    color: Theme.accentText,
+    color: Theme.text,
     textAlign: "center",
     marginVertical: Spacing.xs,
   },
-  noticeSuccess: { color: Theme.text },
+  noticeError: { marginVertical: Spacing.xs },
 });

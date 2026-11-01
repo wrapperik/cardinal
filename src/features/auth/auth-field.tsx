@@ -9,6 +9,7 @@ import {
   type TextInputProps,
 } from "react-native";
 
+import { InlineError } from "@/components/inline-error";
 import { Fonts, Spacing, Theme } from "@/constants/theme";
 
 interface AuthFieldProps extends TextInputProps {
@@ -95,7 +96,7 @@ export function AuthField({
           </Pressable>
         )}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <InlineError style={styles.error}>{error}</InlineError> : null}
     </View>
   );
 }
@@ -143,8 +144,5 @@ const styles = StyleSheet.create({
   },
   error: {
     marginLeft: Spacing.sm,
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: Theme.accentText,
   },
 });

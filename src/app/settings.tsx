@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
+import { InlineError } from "@/components/inline-error";
 import { PageScaffold } from "@/components/page-scaffold";
 import { ActionPair, SwipeAction } from "@/components/swipe-action";
 import { TypedConfirmationDialog } from "@/components/typed-confirmation-dialog";
@@ -219,7 +220,7 @@ function AccountDialog({ visible, title, message, error, onCancel, confirm, chil
           <Text style={styles.dialogTitle}>{title}</Text>
           <Text style={styles.dialogMessage}>{message}</Text>
           {children}
-          {error ? <Text style={styles.dialogError}>{error}</Text> : null}
+          {error ? <InlineError>{error}</InlineError> : null}
           <ActionPair
             primary={confirm}
             secondary={<SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" onConfirm={onCancel} />}
@@ -325,5 +326,4 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodyBold,
     fontSize: 16,
   },
-  dialogError: { fontFamily: Fonts.bodyBold, fontSize: 12, color: Theme.accentText },
 });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
+import { Colors, Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-provider";
 import { AuthButton, AuthNotice, AuthScreen } from "@/features/auth/auth-screen";
 import type { UxMode } from "@/features/preferences/preferences";
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     backgroundColor: Theme.surface,
   },
-  cardSelected: { borderColor: Theme.accentText },
+  cardSelected: { borderColor: Colors.rust },
   cardPressed: { opacity: 0.8 },
   cardText: { flex: 1, gap: Spacing.xs },
   cardTitle: {
@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  radioSelected: { borderColor: Theme.accentText },
-  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Theme.accentText },
+  radioSelected: { borderColor: Colors.rust },
+  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.rust },
   footnote: {
     fontFamily: Fonts.body,
     fontSize: 14,

@@ -1,24 +1,20 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import { ListGroup, ListInfoRow } from "@/components/grouped-list";
+import { ListActionRow, ListGroup } from "@/components/grouped-list";
 import { PageEmpty, PageScaffold } from "@/components/page-scaffold";
 import { SkeletonBlock } from "@/components/skeleton-block";
-import { Spacing } from "@/constants/theme";
+import { Fonts, Spacing, Theme } from "@/constants/theme";
+import { ScoreHero, StatTile, WeekChart } from "@/features/progress/progress-widgets";
 import { useProgress, useProgressHydrated } from "@/features/progress/progress";
-import { dailyStats, formatDuration, studyStreakDays } from "@/features/score/score";
+import { dailyStats, formatDuration, lastSevenDays, studyStreakDays } from "@/features/score/score";
 import { summariseSessions } from "@/features/sessions/session-rules";
 import { sessionsForCourse, useSessions, useSessionsHydrated } from "@/features/sessions/sessions";
 import { courseStats } from "@/features/upload/course-stats";
 import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
 import { useDecks, useDecksHydrated } from "@/features/upload/decks";
 import { useDelayedSkeleton } from "@/lib/loading";
-
-/** 0–1 → a rounded whole-number percent, matching every other accuracy figure in the app. */
-function pct(accuracy: number): string {
-  return `${Math.round(accuracy * 100)}%`;
-}
 
 /**
  * The VIEW PROGRESS destination. A missing or unknown courseId (deep link,
@@ -52,6 +48,8 @@ export default function Progress() {
     [sessions, courseId],
   );
   const allTime = useMemo(() => summariseSessions(sessions, courseId ?? ""), [sessions, courseId]);
+  const week = useMemo(() => lastSevenDays(sessionsForCourse(sessions, courseId ?? "")), [sessions, courseId]);
+  const studiedToday = today.cardsStudied > 0;
 
   // Deliberately global, not scoped to this course: a streak is about
   // whether the player showed up today at all, not which subject they
@@ -89,30 +87,48 @@ export default function Progress() {
         />
       ) : (
         <>
-          <ListGroup title="TODAY" iconless>
-            <ListInfoRow label="SCORE" value={String(today.score)} />
-            <ListInfoRow label="CARDS STUDIED" value={String(today.cardsStudied)} />
-            <ListInfoRow label="TIME STUDIED" value={formatDuration(today.studyMillis)} />
-            <ListInfoRow label="ACCURACY" value={pct(today.accuracy)} />
-            <ListInfoRow label="BEST STREAK" value={String(today.bestStreak)} />
-          </ListGroup>
+          <ScoreHero
+            score={today.score}
+            accuracy={studiedToday ? today.accuracy : allTime.accuracy}
+            accuracyLabel={studiedToday ? "ACCURACY" : "ALL TIME"}
+            stats={[
+              { label: "CARDS", value: String(today.cardsStudied) },
+              { label: "TIME", value: formatDuration(today.studyMillis) },
+              { label: "BEST RUN", value: String(today.bestStreak) },
+            ]}
+          />
 
-          <ListGroup title="ALL TIME" iconless>
-            <ListInfoRow label="SESSIONS" value={String(allTime.sessionCount)} />
-            <ListInfoRow label="CORRECT" value={String(allTime.totalCorrect)} />
-            <ListInfoRow label="WRONG" value={String(allTime.totalWrong)} />
-            <ListInfoRow label="ACCURACY" value={pct(allTime.accuracy)} />
-            <ListInfoRow label="BEST STREAK" value={String(allTime.bestStreak)} />
-            <ListInfoRow
-              label="LAST STUDIED"
-              value={allTime.lastStudiedAt ? new Date(allTime.lastStudiedAt).toLocaleDateString() : "—"}
+          <View style={styles.tileRow}>
+            <StatTile icon="flame" value={streak} label="DAY STREAK" accent />
+            <StatTile icon="refresh" value={dueCount} label="CARDS DUE" accent={dueCount > 0} />
+          </View>
+
+          <ListGroup>
+            <ListActionRow
+              icon="play"
+              label="QUICK RECAP"
+              detail={dueCount > 0 ? `${dueCount} card${dueCount === 1 ? "" : "s"} waiting for review` : "Keep the streak going"}
+              onPress={() => router.replace({ pathname: "/recap", params: { courseId: course.id } })}
             />
           </ListGroup>
 
-          <ListGroup title="OVERALL" iconless footer="Your study streak counts every course, not just this one.">
-            <ListInfoRow label="STUDY STREAK" value={`${streak} DAY${streak === 1 ? "" : "S"}`} />
-            <ListInfoRow label="CARDS DUE" value={String(dueCount)} />
-          </ListGroup>
+          <Text style={styles.sectionTitle}>THIS WEEK</Text>
+          <WeekChart days={week} />
+
+          <Text style={styles.sectionTitle}>ALL TIME</Text>
+          <View style={styles.tileRow}>
+            <StatTile icon="list" value={allTime.sessionCount} label="SESSIONS" />
+            <StatTile icon="sparkle" value={allTime.bestStreak} label="BEST RUN" />
+          </View>
+          <View style={styles.tileRow}>
+            <StatTile icon="check" value={allTime.totalCorrect} label="CORRECT" />
+            <StatTile icon="close" value={allTime.totalWrong} label="WRONG" />
+          </View>
+          <Text style={styles.footnote}>
+            {`${Math.round(allTime.accuracy * 100)}% accuracy overall`}
+            {allTime.lastStudiedAt ? ` · last studied ${new Date(allTime.lastStudiedAt).toLocaleDateString()}` : ""}
+            {". Your streak counts every course."}
+          </Text>
         </>
       )}
     </PageScaffold>
@@ -129,6 +145,24 @@ function ProgressSkeleton() {
 }
 
 const styles = StyleSheet.create({
+  tileRow: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
+  sectionTitle: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    fontFamily: Fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 2,
+    color: Theme.textMuted,
+  },
+  footnote: {
+    marginTop: Spacing.sm,
+    marginHorizontal: Spacing.xs,
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: Theme.textMuted,
+  },
   skeleton: { marginTop: Spacing.lg, gap: Spacing.lg },
   groupSkeleton: { height: 280 },
 });

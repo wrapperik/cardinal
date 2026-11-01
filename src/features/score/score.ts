@@ -197,6 +197,44 @@ export function studyStreakDays(sessions: LocalSession[], now: number = Date.now
   return streak;
 }
 
+export interface DayScore {
+  /** Local midnight that starts the day. */
+  dayStart: number;
+  /** Single-letter weekday, for a chart axis: "M", "T", "W"… */
+  label: string;
+  score: number;
+  isToday: boolean;
+}
+
+const WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
+
+/**
+ * Points per day for the seven calendar days ending today, oldest first —
+ * the progress page's week chart. Days are walked with previousDay rather
+ * than fixed 24h steps for the same DST reason studyStreakDays gives.
+ */
+export function lastSevenDays(sessions: LocalSession[], now: number = Date.now()): DayScore[] {
+  const totals = new Map<string, number>();
+  for (const session of sessions) {
+    if (session.endedAt === null) continue;
+    const key = dayKey(session.endedAt);
+    totals.set(key, (totals.get(key) ?? 0) + scoreForSession(session));
+  }
+
+  const days: DayScore[] = [];
+  let cursor = startOfDay(now);
+  for (let i = 0; i < 7; i++) {
+    days.unshift({
+      dayStart: cursor,
+      label: WEEKDAY_LETTERS[new Date(cursor).getDay()],
+      score: totals.get(dayKey(cursor)) ?? 0,
+      isToday: i === 0,
+    });
+    cursor = previousDay(cursor);
+  }
+  return days;
+}
+
 /** "0MIN" | "7MIN" | "1H 12M" — uppercase, matching every other label in the app. */
 export function formatDuration(millis: number): string {
   if (!Number.isFinite(millis) || millis < 0) return "0MIN";

@@ -7,6 +7,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } fr
 import { BottomSheet, type BottomSheetHandle } from "@/components/bottom-sheet";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { ListActionRow, ListGroup, ListInfoRow } from "@/components/grouped-list";
+import { InlineError } from "@/components/inline-error";
 import { Icon, type IconName } from "@/components/icons";
 import { Colors, Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { useReducedMotion } from "@/lib/accessibility";
@@ -595,7 +596,7 @@ function StageCard({
   return (
     <View style={styles.stageCard}>
       <View style={[styles.stageIcon, tone === "error" && styles.stageIconError]}>
-        <Icon name={icon} size={26} color={tone === "error" ? Theme.accentText : Colors.bone} />
+        <Icon name={icon} size={26} color={tone === "error" ? Theme.onAccent : Colors.bone} />
       </View>
       <Text style={styles.stageTitle}>{title}</Text>
       {message ? <Text style={styles.stageMessage}>{message}</Text> : null}
@@ -608,7 +609,7 @@ function IdleStage({ error, onPick }: { error: string | null; onPick: () => void
   return (
     <StageCard icon="file" title="PDF IN, CARDS OUT" message="Pick a PDF and Cardinal turns it into study cards. Card types are chosen for you.">
       <SwipeAction label="CHOOSE A FILE" icon="file" hint="SWIPE RIGHT" tone="accent" onConfirm={onPick} />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <InlineError centered>{error}</InlineError> : null}
     </StageCard>
   );
 }
@@ -854,7 +855,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(217, 217, 217, 0.08)",
     marginBottom: Spacing.xs,
   },
-  stageIconError: { backgroundColor: "rgba(197, 61, 35, 0.1)" },
+  stageIconError: { backgroundColor: Colors.rust },
   stageTitle: {
     fontFamily: Fonts.bodyBold,
     fontSize: 18,
@@ -870,12 +871,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   stageActions: { alignSelf: "stretch", marginTop: Spacing.sm, gap: Spacing.sm },
-  error: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 13,
-    color: Theme.accentText,
-    textAlign: "center",
-  },
   progressCard: {
     marginTop: Spacing.lg,
     padding: Spacing.md,

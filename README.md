@@ -23,6 +23,7 @@ down again without the session ever feeling like a chore.
 
 ## Table of contents
 
+- [What's new in version 2.0](#whats-new-in-version-20)
 - [Status](#status)
 - [Submission artefacts](#submission-artefacts)
 - [Tech stack](#tech-stack)
@@ -47,6 +48,105 @@ down again without the session ever feeling like a chore.
 - [Scripts](#scripts)
 - [Deployment readiness](#deployment-readiness)
 - [Acknowledgements](#acknowledgements)
+
+---
+
+## What's new in version 2.0
+
+### Two ways to use the app: Traditional or Legacy
+
+- **New choice after sign-up.** New accounts pick how Cardinal feels on a one-time
+  screen. **Legacy UX** is the original grammar of holds, swipes and drags.
+  **Traditional UX** turns every one of those into an ordinary tap.
+- **Switchable any time** from the INTERACTION group in Settings. The mode is a
+  synced preference, so it follows the account to other devices.
+- **Existing accounts default to Legacy**, so nothing changes for them.
+- **The four games keep their gestures in both modes.** The mode covers the app
+  around them: navigation, settings, dialogs, upload and course pages.
+- **In Traditional,** swipe rows become centred buttons with an icon, hold buttons
+  fire on a tap, and switches flip on a tap. Signing out asks for confirmation,
+  because a single tap is easier to trigger by accident than a swipe.
+- **Paired actions sit side by side in Traditional** as two compact buttons, like
+  a native alert: Cancel / Update, Stop for now / Continue, Discard / Save.
+
+### Games
+
+- **Verdict pop-up.** A small tilted sticker drops in near the top of the screen
+  when an answer is checked: blue for CORRECT!, NICE!, SPOT ON!; orange for WRONG,
+  NOPE!, NOT QUITE; grey for PASSED. A right answer gets a glint of light and a wrong
+  one a quick head-shake. Under reduced motion it simply fades in and out.
+- **Hold to pass in Legacy.** In Match and Sequence, the PASS pill is held rather
+  than swiped down, with a fill that shows how long to keep holding.
+
+### Home
+
+- **Stats in the header.** The daily stats card now sits inside the orange header as
+  the overview.
+- **Floating course picker.** The course picker is a frosted-glass bar along the
+  bottom edge, with a COURSE label and compact pills; the selected course is filled
+  orange.
+- **Rows ripple when the course changes.** A shimmer runs up through the menu rows
+  and their badges roll into place, so the switch visibly lands on them.
+- **Icons instead of chevrons in Traditional.** Menu rows show an icon for their
+  destination.
+- **Help moved.** It is now a "How Cardinal works" link under the rows, instead of a
+  floating corner button.
+
+### Settings and the other sub-pages
+
+- **Grouped-card layout.** Settings, Progress, Topics, Course settings and the admin
+  dashboard share one layout: a fixed title bar beside the back button, then rounded
+  cards of rows with icon tiles, values, chevrons and switches.
+- **Settings:**
+  - Name and Password rows open their edit dialogs directly.
+  - Sign out and Delete account sit apart at the bottom.
+  - The sync row shows a steady "SYNCED · 3 MIN AGO", refreshed every two minutes,
+    instead of flickering on every save.
+  - The version shown is 2.0.
+- **Course settings:** renaming happens in a dialog from the TITLE row.
+- **Dashboard:** the back button sits on the left, matching Settings, and critical
+  alerts are marked with an orange icon tile.
+- **Progress redesign:**
+  - An orange hero card with today's points counting up and an animated accuracy
+    ring.
+  - Streak and cards-due tiles, plus a Quick Recap shortcut.
+  - A seven-day bar chart.
+  - An all-time grid of tiles.
+
+### Upload
+
+- **A shorter sheet:** 30% shorter, with no dimmed background behind it. Swipe the
+  top of the sheet down to close it in either mode.
+- **Grouped stages.** Each step is laid out in grouped cards: file details, a
+  radio-style course list with the AI's suggestion, a progress card while
+  extracting, and centred cards for saved and failed results.
+
+### Liquid Glass (iOS 26+)
+
+- **Where it appears.** On devices that support it, the course picker, the upload
+  sheet and the round icon buttons (back, restart, upload, settings) render as Liquid
+  Glass.
+- **How to turn it off.** A LIQUID GLASS switch under PREFERENCES in Settings. The
+  switch only appears where glass can actually render; other devices keep the
+  frosted and solid styles.
+
+### Colour, contrast and accessibility
+
+- **A contrast pass across the app.** Secondary text is brighter, and orange is now
+  used for solid fills, icon tiles and outlines, with white text on top. Orange text
+  on charcoal was too dark to read.
+- **Buttons no longer use the games' blue and orange.** Those colours mean right and
+  wrong in the games, so the main action is now light grey with dark text, the
+  secondary action is grey, and only destructive actions are orange.
+- **Errors** show a small orange "!" badge with white text.
+- **Screen readers can use every gesture control.** Swipe rows, hold buttons and the
+  upload sheet now have a direct action for VoiceOver and TalkBack, in both modes.
+
+### Fixes
+
+- **Preference sync.** The Firestore rules rejected every preference write because
+  they required two retired fields. Those fields are now optional, so preferences
+  sync again.
 
 ---
 

@@ -11,6 +11,7 @@ import {
   dailyStats,
   estimateRecapMinutes,
   formatDuration,
+  lastSevenDays,
   scoreForSession,
   scoreForTally,
   startOfDay,
@@ -323,5 +324,34 @@ describe("estimateRecapMinutes", () => {
 
   it("estimates 20 cards at 15 seconds each", () => {
     expect(estimateRecapMinutes(20)).toBe(5);
+  });
+});
+
+describe("lastSevenDays", () => {
+  // A Wednesday at noon, local time.
+  const now = new Date(2026, 9, 28, 12, 0, 0).getTime();
+  const daysAgo = (n: number) => new Date(2026, 9, 28 - n, 10, 0, 0).getTime();
+
+  it("returns seven days ending today, oldest first, with weekday letters", () => {
+    const days = lastSevenDays([], now);
+    expect(days).toHaveLength(7);
+    expect(days.map((day) => day.label).join("")).toBe("TFSSMTW");
+    expect(days[6].isToday).toBe(true);
+    expect(days[6].label).toBe("W");
+    expect(days[0].label).toBe("T");
+    expect(days.filter((day) => day.isToday)).toHaveLength(1);
+  });
+
+  it("sums finished sessions into the day they ended and ignores open or older ones", () => {
+    const days = lastSevenDays([
+      session({ startedAt: daysAgo(0), endedAt: daysAgo(0), correctCount: 2 }),
+      session({ startedAt: daysAgo(0), endedAt: daysAgo(0), correctCount: 1 }),
+      session({ startedAt: daysAgo(3), endedAt: daysAgo(3), wrongCount: 1 }),
+      session({ startedAt: daysAgo(0), endedAt: null, correctCount: 50 }),
+      session({ startedAt: daysAgo(9), endedAt: daysAgo(9), correctCount: 50 }),
+    ], now);
+    expect(days[6].score).toBe(3 * SCORE_WEIGHTS.correct);
+    expect(days[3].score).toBe(SCORE_WEIGHTS.wrong);
+    expect(days.reduce((sum, day) => sum + day.score, 0)).toBe(3 * SCORE_WEIGHTS.correct + SCORE_WEIGHTS.wrong);
   });
 });
