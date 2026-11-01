@@ -17,7 +17,8 @@ const BUTTON_SIZE = 40;
  * rather than living in the nav row, so it never crowds the two hold icons
  * it explains.
  */
-export function HelpButton() {
+/** `bottomOffset` lifts the button clear of anything docked along the bottom edge. */
+export function HelpButton({ bottomOffset = 0 }: { bottomOffset?: number }) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const traditional = useTraditionalUx();
@@ -26,7 +27,7 @@ export function HelpButton() {
     <>
       <Pressable
         onPress={() => setVisible(true)}
-        style={[styles.button, { bottom: insets.bottom + Spacing.lg }]}
+        style={[styles.button, { bottom: (bottomOffset || insets.bottom) + Spacing.lg }]}
         hitSlop={12}
         accessibilityRole="button"
         accessibilityLabel="HELP"

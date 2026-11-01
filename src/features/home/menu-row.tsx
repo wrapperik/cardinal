@@ -1,11 +1,16 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
+  withDelay,
+  withSequence,
   withSpring,
+  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
@@ -32,6 +37,15 @@ interface MenuRowProps {
   last?: boolean;
   /** Leading icon in traditional UX, where it replaces the swipe chevron. Legacy ignores it. */
   icon?: IconName;
+  /**
+   * Whatever the row's content currently describes — home passes the active
+   * course id. When it changes the row shimmers and its badge rolls in, so a
+   * course switch visibly lands on the rows rather than silently swapping
+   * their numbers.
+   */
+  refreshKey?: string;
+  /** Stagger for that refresh, so a stack of rows ripples instead of flashing at once. */
+  refreshDelay?: number;
 }
 
 /**
@@ -59,7 +73,7 @@ export function MenuRow(props: MenuRowProps) {
  * row while pressed. The swipe chevron has nothing to mark here, so a
  * leading icon for the destination takes its place.
  */
-function TapMenuRow({ label, badge, onPress, last, icon }: MenuRowProps) {
+function TapMenuRow({ label, badge, onPress, last, icon, refreshKey, refreshDelay = 0 }: MenuRowProps) {
   const accessibilityLabel = badge ? `${label}, ${badge}` : label;
 
   return (
@@ -75,6 +89,7 @@ function TapMenuRow({ label, badge, onPress, last, icon }: MenuRowProps) {
       {({ pressed }) => (
         <>
           <View style={[styles.fill, styles.fillFull, { opacity: pressed ? 1 : 0 }]} />
+          <RowShimmer refreshKey={refreshKey} delay={refreshDelay} />
           <View style={styles.content}>
             {icon && (
               <View style={styles.glyph}>
@@ -84,11 +99,7 @@ function TapMenuRow({ label, badge, onPress, last, icon }: MenuRowProps) {
             <Text style={styles.label} numberOfLines={1}>
               {label}
             </Text>
-            {badge != null && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{badge}</Text>
-              </View>
-            )}
+            {badge != null && <RowBadge badge={badge} refreshKey={refreshKey} delay={refreshDelay} />}
           </View>
         </>
       )}
@@ -96,7 +107,7 @@ function TapMenuRow({ label, badge, onPress, last, icon }: MenuRowProps) {
   );
 }
 
-function SwipeMenuRow({ label, badge, onPress, last }: MenuRowProps) {
+function SwipeMenuRow({ label, badge, onPress, last, refreshKey, refreshDelay = 0 }: MenuRowProps) {
   const reducedMotion = useReducedMotion();
   const drag = useSharedValue(0);
 
@@ -156,6 +167,7 @@ function SwipeMenuRow({ label, badge, onPress, last }: MenuRowProps) {
           this row can fill in the accent where the old course rows — bone
           text on a rust field — had to fill in charcoal instead. */}
       <Animated.View style={[styles.fill, fillStyle]} />
+      <RowShimmer refreshKey={refreshKey} delay={refreshDelay} />
 
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.content, contentStyle]}>
@@ -163,14 +175,90 @@ function SwipeMenuRow({ label, badge, onPress, last }: MenuRowProps) {
           <Text style={styles.label} numberOfLines={1}>
             {label}
           </Text>
-          {badge != null && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{badge}</Text>
-            </View>
-          )}
+          {badge != null && <RowBadge badge={badge} refreshKey={refreshKey} delay={refreshDelay} />}
         </Animated.View>
       </GestureDetector>
     </View>
+  );
+}
+
+/**
+ * Runs `start` whenever `refreshKey` changes, but not on first mount — the
+ * rows arriving with the screen is not a course switch.
+ */
+function useOnRefresh(refreshKey: string | undefined, start: () => void) {
+  const seen = useRef(refreshKey);
+  useEffect(() => {
+    if (seen.current === refreshKey) return;
+    seen.current = refreshKey;
+    start();
+    // `start` is rebuilt every render; only the key change should fire it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+}
+
+/** Soft-edged band, faked with stepped slices since there is no gradient dependency. */
+const SHIMMER_SLICES = [0.03, 0.07, 0.12, 0.16, 0.12, 0.07, 0.03];
+const SHIMMER_SLICE_W = 14;
+const SHIMMER_W = SHIMMER_SLICES.length * SHIMMER_SLICE_W;
+
+/**
+ * A band of light that sweeps across the row once its content has changed.
+ * Sits under the content and inside the row's clip, so it reads as the row
+ * itself catching the light rather than an overlay passing over it.
+ */
+function RowShimmer({ refreshKey, delay }: { refreshKey?: string; delay: number }) {
+  const reducedMotion = useReducedMotion();
+  const { width } = useWindowDimensions();
+  const progress = useSharedValue(0);
+
+  useOnRefresh(refreshKey, () => {
+    if (reducedMotion) return;
+    progress.value = 0;
+    progress.value = withDelay(delay, withTiming(1, { duration: 620, easing: Easing.inOut(Easing.cubic) }));
+  });
+
+  const style = useAnimatedStyle(() => ({
+    opacity: progress.value > 0 && progress.value < 1 ? 1 : 0,
+    transform: [
+      { translateX: -SHIMMER_W + progress.value * (width + SHIMMER_W * 2) },
+      { skewX: '-18deg' },
+    ],
+  }));
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.shimmer, style]}>
+      {SHIMMER_SLICES.map((alpha, index) => (
+        <View key={index} style={[styles.shimmerSlice, { opacity: alpha }]} />
+      ))}
+    </Animated.View>
+  );
+}
+
+/** The badge, rolling up into place when the row's content changes. */
+function RowBadge({ badge, refreshKey, delay }: { badge: string; refreshKey?: string; delay: number }) {
+  const reducedMotion = useReducedMotion();
+  const opacity = useSharedValue(1);
+  const shift = useSharedValue(0);
+
+  useOnRefresh(refreshKey, () => {
+    if (reducedMotion) {
+      opacity.value = withSequence(withTiming(0.3, { duration: 0 }), withDelay(delay, withTiming(1, { duration: 200 })));
+      return;
+    }
+    opacity.value = withSequence(withTiming(0, { duration: 0 }), withDelay(delay + 120, withTiming(1, { duration: 240 })));
+    shift.value = withSequence(withTiming(10, { duration: 0 }), withDelay(delay + 120, withSpring(0, Motion.snap)));
+  });
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: shift.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.badge, style]}>
+      <Text style={styles.badgeText}>{badge}</Text>
+    </Animated.View>
   );
 }
 
@@ -250,6 +338,18 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    flexDirection: 'row',
+  },
+  shimmerSlice: {
+    width: SHIMMER_SLICE_W,
+    height: '100%',
+    backgroundColor: Colors.bone,
   },
   badgeText: {
     fontFamily: Fonts.bodyMedium,

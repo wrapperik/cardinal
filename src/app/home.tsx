@@ -48,6 +48,9 @@ export default function Home() {
   const showSkeleton = useDelayedSkeleton(hydrated);
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Measured rather than assumed, since the dock's height follows the pill
+  // text and the device's bottom inset.
+  const [dockHeight, setDockHeight] = useState(0);
   // Resolved with a fallback rather than synced via an effect: the screen
   // renders the right course on the very first frame, before any pill has
   // been touched, and can never point at a course that has since vanished
@@ -113,17 +116,14 @@ export default function Home() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + Spacing.xl }]}
+        contentContainerStyle={[styles.body, { paddingBottom: dockHeight + Spacing.xl }]}
       >
-        {/* The picker sits directly above the rows it drives, so switching
-            course reads as changing what QUICK RECAP, TOPICS and the rest
-            point at. */}
-        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
-
         {showSkeleton ? <HomeSkeleton /> : active ? (
           <View>
             <MenuRow
               label="QUICK RECAP"
+              refreshKey={active.id}
+              refreshDelay={3 * ROW_RIPPLE_MS}
               icon="play"
               // SAMPLE courses ship with no stored cards, so a cardCount of
               // zero means "plays its shipped fixtures" rather than "empty"
@@ -134,18 +134,24 @@ export default function Home() {
             />
             <MenuRow
               label="TOPICS"
+              refreshKey={active.id}
+              refreshDelay={2 * ROW_RIPPLE_MS}
               icon="list"
               badge={stats.topics.length > 0 ? String(stats.topics.length) : null}
               onPress={() => router.push({ pathname: "/course/[id]", params: { id: active.id } })}
             />
             <MenuRow
               label="VIEW PROGRESS"
+              refreshKey={active.id}
+              refreshDelay={1 * ROW_RIPPLE_MS}
               icon="chart"
               badge={courseDaily.score > 0 ? `+${courseDaily.score}` : "0"}
               onPress={() => router.push({ pathname: "/progress", params: { courseId: active.id } })}
             />
             <MenuRow
               label="COURSE SETTINGS"
+              refreshKey={active.id}
+              refreshDelay={0 * ROW_RIPPLE_MS}
               icon="sliders"
               badge={null}
               onPress={() => router.push({ pathname: "/course-settings", params: { courseId: active.id } })}
@@ -160,10 +166,23 @@ export default function Home() {
         )}
       </ScrollView>
 
-      <HelpButton />
+      {/* Docked along the bottom edge, in thumb reach, like a tab bar. Each
+          switch ripples a shimmer up through the rows above it (see
+          ROW_RIPPLE_MS), so it reads as driving them. */}
+      <View
+        style={[styles.dock, { paddingBottom: insets.bottom + Spacing.md }]}
+        onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
+      >
+        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
+      </View>
+
+      <HelpButton bottomOffset={dockHeight} />
     </View>
   );
 }
+
+/** Gap between each row's shimmer, starting from the row nearest the dock. */
+const ROW_RIPPLE_MS = 70;
 
 function PillSkeleton() {
   return (
@@ -200,6 +219,16 @@ const styles = StyleSheet.create({
   body: {
     paddingTop: Spacing.lg,
     gap: Spacing.lg,
+  },
+  dock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: Spacing.md,
+    backgroundColor: Theme.surface,
+    borderTopLeftRadius: Radius.header,
+    borderTopRightRadius: Radius.header,
   },
   cardWrap: {
     paddingHorizontal: Spacing.sm,
