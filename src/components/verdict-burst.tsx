@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -9,8 +10,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Line, Polygon } from "react-native-svg";
 
+import { Icon, type IconName } from "@/components/icons";
 import { Colors, Fonts, Theme } from "@/constants/theme";
 import { useReducedMotion } from "@/lib/accessibility";
 
@@ -23,10 +24,28 @@ const WORDING: Record<VerdictKind, readonly string[]> = {
   pass: ["PASSED"],
 };
 
-const FILL: Record<VerdictKind, string> = {
+const FACE: Record<VerdictKind, string> = {
   correct: Theme.correct,
   wrong: Theme.incorrect,
   pass: Colors.charcoal,
+};
+
+/**
+ * A darker shade of each face, used for the lip under the sticker and the
+ * crisp shadow under its lettering. Depth comes from the colour's own shade
+ * rather than an outline or a grey drop shadow, which is what keeps it
+ * reading as one solid piece instead of a cut-out pasted on the screen.
+ */
+const DEPTH: Record<VerdictKind, string> = {
+  correct: "#16268A",
+  wrong: "#8A2715",
+  pass: "#1C1C1C",
+};
+
+const GLYPH: Record<VerdictKind, IconName> = {
+  correct: "check",
+  wrong: "close",
+  pass: "arrowRight",
 };
 
 // ── Emitter ────────────────────────────────────────────────────────────────
@@ -40,25 +59,24 @@ export function showVerdict(kind: VerdictKind) {
 }
 
 // ── Geometry ───────────────────────────────────────────────────────────────
-const BANNER_H = 64;
-const SLANT = 12;
-const OUTLINE = 4;
-const SHADOW_OFFSET = 5;
-/** Room around the banner for the burst ticks and the offset shadow. */
-const PAD = 18;
+const STICKER_H = 44;
+/** Lean of the sticker's sides. The content is counter-skewed so the
+ *  lettering itself stays upright. */
+const SKEW_DEG = -10;
+/** How far the darker lip shows under the face. */
+const LIP = 4;
 /** Below the HUD: the progress label ends about 60px under the safe area and
  *  the score row about 75px, so 100px clears both and the EXIT / restart
  *  buttons, which sit higher still. */
 const TOP_OFFSET = 100;
 
-const HOLD_MS = 650;
-const TOTAL_MS = 1100;
-const STROKE_PX = 2;
-const STROKE_OFFSETS: readonly (readonly [number, number])[] = [
-  [-STROKE_PX, -STROKE_PX], [0, -STROKE_PX], [STROKE_PX, -STROKE_PX],
-  [-STROKE_PX, 0], [STROKE_PX, 0],
-  [-STROKE_PX, STROKE_PX], [0, STROKE_PX], [STROKE_PX, STROKE_PX],
-];
+// ── Timing ─────────────────────────────────────────────────────────────────
+const HOLD_MS = 720;
+const EXIT_MS = 200;
+const TOTAL_MS = 1150;
+
+/** Firm and only just overshooting — it lands, it doesn't balloon. */
+const LAND_SPRING = { damping: 15, stiffness: 320, mass: 0.8 } as const;
 
 /** Plain words show up first, so a module flag per kind, not per game. */
 const usedPlain: Record<VerdictKind, boolean> = { correct: false, wrong: false, pass: false };
@@ -97,7 +115,7 @@ export function VerdictBurstHost() {
         kind,
         text,
         xFactor: Math.random() * 2 - 1,
-        rotation: Math.random() * 20 - 10,
+        rotation: Math.random() * 12 - 6,
       });
       clearTimer.current = setTimeout(() => setBurst(null), TOTAL_MS + 100);
       if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(text);
@@ -110,169 +128,184 @@ export function VerdictBurstHost() {
   }, []);
 
   if (!burst) return null;
-  return <VerdictBanner key={burst.id} burst={burst} />;
+  return <VerdictSticker key={burst.id} burst={burst} />;
 }
 
-function VerdictBanner({ burst }: { burst: Burst }) {
+/**
+ * The sticker itself. It drops in from just above its resting spot, still
+ * over-rotated, and settles into its tilt as it lands. Then each verdict
+ * does its own small thing:
+ *
+ * - correct: a glint of light sweeps across the face.
+ * - wrong: a short, decaying head-shake.
+ * - pass: nothing — a skip shouldn't celebrate or scold.
+ *
+ * It leaves by lifting slightly and shrinking as it fades, so the eye reads
+ * it as going away rather than just switching off.
+ */
+function VerdictSticker({ burst }: { burst: Burst }) {
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
 
-  const bannerW = Math.max(170, burst.text.length * 24 + 70);
-  const boxW = bannerW + PAD * 2 + SHADOW_OFFSET;
-  const boxH = BANNER_H + PAD * 2 + SHADOW_OFFSET;
-  // Up to ±25% of the screen off-centre, clamped so the box stays on screen.
-  const maxShift = Math.max(0, Math.min(screenW * 0.25, (screenW - boxW) / 2 - 4));
-  const left = (screenW - boxW) / 2 + burst.xFactor * maxShift;
+  // Laid out by its content; this estimate only bounds the random offset
+  // and the glint's travel, so it errs wide.
+  const estimatedW = burst.text.length * 15 + 80;
+  const maxShift = Math.max(0, Math.min(screenW * 0.18, (screenW - estimatedW) / 2 - 12));
+  const offsetX = burst.xFactor * maxShift;
 
   const opacity = useSharedValue(0);
-  const scale = useSharedValue(reducedMotion ? 1 : 0.4);
-  const drift = useSharedValue(0);
+  const scale = useSharedValue(reducedMotion ? 1 : 0.55);
+  const lift = useSharedValue(reducedMotion ? 0 : -22);
+  const spin = useSharedValue(reducedMotion ? 0 : burst.rotation * 2.4);
+  const shake = useSharedValue(0);
+  const glint = useSharedValue(0);
 
   useEffect(() => {
-    const outDelay = HOLD_MS + 150;
+    const exitAt = HOLD_MS + 180;
+
     if (reducedMotion) {
       opacity.value = withSequence(
-        withTiming(1, { duration: 120 }),
-        withDelay(HOLD_MS, withTiming(0, { duration: 200 })),
+        withTiming(1, { duration: 140 }),
+        withDelay(HOLD_MS, withTiming(0, { duration: EXIT_MS })),
       );
       return;
     }
+
     opacity.value = withSequence(
-      withTiming(1, { duration: 120 }),
-      withDelay(outDelay - 120, withTiming(0, { duration: TOTAL_MS - outDelay })),
+      withTiming(1, { duration: 110 }),
+      withDelay(exitAt - 110, withTiming(0, { duration: EXIT_MS, easing: Easing.in(Easing.quad) })),
     );
     scale.value = withSequence(
-      withSpring(1.08, { damping: 9, stiffness: 260 }),
-      withSpring(1, { damping: 12, stiffness: 220 }),
+      withSpring(1, LAND_SPRING),
+      withDelay(exitAt - 360, withTiming(0.88, { duration: EXIT_MS, easing: Easing.in(Easing.quad) })),
     );
-    drift.value = withDelay(outDelay, withTiming(-12, { duration: TOTAL_MS - outDelay }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reducedMotion]);
+    lift.value = withSequence(
+      withSpring(0, LAND_SPRING),
+      withDelay(exitAt - 360, withTiming(-10, { duration: EXIT_MS, easing: Easing.in(Easing.quad) })),
+    );
+    spin.value = withSpring(burst.rotation, { damping: 12, stiffness: 180 });
 
-  const animatedStyle = useAnimatedStyle(() => ({
+    if (burst.kind === "correct") {
+      glint.value = withDelay(220, withTiming(1, { duration: 520, easing: Easing.inOut(Easing.cubic) }));
+    } else if (burst.kind === "wrong") {
+      shake.value = withDelay(
+        160,
+        withSequence(
+          withTiming(-7, { duration: 55 }),
+          withTiming(6, { duration: 70 }),
+          withTiming(-4, { duration: 70 }),
+          withTiming(2, { duration: 60 }),
+          withTiming(0, { duration: 60 }),
+        ),
+      );
+    }
+    // Runs once per burst — each one is keyed and mounts fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stickerStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [
-      { translateY: drift.value },
-      { rotate: `${reducedMotion ? 0 : burst.rotation}deg` },
+      { translateX: offsetX + shake.value },
+      { translateY: lift.value },
+      { rotate: `${spin.value}deg` },
       { scale: scale.value },
     ],
   }));
 
-  // Parallelogram with slanted left and right edges, like the reference.
-  const x0 = PAD;
-  const y0 = PAD;
-  const pts = (dx: number, dy: number) =>
-    [
-      [x0 + SLANT + dx, y0 + dy],
-      [x0 + bannerW + dx, y0 + dy],
-      [x0 + bannerW - SLANT + dx, y0 + BANNER_H + dy],
-      [x0 + dx, y0 + BANNER_H + dy],
-    ]
-      .map((p) => p.join(","))
-      .join(" ");
-
-  // Three short ticks fanning out from each top corner.
-  const ticks = (cx: number, cy: number, baseDeg: number) =>
-    [-28, 0, 28].map((spread) => {
-      const rad = ((baseDeg + spread) * Math.PI) / 180;
-      return {
-        x1: cx + Math.cos(rad) * 8,
-        y1: cy + Math.sin(rad) * 8,
-        x2: cx + Math.cos(rad) * 17,
-        y2: cy + Math.sin(rad) * 17,
-        key: `${cx}-${spread}`,
-      };
-    });
-  const allTicks = [
-    ...ticks(x0 + SLANT, y0, -125),
-    ...ticks(x0 + bannerW, y0, -55),
-  ];
-
-  const textStyle = [styles.text, { width: bannerW - SLANT * 2 }];
+  const glintStyle = useAnimatedStyle(() => ({
+    opacity: glint.value > 0 && glint.value < 1 ? 1 : 0,
+    transform: [
+      { translateX: -40 + glint.value * (estimatedW + 80) },
+      { rotate: "18deg" },
+    ],
+  }));
 
   return (
-    <Animated.View
-      pointerEvents="none"
-      accessible
-      accessibilityLiveRegion="polite"
-      accessibilityLabel={burst.text}
-      style={[
-        styles.box,
-        { top: insets.top + TOP_OFFSET, left, width: boxW, height: boxH },
-        animatedStyle,
-      ]}
-    >
-      <Svg width={boxW} height={boxH} style={StyleSheet.absoluteFill}>
-        <Polygon
-          points={pts(SHADOW_OFFSET, SHADOW_OFFSET)}
-          fill="#000000"
-          opacity={0.35}
-          stroke="#000000"
-          strokeWidth={OUTLINE}
-          strokeLinejoin="round"
-        />
-        <Polygon
-          points={pts(0, 0)}
-          fill={FILL[burst.kind]}
-          stroke={Colors.bone}
-          strokeWidth={OUTLINE}
-          strokeLinejoin="round"
-        />
-        {burst.kind !== "pass" &&
-          allTicks.map((t) => (
-            <Line
-              key={t.key}
-              x1={t.x1}
-              y1={t.y1}
-              x2={t.x2}
-              y2={t.y2}
-              stroke={Colors.bone}
-              strokeWidth={3}
-              strokeLinecap="round"
-            />
-          ))}
-      </Svg>
-      <View style={[styles.textWrap, { left: PAD + SLANT, top: PAD, width: bannerW - SLANT * 2 }]}>
-        {/* RN has no text stroke: eight charcoal copies fan out under the real one. */}
-        {STROKE_OFFSETS.map(([dx, dy]) => (
-          <Text
-            key={`${dx},${dy}`}
-            numberOfLines={1}
-            style={[textStyle, styles.strokeCopy, { transform: [{ translateX: dx }, { translateY: dy }] }]}
-          >
-            {burst.text}
-          </Text>
-        ))}
-        <Text numberOfLines={1} style={textStyle}>
-          {burst.text}
-        </Text>
-      </View>
-    </Animated.View>
+    <View style={[styles.lane, { top: insets.top + TOP_OFFSET }]} pointerEvents="none">
+      <Animated.View
+        accessible
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={burst.text}
+        style={stickerStyle}
+      >
+        {/* The lip: the same skewed shape in the darker shade, peeking out
+            below the face to give it thickness. */}
+        <View style={[styles.slab, styles.lip, { backgroundColor: DEPTH[burst.kind] }]} />
+
+        <View style={[styles.slab, { backgroundColor: FACE[burst.kind] }]}>
+          <Animated.View style={[styles.glint, glintStyle]} />
+          <View style={styles.content}>
+            <View style={[styles.badge, { backgroundColor: DEPTH[burst.kind] }]}>
+              <Icon name={GLYPH[burst.kind]} size={14} color={Colors.bone} />
+            </View>
+            <Text
+              numberOfLines={1}
+              style={[styles.text, { textShadowColor: DEPTH[burst.kind] }]}
+            >
+              {burst.text}
+            </Text>
+          </View>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  box: {
+  // Full-width lane so the sticker centres on its own content width; the
+  // random sideways offset is a transform on top of that.
+  lane: {
     position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
     zIndex: 100,
     elevation: 100,
   },
-  textWrap: {
-    position: "absolute",
-    height: BANNER_H,
+  slab: {
+    height: STICKER_H,
+    borderRadius: 10,
+    overflow: "hidden",
+    transform: [{ skewX: `${SKEW_DEG}deg` }],
+  },
+  lip: {
+    ...StyleSheet.absoluteFill,
+    top: LIP,
+    bottom: -LIP,
+  },
+  // Counter-skewed so the lettering and badge stand upright on a leaning face.
+  content: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 10,
+    paddingRight: 20,
+    transform: [{ skewX: `${-SKEW_DEG}deg` }],
+  },
+  badge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
   },
   text: {
     fontFamily: Fonts.bodyBold,
-    fontSize: 38,
-    letterSpacing: 1.5,
+    fontSize: 24,
+    letterSpacing: 1.4,
     color: Colors.bone,
-    textAlign: "center",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 0,
   },
-  strokeCopy: {
+  glint: {
     position: "absolute",
-    color: Colors.charcoal,
+    top: -STICKER_H / 2,
+    bottom: -STICKER_H / 2,
+    left: 0,
+    width: 22,
+    backgroundColor: "rgba(255,255,255,0.28)",
   },
 });
