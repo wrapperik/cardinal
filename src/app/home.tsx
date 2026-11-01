@@ -119,6 +119,7 @@ export default function Home() {
           <View>
             <MenuRow
               label="QUICK RECAP"
+              icon="play"
               // SAMPLE courses ship with no stored cards, so a cardCount of
               // zero means "plays its shipped fixtures" rather than "empty"
               // — see gameHref's fallback in topics.ts. 0MIN would read as
@@ -128,16 +129,19 @@ export default function Home() {
             />
             <MenuRow
               label="TOPICS"
+              icon="list"
               badge={stats.topics.length > 0 ? String(stats.topics.length) : null}
               onPress={() => router.push({ pathname: "/course/[id]", params: { id: active.id } })}
             />
             <MenuRow
               label="VIEW PROGRESS"
+              icon="chart"
               badge={courseDaily.score > 0 ? `+${courseDaily.score}` : "0"}
               onPress={() => router.push({ pathname: "/progress", params: { courseId: active.id } })}
             />
             <MenuRow
               label="COURSE SETTINGS"
+              icon="sliders"
               badge={null}
               onPress={() => router.push({ pathname: "/course-settings", params: { courseId: active.id } })}
               last

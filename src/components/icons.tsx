@@ -18,6 +18,8 @@ const PATHS = {
   swap: "M3.5 7 H16 M12.5 3.5 L16 7 L12.5 10.5 M16.5 13 H4 M7.5 9.5 L4 13 L7.5 16.5",
   pause: "M7 4 V16 M13 4 V16",
   upload: "M10 13.5 V3.5 M5.5 8 L10 3.5 L14.5 8 M3.5 13.5 V16.5 H16.5 V13.5",
+  list: "M7.5 5 H16.5 M7.5 10 H16.5 M7.5 15 H16.5 M3.5 5 H4 M3.5 10 H4 M3.5 15 H4",
+  sliders: "M3.5 6 H16.5 M3.5 14 H16.5 M7 3.5 V8.5 M13 11.5 V16.5",
 } as const;
 
 export type IconName = keyof typeof PATHS;

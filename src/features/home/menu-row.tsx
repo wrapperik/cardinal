@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
+import { Icon, type IconName } from '@/components/icons';
 import { Colors, Fonts, Motion, Radius, Spacing, Theme } from '@/constants/theme';
 import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from '@/constants/gestures';
 import { useTraditionalUx } from '@/features/preferences/preferences';
@@ -29,6 +30,8 @@ interface MenuRowProps {
   onPress: () => void;
   /** Suppresses the bottom hairline, for the last row in a stack. */
   last?: boolean;
+  /** Leading icon in traditional UX, where it replaces the swipe chevron. Legacy ignores it. */
+  icon?: IconName;
 }
 
 /**
@@ -53,10 +56,10 @@ export function MenuRow(props: MenuRowProps) {
 
 /**
  * Traditional UX: an ordinary tappable row. The rust fill floods the whole
- * row while pressed, and the chevron moves to the right as a plain
- * disclosure indicator instead of marking where a swipe starts.
+ * row while pressed. The swipe chevron has nothing to mark here, so a
+ * leading icon for the destination takes its place.
  */
-function TapMenuRow({ label, badge, onPress, last }: MenuRowProps) {
+function TapMenuRow({ label, badge, onPress, last, icon }: MenuRowProps) {
   const accessibilityLabel = badge ? `${label}, ${badge}` : label;
 
   return (
@@ -73,24 +76,19 @@ function TapMenuRow({ label, badge, onPress, last }: MenuRowProps) {
         <>
           <View style={[styles.fill, styles.fillFull, { opacity: pressed ? 1 : 0 }]} />
           <View style={styles.content}>
+            {icon && (
+              <View style={styles.glyph}>
+                <Icon name={icon} size={22} color={Colors.bone} />
+              </View>
+            )}
             <Text style={styles.label} numberOfLines={1}>
               {label}
             </Text>
             {badge != null && (
-              <View style={[styles.badge, styles.badgeTrailing]}>
+              <View style={styles.badge}>
                 <Text style={styles.badgeText}>{badge}</Text>
               </View>
             )}
-            <Svg width={8} height={14} viewBox="0 0 8 14" fill="none">
-              <Path
-                d="M1 1 L7 7 L1 13"
-                stroke={Colors.bone}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </Svg>
           </View>
         </>
       )}
@@ -253,7 +251,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
   },
-  badgeTrailing: { marginRight: Spacing.md },
   badgeText: {
     fontFamily: Fonts.bodyMedium,
     fontSize: 13,
