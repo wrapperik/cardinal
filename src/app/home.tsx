@@ -95,27 +95,32 @@ export default function Home() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <HomeNavBar onUpload={onUpload} onSettings={onSettings} />
-        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
+        {/* Whole-app daily totals, deliberately independent of the selected
+            course — so they sit up here as the overview, above the course
+            picker, rather than among the rows that follow the selection. */}
+        <View style={styles.cardWrap}>
+          {showSkeleton ? (
+            <SkeletonBlock style={styles.summarySkeleton} />
+          ) : (
+            <HomeSummaryCard
+              streak={streak}
+              cardsPlayed={today.cardsStudied}
+              dailyScore={today.score}
+            />
+          )}
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + Spacing.xl }]}
       >
-        {/* Whole-app daily totals, deliberately independent of the selected
-            course. One panel makes the three related measures feel like a
-            single snapshot rather than a pair of unrelated destinations. */}
-        {showSkeleton ? <HomeSkeleton /> : (
-          <View style={styles.cardWrap}>
-            <HomeSummaryCard
-              streak={streak}
-              cardsPlayed={today.cardsStudied}
-              dailyScore={today.score}
-            />
-          </View>
-        )}
+        {/* The picker sits directly above the rows it drives, so switching
+            course reads as changing what QUICK RECAP, TOPICS and the rest
+            point at. */}
+        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
 
-        {!showSkeleton && active ? (
+        {showSkeleton ? <HomeSkeleton /> : active ? (
           <View>
             <MenuRow
               label="QUICK RECAP"
@@ -147,12 +152,12 @@ export default function Home() {
               last
             />
           </View>
-        ) : !showSkeleton ? (
+        ) : (
           // Unreachable in practice — the seeded courses mean courses.length
           // is never 0 — but the row stack must not render broken if that
           // ever changes.
           <Text style={styles.empty}>{traditional ? "TAP" : "HOLD"} THE PLUS TO ADD YOUR FIRST COURSE</Text>
-        ) : null}
+        )}
       </ScrollView>
 
       <HelpButton />
@@ -172,12 +177,7 @@ function PillSkeleton() {
 function HomeSkeleton() {
   return (
     <View>
-      <View style={styles.cardWrap}>
-        <SkeletonBlock style={styles.summarySkeleton} />
-      </View>
-      <View style={styles.rowSkeletons}>
-        {[0, 1, 2, 3].map((index) => <SkeletonBlock key={index} style={styles.rowSkeleton} />)}
-      </View>
+      {[0, 1, 2, 3].map((index) => <SkeletonBlock key={index} style={styles.rowSkeleton} />)}
     </View>
   );
 }
@@ -211,8 +211,7 @@ const styles = StyleSheet.create({
   },
   pillShort: { width: 108, height: 48, borderRadius: Radius.pill },
   pillLong: { width: 148, height: 48, borderRadius: Radius.pill },
-  summarySkeleton: { height: 152 },
-  rowSkeletons: { marginTop: Spacing.lg },
+  summarySkeleton: { height: 112, backgroundColor: "rgba(0, 0, 0, 0.16)" },
   rowSkeleton: {
     height: 92,
     borderRadius: 0,

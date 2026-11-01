@@ -1,9 +1,14 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
+import { Colors, Fonts, Radius, Spacing } from "@/constants/theme";
 import { homeSummaryValues, type HomeSummaryInput } from "@/features/home/home-summary";
 
-/** A single daily snapshot, so home presents one clear block instead of a stack of competing cards. */
+/**
+ * A single daily snapshot, so home presents one clear block instead of a
+ * stack of competing cards. It lives inside home's rust header, as the
+ * overview above the course picker, so it sits on a dark wash of that rust
+ * rather than on the charcoal card surface used elsewhere.
+ */
 export function HomeSummaryCard({ streak, cardsPlayed, dailyScore }: HomeSummaryInput) {
   const values = homeSummaryValues({ streak, cardsPlayed, dailyScore });
 
@@ -28,11 +33,11 @@ export function HomeSummaryCard({ streak, cardsPlayed, dailyScore }: HomeSummary
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 152,
+    minHeight: 112,
     flexDirection: "row",
     alignItems: "stretch",
-    paddingVertical: Spacing.lg,
-    backgroundColor: Theme.surface,
+    paddingVertical: Spacing.md,
+    backgroundColor: "rgba(0, 0, 0, 0.16)",
     borderRadius: Radius.card,
   },
   statGroup: {
@@ -43,7 +48,7 @@ const styles = StyleSheet.create({
   divider: {
     width: StyleSheet.hairlineWidth,
     alignSelf: "stretch",
-    backgroundColor: Theme.hairline,
+    backgroundColor: "rgba(217, 217, 217, 0.28)",
   },
   stat: {
     flex: 1,
@@ -53,14 +58,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   value: {
-    color: Theme.text,
+    color: Colors.bone,
     fontFamily: Fonts.display,
     fontSize: 31,
     lineHeight: 36,
     textAlign: "center",
   },
   label: {
-    color: Theme.textMuted,
+    // Theme.textMuted's grey goes muddy on rust; a dimmed bone keeps the
+    // labels quieter than the values without losing contrast.
+    color: "rgba(217, 217, 217, 0.78)",
     fontFamily: Fonts.bodyBold,
     fontSize: 11,
     letterSpacing: 0.7,
