@@ -217,7 +217,7 @@ export default function Home() {
 }
 
 /** Charcoal, translucent enough that the glass still refracts what's behind it. */
-const GLASS_TINT = "rgba(30, 30, 30, 0.72)";
+const GLASS_TINT = "rgba(30, 30, 30, 0.35)";
 
 /** Gap between each row's shimmer, starting from the row nearest the dock. */
 const ROW_RIPPLE_MS = 70;
