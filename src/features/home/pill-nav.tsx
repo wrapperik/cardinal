@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   pillActive: {
-    backgroundColor: Colors.bone,
+    backgroundColor: Colors.rust,
   },
   pillInactive: {
     backgroundColor: 'transparent',
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   pillTextActive: {
-    color: Colors.charcoal,
+    color: Colors.bone,
   },
   pillTextInactive: {
     color: Colors.bone,
