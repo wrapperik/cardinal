@@ -37,11 +37,12 @@ export function DashboardCard({ items }: { items: DashboardCardItem[] }) {
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 152,
+    minHeight: 128,
     flexDirection: "row",
     alignItems: "stretch",
     paddingVertical: Spacing.lg,
-    backgroundColor: Theme.surface,
+    // The same raised wash as the grouped-list cards below it.
+    backgroundColor: "rgba(217, 217, 217, 0.06)",
     borderRadius: Radius.card,
   },
   statGroup: {

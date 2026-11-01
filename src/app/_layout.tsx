@@ -69,6 +69,9 @@ export default function RootLayout() {
                   (side="left" direction="left" in settings.tsx) and popping
                   it slides back out to the right it came from. */}
               <Stack.Screen name="settings" options={{ animation: reducedMotion ? 'none' : 'slide_from_right' }} />
+              {/* Opened from settings, so it continues settings' direction
+                  and keeps BACK on the left in the same spot. */}
+              <Stack.Screen name="dashboard" options={{ animation: reducedMotion ? 'none' : 'slide_from_right' }} />
               {/* Dispatcher only — it replaces itself before anything is ever
                   visible, so animating it in would slide a blank charcoal
                   screen into view for a beat before the game it hands off to

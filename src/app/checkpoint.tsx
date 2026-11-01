@@ -9,7 +9,7 @@ import { runAt } from "@/features/recap/recap-rules";
 import { endRecap, useActiveRecap } from "@/features/recap/session";
 import { accuracyOf, formatDuration, scoreForTally } from "@/features/score/score";
 import { useSessions } from "@/features/sessions/sessions";
-import { SwipeAction } from "@/features/upload/swipe-action";
+import { ActionPair, SwipeAction } from "@/features/upload/swipe-action";
 
 function pct(value: number): string {
   return `${Math.round(value * 100)}%`;
@@ -80,11 +80,12 @@ export default function Checkpoint() {
         <StatRow label="TIME" value={formatDuration(elapsed)} />
 
         <View style={styles.gap} />
-        <SwipeAction label="CONTINUE" icon="arrowRight" hint="SWIPE RIGHT" tone="accent" onConfirm={continueRecap} />
+        <ActionPair
+          primary={<SwipeAction label="CONTINUE" icon="arrowRight" hint="SWIPE RIGHT" tone="accent" onConfirm={continueRecap} />}
+          secondary={<SwipeAction label="STOP FOR NOW" icon="pause" hint="SWIPE RIGHT" onConfirm={stopForNow} />}
+        />
         <View style={styles.gapSmall} />
         <Text style={styles.stopHint}>STOPPING NOW SAVES YOUR PLACE FOR THIS DECK.</Text>
-        <View style={styles.gapSmall} />
-        <SwipeAction label="STOP FOR NOW" icon="pause" hint="SWIPE RIGHT" onConfirm={stopForNow} />
       </ScrollView>
     </View>
   );

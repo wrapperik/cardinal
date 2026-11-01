@@ -9,7 +9,7 @@ import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
 import { useLastRun } from "@/features/recap/last-run";
 import { dailyStats, formatDuration, studyStreakDays } from "@/features/score/score";
 import { useSessions } from "@/features/sessions/sessions";
-import { SwipeAction } from "@/features/upload/swipe-action";
+import { ActionPair, SwipeAction } from "@/features/upload/swipe-action";
 import { useReducedMotion } from "@/lib/accessibility";
 
 /** Score, then each breakdown row this many ms after the last — a one-line
@@ -66,7 +66,7 @@ export default function Complete() {
               label="DONE"
               icon="check"
               hint="SWIPE RIGHT"
-              tone="calm"
+              tone="accent"
               onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
             />
           </>
@@ -105,22 +105,26 @@ export default function Complete() {
             />
 
             <View style={styles.gap} />
-            <SwipeAction
-              label="STUDY AGAIN"
-              icon="refresh"
-              hint="SWIPE RIGHT"
-              tone="light"
-              onConfirm={() =>
-                router.replace({ pathname: "/recap", params: { courseId: run.courseId } })
+            <ActionPair
+              primary={
+                <SwipeAction
+                  label="DONE"
+                  icon="check"
+                  hint="SWIPE RIGHT"
+                  tone="accent"
+                  onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
+                />
               }
-            />
-            <View style={styles.gapSmall} />
-            <SwipeAction
-              label="DONE"
-              icon="check"
-              hint="SWIPE RIGHT"
-              tone="calm"
-              onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
+              secondary={
+                <SwipeAction
+                  label="STUDY AGAIN"
+                  icon="refresh"
+                  hint="SWIPE RIGHT"
+                  onConfirm={() =>
+                    router.replace({ pathname: "/recap", params: { courseId: run.courseId } })
+                  }
+                />
+              }
             />
           </>
         )}
@@ -215,8 +219,5 @@ const styles = StyleSheet.create({
   },
   gap: {
     height: Spacing.xl,
-  },
-  gapSmall: {
-    height: Spacing.sm,
   },
 });

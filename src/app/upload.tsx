@@ -1,12 +1,14 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 
 import { BottomSheet, type BottomSheetHandle } from "@/components/bottom-sheet";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
-import { Colors, Fonts, Spacing, Theme } from "@/constants/theme";
+import { ListActionRow, ListGroup, ListInfoRow } from "@/components/grouped-list";
+import { Icon, type IconName } from "@/components/icons";
+import { Colors, Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { useReducedMotion } from "@/lib/accessibility";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { normaliseTitle } from "@/features/upload/course-rules";
@@ -24,7 +26,7 @@ import {
 import { clearDraftIds, setDraftIds } from "@/features/upload/drafts";
 import { activeProvider, extractCards } from "@/features/upload/extract";
 import { formatBytes, pickDocument } from "@/features/upload/picker";
-import { SwipeAction } from "@/features/upload/swipe-action";
+import { ActionPair, SwipeAction } from "@/features/upload/swipe-action";
 import { extractionStatus } from "@/features/upload/status-messages";
 import { TEMPLATE_LABELS } from "@/features/upload/template-picker";
 import type {
@@ -468,6 +470,7 @@ export default function Upload() {
   return (
     <BottomSheet
       ref={sheet}
+      title="UPLOAD"
       onRequestClose={attemptClose}
       onClosed={() => {
         const pending = afterClose.current;
@@ -479,13 +482,10 @@ export default function Upload() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingTop: Spacing.sm,
-          paddingHorizontal: Spacing.lg,
+          paddingHorizontal: Spacing.md,
           paddingBottom: insets.bottom + Spacing.lg,
         }}
       >
-        <Text style={styles.heading}>UPLOAD</Text>
-
         <View style={styles.body}>
           {state.stage === "idle" && (
             <IdleStage error={state.pickError} onPick={handlePick} />
@@ -574,13 +574,42 @@ export default function Upload() {
 /* Stages                                                                     */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The centred card a stage opens with when it has one thing to say — pick
+ * a file, cards saved, something failed: an icon tile, a line, a sentence,
+ * then whatever buttons belong to it.
+ */
+function StageCard({
+  icon,
+  tone = "default",
+  title,
+  message,
+  children,
+}: {
+  icon: IconName;
+  tone?: "default" | "success" | "error";
+  title: string;
+  message?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <View style={styles.stageCard}>
+      <View style={[styles.stageIcon, tone === "error" && styles.stageIconError]}>
+        <Icon name={icon} size={26} color={tone === "error" ? Theme.accentText : Colors.bone} />
+      </View>
+      <Text style={styles.stageTitle}>{title}</Text>
+      {message ? <Text style={styles.stageMessage}>{message}</Text> : null}
+      {children ? <View style={styles.stageActions}>{children}</View> : null}
+    </View>
+  );
+}
+
 function IdleStage({ error, onPick }: { error: string | null; onPick: () => void }) {
   return (
-    <View style={styles.stageGap}>
-      <Text style={styles.copy}>PDF IN, CARDS OUT</Text>
-      <SwipeAction label="CHOOSE A FILE" icon="file" hint="SWIPE RIGHT" onConfirm={onPick} />
-      {error && <Text style={styles.error}>{error}</Text>}
-    </View>
+    <StageCard icon="file" title="PDF IN, CARDS OUT" message="Pick a PDF and Cardinal turns it into study cards. Card types are chosen for you.">
+      <SwipeAction label="CHOOSE A FILE" icon="file" hint="SWIPE RIGHT" tone="accent" onConfirm={onPick} />
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </StageCard>
   );
 }
 
@@ -600,27 +629,23 @@ function PickedStage({
   onExtract: () => void;
 }) {
   return (
-    <View style={styles.stageGap}>
-      <View>
-        <Text style={styles.filename} numberOfLines={1}>
-          {file.name}
-        </Text>
-        <Text style={styles.filesize}>{formatBytes(file.size)}</Text>
-        <Text style={styles.note}>CARD TYPES ARE CHOSEN FOR YOU</Text>
-      </View>
+    <>
+      <ListGroup title="FILE" footer="Card types are chosen for you.">
+        <ListInfoRow icon="file" label={file.name} value={formatBytes(file.size)} />
+      </ListGroup>
 
       <DestinationPicker
         courses={courses}
         selectedId={destinationId}
         onSelect={onDestinationSelect}
         onCreate={onDestinationCreate}
+        footer={destinationId === null ? "No course chosen — the model will decide." : undefined}
       />
-      {destinationId === null && (
-        <Text style={styles.note}>NO COURSE CHOSEN — THE MODEL WILL DECIDE</Text>
-      )}
 
-      <SwipeAction label="EXTRACT" icon="sparkle" hint="SWIPE RIGHT" tone="accent" onConfirm={onExtract} />
-    </View>
+      <View style={styles.primary}>
+        <SwipeAction label="EXTRACT CARDS" icon="sparkle" hint="SWIPE RIGHT" tone="accent" onConfirm={onExtract} />
+      </View>
+    </>
   );
 }
 
@@ -640,36 +665,39 @@ function ExtractingStage({ file, progress, phase, onCancel }: { file: PickedFile
 
   const status = extractionStatus(phase, elapsedMs);
 
-  // Loops between the resting text colour and rust — the palette's "active"
-  // accent — so the status line reads as work in progress rather than a
-  // static caption. Skipped entirely under reduced motion: no loop is
-  // started, and the text just renders at its resting colour.
-  const pulse = useSharedValue(0);
+  // Breathes between full and dimmed text so the status line reads as work
+  // in progress rather than a static caption. Opacity, not the old pulse to
+  // rust — rust on this surface is unreadable, and a status line shouldn't
+  // flash the colour that means "wrong". Skipped under reduced motion.
+  const pulse = useSharedValue(1);
   useEffect(() => {
     if (reducedMotion) return;
-    pulse.value = withRepeat(withTiming(1, { duration: 900 }), -1, true);
+    pulse.value = withRepeat(withTiming(0.55, { duration: 900 }), -1, true);
   }, [reducedMotion, pulse]);
-  const pulseStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(pulse.value, [0, 1], [Theme.text, Colors.rust]),
-  }));
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
   return (
-    <View style={styles.stageGap}>
-      <Text style={styles.filename} numberOfLines={1}>
-        {file.name}
-      </Text>
-      <Text style={styles.provider}>{activeProvider().label.toUpperCase()}</Text>
-      {reducedMotion ? (
-        <Text style={[styles.copy, { color: Theme.text }]}>{status}</Text>
-      ) : (
-        <Animated.Text style={[styles.copy, pulseStyle]}>{status}</Animated.Text>
-      )}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${pct}%` }]} />
+    <>
+      <ListGroup title="FILE">
+        <ListInfoRow icon="file" label={file.name} value={activeProvider().label.toUpperCase()} />
+      </ListGroup>
+
+      <View style={styles.progressCard}>
+        <View style={styles.progressHeader}>
+          <Animated.Text style={[styles.progressStatus, pulseStyle]} numberOfLines={2}>
+            {status}
+          </Animated.Text>
+          <Text style={styles.progressPct}>{pct}%</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${pct}%` }]} />
+        </View>
       </View>
-      <Text style={styles.progressPct}>{pct}%</Text>
-      <SwipeAction label="CANCEL" icon="close" hint="SWIPE RIGHT" onConfirm={onCancel} />
-    </View>
+
+      <View style={styles.primary}>
+        <SwipeAction label="CANCEL" icon="close" hint="SWIPE RIGHT" onConfirm={onCancel} />
+      </View>
+    </>
   );
 }
 
@@ -705,33 +733,34 @@ function ReviewStage({
   const chosenCourse = chosenId
     ? pickerCourses.find((course) => course.id === chosenId) ?? courseById(chosenId)
     : undefined;
-  const saveLabel = `SAVE TO ${(chosenCourse?.title ?? result.suggestedTitle).toUpperCase()}`;
+  const destinationTitle = (chosenCourse?.title ?? result.suggestedTitle).toUpperCase();
+  const suggestion = `Suggested: ${result.suggestedTitle}${result.confidence > 0 ? ` · ${Math.round(result.confidence * 100)}% sure` : ""}`;
+  const total = result.cards.length;
 
   return (
-    <View style={styles.stageGap}>
-      <Text style={styles.copy}>
-        {result.cards.length} CARD{result.cards.length === 1 ? "" : "S"}
-      </Text>
-      <View style={styles.breakdown}>
+    <>
+      <ListGroup title={`${total} CARD${total === 1 ? "" : "S"}`} iconless>
         {breakdown.map(({ gameType, count }) => (
-          <Text key={gameType} style={styles.breakdownLine}>
-            {TEMPLATE_LABELS[gameType]} · {count}
-          </Text>
+          <ListInfoRow key={gameType} label={TEMPLATE_LABELS[gameType]} value={String(count)} />
         ))}
-      </View>
+      </ListGroup>
 
-      {result.provider !== "gemini" && result.cards.map((card, index) => (
-        <View key={`${card.gameType}-${index}`} style={styles.cardReviewRow}>
-          <Text style={styles.breakdownLine}>{TEMPLATE_LABELS[card.gameType]}</Text>
-          <Text style={styles.note}>{cardPreview(card)}</Text>
-          <SwipeAction label="DROP" icon="trash" hint="SWIPE RIGHT" onConfirm={() => onDropCard(index)} />
-        </View>
-      ))}
-
-      <Text style={styles.suggestion}>
-        SUGGESTED: {result.suggestedTitle}
-        {result.confidence > 0 ? `  ·  ${Math.round(result.confidence * 100)}%` : ""}
-      </Text>
+      {/* Only the offline extractor gets per-card review — Gemini's output
+          goes straight to the course and is edited from there. */}
+      {result.provider !== "gemini" && (
+        <ListGroup title="REVIEW" footer="Tap a card to drop it from this upload.">
+          {result.cards.map((card, index) => (
+            <ListActionRow
+              key={`${card.gameType}-${index}`}
+              icon="trash"
+              label={TEMPLATE_LABELS[card.gameType]}
+              detail={cardPreview(card)}
+              destructive
+              onPress={() => onDropCard(index)}
+            />
+          ))}
+        </ListGroup>
+      )}
 
       <DestinationPicker
         courses={pickerCourses}
@@ -739,32 +768,43 @@ function ReviewStage({
         suggestedId={result.suggestedCourseId ?? result.canonicalCourse?.id}
         onSelect={onDestinationSelect}
         onCreate={onDestinationCreate}
+        footer={suggestion}
       />
 
-      <View style={styles.divider} />
-
-      <SwipeAction label={saveLabel} icon="check" hint="SWIPE RIGHT" tone="accent" onConfirm={onSave} />
-      <SwipeAction label="DISCARD" icon="close" hint="SWIPE RIGHT" onConfirm={onDiscard} />
-    </View>
+      <View style={styles.primary}>
+        <ActionPair
+          primary={<SwipeAction label="SAVE" icon="check" hint="SWIPE RIGHT" tone="accent" onConfirm={onSave} />}
+          secondary={<SwipeAction label="DISCARD" icon="close" hint="SWIPE RIGHT" onConfirm={onDiscard} />}
+        />
+        <Text style={styles.saveNote} numberOfLines={1}>SAVES TO {destinationTitle}</Text>
+      </View>
+    </>
   );
 }
 
 function SavedStage({ courseTitle, count, saving = false, onStudy, onDone }: { courseTitle: string | null; count: number; saving?: boolean; onStudy?: () => void; onDone?: () => void }) {
   if (saving) {
-    return (
-      <View style={styles.stageGap}>
-        <Text style={styles.copy}>SAVING…</Text>
-      </View>
-    );
+    return <StageCard icon="cloud" title="SAVING…" message="Filing your cards under their course." />;
   }
   return (
-    <View style={styles.stageGap}>
-      <Text style={styles.copy}>
-        {count} CARD{count === 1 ? "" : "S"} ADDED TO {courseTitle ?? "—"}
-      </Text>
-      {onStudy && <SwipeAction label="STUDY NOW" icon="play" hint="SWIPE RIGHT" tone="accent" onConfirm={onStudy} />}
-      {onDone && <SwipeAction label="DONE" icon="check" hint="SWIPE RIGHT" onConfirm={onDone} />}
-    </View>
+    <StageCard
+      icon="check"
+      tone="success"
+      title={`${count} CARD${count === 1 ? "" : "S"} ADDED`}
+      message={`Saved to ${courseTitle ?? "—"}.`}
+    >
+      {onStudy && onDone ? (
+        <ActionPair
+          primary={<SwipeAction label="STUDY NOW" icon="play" hint="SWIPE RIGHT" tone="accent" onConfirm={onStudy} />}
+          secondary={<SwipeAction label="DONE" icon="check" hint="SWIPE RIGHT" onConfirm={onDone} />}
+        />
+      ) : (
+        <>
+          {onStudy && <SwipeAction label="STUDY NOW" icon="play" hint="SWIPE RIGHT" tone="accent" onConfirm={onStudy} />}
+          {onDone && <SwipeAction label="DONE" icon="check" hint="SWIPE RIGHT" onConfirm={onDone} />}
+        </>
+      )}
+    </StageCard>
   );
 }
 
@@ -778,11 +818,12 @@ function FailedStage({
   onStartOver: () => void;
 }) {
   return (
-    <View style={styles.stageGap}>
-      <Text style={styles.error}>{message ?? "SOMETHING WENT WRONG"}</Text>
-      <SwipeAction label="TRY AGAIN" icon="refresh" hint="SWIPE RIGHT" onConfirm={onRetry} />
-      <SwipeAction label="START OVER" icon="refresh" hint="SWIPE RIGHT" onConfirm={onStartOver} />
-    </View>
+    <StageCard icon="info" tone="error" title="EXTRACTION FAILED" message={message ?? "Something went wrong."}>
+      <ActionPair
+        primary={<SwipeAction label="TRY AGAIN" icon="refresh" hint="SWIPE RIGHT" tone="accent" onConfirm={onRetry} />}
+        secondary={<SwipeAction label="START OVER" icon="refresh" hint="SWIPE RIGHT" onConfirm={onStartOver} />}
+      />
+    </StageCard>
   );
 }
 
@@ -790,82 +831,91 @@ function FailedStage({
 /* Styles                                                                     */
 /* -------------------------------------------------------------------------- */
 
+/** The raised wash the grouped-list cards use, so stage cards sit in the same family. */
+const CARD = "rgba(217, 217, 217, 0.06)";
+
 const styles = StyleSheet.create({
-  heading: {
-    fontFamily: Fonts.display,
-    color: Theme.text,
-    letterSpacing: 2,
-    fontSize: 40,
+  body: {},
+  primary: { marginTop: Spacing.lg, gap: Spacing.sm },
+  stageCard: {
+    marginTop: Spacing.sm,
+    padding: Spacing.lg,
+    borderRadius: Radius.card,
+    backgroundColor: CARD,
+    alignItems: "center",
+    gap: Spacing.sm,
   },
-  body: {
-    marginTop: Spacing.lg,
-    gap: Spacing.md,
+  stageIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(217, 217, 217, 0.08)",
+    marginBottom: Spacing.xs,
   },
-  stageGap: {
-    gap: Spacing.md,
-  },
-  copy: {
+  stageIconError: { backgroundColor: "rgba(197, 61, 35, 0.1)" },
+  stageTitle: {
     fontFamily: Fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 18,
     letterSpacing: 1,
-    color: Theme.textMuted,
-  },
-  filename: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 16,
     color: Theme.text,
+    textAlign: "center",
   },
-  filesize: {
+  stageMessage: {
     fontFamily: Fonts.body,
-    fontSize: 12,
+    fontSize: 15,
+    lineHeight: 21,
     color: Theme.textMuted,
-    marginTop: 2,
+    textAlign: "center",
   },
-  note: {
-    fontFamily: Fonts.body,
-    fontSize: 12,
-    color: Theme.textMuted,
-  },
+  stageActions: { alignSelf: "stretch", marginTop: Spacing.sm, gap: Spacing.sm },
   error: {
     fontFamily: Fonts.bodyBold,
     fontSize: 13,
-    color: Colors.rust,
+    color: Theme.accentText,
+    textAlign: "center",
   },
-  provider: {
+  progressCard: {
+    marginTop: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: Radius.card,
+    backgroundColor: CARD,
+    gap: Spacing.md,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  progressStatus: {
+    flex: 1,
+    fontFamily: Fonts.bodyMedium,
+    fontSize: 15,
+    letterSpacing: 0.6,
+    color: Theme.text,
+  },
+  progressPct: {
     fontFamily: Fonts.bodyBold,
-    fontSize: 11,
-    letterSpacing: 1.2,
+    fontSize: 15,
     color: Theme.textMuted,
   },
   progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Theme.surface,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(217, 217, 217, 0.12)",
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: Colors.rust,
+    borderRadius: 3,
+    backgroundColor: Colors.bone,
   },
-  progressPct: {
+  saveNote: {
     fontFamily: Fonts.bodyBold,
-    fontSize: 13,
-    color: Theme.text,
-    alignSelf: "flex-end",
-  },
-  breakdown: {
-    gap: 2,
-  },
-  breakdownLine: {
-    fontFamily: Fonts.body,
-    fontSize: 13,
+    fontSize: 11,
+    letterSpacing: 1.5,
     color: Theme.textMuted,
-  },
-  cardReviewRow: { gap: Spacing.sm },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: Theme.hairline },
-  suggestion: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 13,
-    color: Theme.text,
+    textAlign: "center",
   },
 });

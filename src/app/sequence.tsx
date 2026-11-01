@@ -19,7 +19,9 @@ import type { SequenceRound } from "@/features/sequence/rounds";
 import { finishSequencePassGesture } from "@/features/sequence/pass-gesture";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useSequenceRounds } from "@/features/upload/play";
+import { HoldPassPill } from "@/components/hold-pass-pill";
 import { showVerdict } from "@/components/verdict-burst";
+import { useTraditionalUx } from "@/features/preferences/preferences";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
@@ -82,6 +84,8 @@ function clamp(value: number, min: number, max: number) {
  */
 export default function Sequence() {
   const insets = useSafeAreaInsets();
+  // Legacy passes on a hold (HoldPassPill); traditional keeps the swipe down.
+  const traditional = useTraditionalUx();
   const runner = useRecapRunner();
   const reducedMotion = useReducedMotion();
 
@@ -273,26 +277,32 @@ export default function Sequence() {
         </View>
 
         <View style={styles.passWrap}>
-          <View style={styles.passHint} pointerEvents="none">
-            <Svg width={18} height={12} viewBox="0 0 18 12" fill="none">
-              <Path d="M2 2 L9 9 L16 2" stroke={Colors.bone} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </View>
-          <GestureDetector gesture={passDrag}>
-            <Animated.View style={[styles.passPill, passPillStyle]}>
-              <View style={styles.passBadge}>
-                <Svg width={10} height={10}>
-                  <Path
-                    d="M2 2 L8 8 M8 2 L2 8"
-                    stroke={Colors.bone}
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                  />
+          {traditional ? (
+            <>
+              <View style={styles.passHint} pointerEvents="none">
+                <Svg width={18} height={12} viewBox="0 0 18 12" fill="none">
+                  <Path d="M2 2 L9 9 L16 2" stroke={Colors.bone} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
               </View>
-              <Text style={styles.passText}>PASS</Text>
-            </Animated.View>
-          </GestureDetector>
+              <GestureDetector gesture={passDrag}>
+                <Animated.View style={[styles.passPill, passPillStyle]}>
+                  <View style={styles.passBadge}>
+                    <Svg width={10} height={10}>
+                      <Path
+                        d="M2 2 L8 8 M8 2 L2 8"
+                        stroke={Colors.bone}
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                      />
+                    </Svg>
+                  </View>
+                  <Text style={styles.passText}>PASS</Text>
+                </Animated.View>
+              </GestureDetector>
+            </>
+          ) : (
+            <HoldPassPill onPass={skipRound} />
+          )}
         </View>
 
         {/* Below the pill, not above it — leading with this spacer pushed the

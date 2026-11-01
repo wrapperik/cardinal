@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
 import type { IconName } from "@/components/icons";
-import { SwipeAction } from "@/components/swipe-action";
+import { ActionPair, SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 
 interface Props {
@@ -13,17 +13,21 @@ interface Props {
   confirmIcon?: IconName;
   onConfirm: (value: string) => void;
   onCancel: () => void;
+  /** Pre-fills the field, for editing an existing value rather than naming a new one. */
+  initialValue?: string;
+  /** Extra rule for enabling confirm beyond "not empty". */
+  isValid?: (value: string) => boolean;
 }
 
 /** A single free-text prompt, modelled on ConfirmationDialog's modal/backdrop/card shell. */
-export function TextPromptDialog({ visible, title, placeholder, confirmLabel, confirmIcon = "check", onConfirm, onCancel }: Props) {
+export function TextPromptDialog({ visible, title, placeholder, confirmLabel, confirmIcon = "check", onConfirm, onCancel, initialValue = "", isValid }: Props) {
   const [value, setValue] = useState("");
 
   // Cleared on every open rather than on close, so the field can't flash the
   // previous attempt's text for a frame while the dialog fades out.
   useEffect(() => {
-    if (visible) setValue("");
-  }, [visible]);
+    if (visible) setValue(initialValue);
+  }, [visible, initialValue]);
 
   const trimmed = value.trim();
 
@@ -42,8 +46,10 @@ export function TextPromptDialog({ visible, title, placeholder, confirmLabel, co
             selectionColor={Theme.accent}
             style={styles.input}
           />
-          <SwipeAction label={confirmLabel} icon={confirmIcon} tone="accent" disabled={trimmed.length === 0} onConfirm={() => onConfirm(trimmed)} />
-          <SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" onConfirm={onCancel} />
+          <ActionPair
+            primary={<SwipeAction label={confirmLabel} icon={confirmIcon} tone="accent" disabled={trimmed.length === 0 || (isValid ? !isValid(trimmed) : false)} onConfirm={() => onConfirm(trimmed)} />}
+            secondary={<SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" onConfirm={onCancel} />}
+          />
         </Pressable>
       </Pressable>
     </Modal>

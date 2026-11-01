@@ -1,7 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text } from "react-native";
 
 import type { IconName } from "@/components/icons";
-import { SwipeAction } from "@/components/swipe-action";
+import { ActionPair, SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 
 interface Props {
@@ -22,8 +22,10 @@ export function ConfirmationDialog({ visible, title, message, confirmLabel, canc
         <Pressable style={styles.card} onPress={() => {}}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
-          <SwipeAction label={confirmLabel} icon={confirmIcon} tone="destructive" onConfirm={onConfirm} />
-          <SwipeAction label={cancelLabel} icon="close" direction="left" tone="calm" onConfirm={onCancel} />
+          <ActionPair
+            primary={<SwipeAction label={confirmLabel} icon={confirmIcon} tone="destructive" onConfirm={onConfirm} />}
+            secondary={<SwipeAction label={cancelLabel} icon="close" direction="left" tone="calm" onConfirm={onCancel} />}
+          />
         </Pressable>
       </Pressable>
     </Modal>

@@ -152,6 +152,9 @@ export interface SyncedStore<T extends { id: string }> {
   isHydrated(): boolean;
   /** Listener readiness and queued writes, for concise live sync UI. */
   useSyncStatus(): SyncStatus;
+  getSyncStatus(): SyncStatus;
+  /** When the store last settled into "synced", or null if it never has this session. */
+  getLastSyncedAt(): number | null;
   /** Applies a create or edit immediately and syncs it in the background. */
   put(record: T): void;
   /**
@@ -186,6 +189,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   let listenerReady = false;
   let listenerFailed = false;
   let syncStatus: SyncStatus = "offline";
+  let lastSyncedAt: number | null = null;
   // Server rendering has no device cache to await. Native/web clients begin
   // false so first-frame seed values are never presented as restored data.
   let hydrated = typeof window === "undefined";
@@ -196,6 +200,7 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
   function setSyncStatus(next: SyncStatus) {
     if (syncStatus === next) return;
     syncStatus = next;
+    if (next === "synced") lastSyncedAt = Date.now();
     notify();
   }
 
@@ -601,6 +606,8 @@ export function createSyncedStore<T extends { id: string }>(config: SyncedStoreC
     useHydrated: () => useSyncExternalStore(subscribe, () => hydrated),
     isHydrated: () => hydrated,
     useSyncStatus: () => useSyncExternalStore(subscribe, () => syncStatus),
+    getSyncStatus: () => syncStatus,
+    getLastSyncedAt: () => lastSyncedAt,
     put,
     adoptRemote,
     remove,

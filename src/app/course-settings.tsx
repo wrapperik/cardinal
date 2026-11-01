@@ -1,21 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
 
-import { BackButton } from "@/components/back-button";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
-import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
-import { Fonts, Spacing, Theme } from "@/constants/theme";
+import { ListActionRow, ListGroup, ListInfoRow } from "@/components/grouped-list";
+import { PageEmpty, PageScaffold } from "@/components/page-scaffold";
+import { TextPromptDialog } from "@/components/text-prompt-dialog";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
-import { AuthField } from "@/features/auth/auth-field";
 import { isValidTitle } from "@/features/upload/course-rules";
 import {
   deleteCourse,
@@ -25,41 +15,25 @@ import {
 import { deleteDecksForCourse } from "@/features/upload/decks";
 import { deleteProgressForDecks } from "@/features/progress/progress";
 import { clearCheckpoint } from "@/features/recap/checkpoints";
-import { SwipeAction } from "@/features/upload/swipe-action";
 
-const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
-
-/** How long the rename confirmation holds before it fades — same beat and
- *  duration as upload.tsx's SAVED_HOLD_MS, just not followed by a
- *  navigation: this screen keeps two more actions below it, so nothing
- *  here should hand the player back to home the way a one-shot upload does. */
+/** How long the rename confirmation holds in the NAME group's footer —
+ *  same beat as upload.tsx's SAVED_HOLD_MS, just not followed by a
+ *  navigation: the page stays put with its other rows below. */
 const CONFIRM_HOLD_MS = 1400;
 
 /**
  * The COURSE SETTINGS destination: rename, upload more material, or
- * deliberately remove a custom course.
+ * deliberately remove a custom course. Renaming opens a prompt from the
+ * NAME row, the same pattern settings uses for the account name, rather
+ * than keeping a text field open on the page.
  */
 export default function CourseSettings() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { courseId } = useLocalSearchParams<{ courseId?: string }>();
   const courses = useCourses();
   const course = courseId ? courses.find((c) => c.id === courseId) : undefined;
 
-  const [draft, setDraft] = useState(course?.title ?? "");
-  const draftSeeded = useRef(false);
-  // Seeds the draft once the real course is available rather than only at
-  // mount — courses hydrate from AsyncStorage, then Firestore, so a read
-  // taken on the very first render can still be stale for a course that
-  // isn't a seed. Firing only once means a rename in progress is never
-  // clobbered by a later hydration pass landing the same title again.
-  useEffect(() => {
-    if (!draftSeeded.current && course) {
-      setDraft(course.title);
-      draftSeeded.current = true;
-    }
-  }, [course]);
-
+  const [renaming, setRenaming] = useState(false);
   const [renamed, setRenamed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
@@ -69,85 +43,66 @@ export default function CourseSettings() {
     return () => clearTimeout(timer);
   }, [renamed]);
 
+  if (!course) {
+    return (
+      <PageScaffold title="COURSE SETTINGS">
+        <PageEmpty title="COURSE NOT FOUND" message="RETURN HOME TO CHOOSE A COURSE." />
+      </PageScaffold>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      {/* The one screen outside sign-in/sign-up with a text field on it, and
-          the swipe that commits the edit sits directly beneath that field —
-          so it needs the same keyboard handling auth-screen.tsx uses, or the
-          keyboard covers the control the field exists to feed.
-          keyboardShouldPersistTaps lets the SwipeAction take the gesture on
-          the first touch instead of spending it dismissing the keyboard. */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.container}
+    <PageScaffold title="COURSE SETTINGS" subtitle={course.title}>
+      <ListGroup
+        title="NAME"
+        footer={renamed ? "Course renamed." : course.seeded ? "Sample courses keep their names." : undefined}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{
-            paddingTop: insets.top + CONTENT_TOP_CLEARANCE,
-            paddingHorizontal: Spacing.lg,
-            // Clears the home indicator, so the UPLOAD swipe is never sitting
-            // in the strip iOS reserves for its own gesture.
-            paddingBottom: insets.bottom + Spacing.xl,
-          }}
-        >
-          <Text style={styles.heading}>{course?.title ?? "—"}</Text>
-          <Text style={styles.sectionLabel}>COURSE SETTINGS</Text>
+        {course.seeded ? (
+          <ListInfoRow icon="pencil" label="TITLE" value={course.title} />
+        ) : (
+          <ListActionRow icon="pencil" label="TITLE" value={course.title} onPress={() => setRenaming(true)} />
+        )}
+      </ListGroup>
 
-          {course && (
-            <>
-              <RenameSection
-                course={course}
-                draft={draft}
-                onDraftChange={setDraft}
-                renamed={renamed}
-                onRenamed={() => setRenamed(true)}
-              />
+      <ListGroup title="MATERIAL">
+        <ListActionRow
+          icon="upload"
+          label="UPLOAD INTO THIS COURSE"
+          onPress={() => router.push({ pathname: "/upload", params: { courseId: course.id } })}
+        />
+      </ListGroup>
 
-              <Text style={styles.groupLabel}>UPLOAD</Text>
-              <SwipeAction
-                label="UPLOAD INTO THIS COURSE"
-                icon="upload"
-                hint="SWIPE RIGHT"
-                tone="accent"
-                onConfirm={() =>
-                  router.push({
-                    pathname: "/upload",
-                    params: { courseId: course.id },
-                  })
-                }
-              />
+      <ListGroup footer={course.seeded ? "Sample courses can't be deleted." : undefined}>
+        {course.seeded ? (
+          <ListInfoRow icon="trash" label="DELETE COURSE" />
+        ) : (
+          <ListActionRow icon="trash" label="DELETE COURSE" destructive onPress={() => setConfirmDelete(true)} />
+        )}
+      </ListGroup>
 
-              <Text style={styles.groupLabel}>DELETE COURSE</Text>
-              {course.seeded ? (
-                <Text style={styles.note}>SAMPLE COURSES CAN&apos;T BE DELETED</Text>
-              ) : (
-                <SwipeAction
-                  label="DELETE COURSE"
-                  icon="trash"
-                  hint="SWIPE RIGHT"
-                  tone="destructive"
-                  onConfirm={() => setConfirmDelete(true)}
-                />
-              )}
-            </>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* Sibling of the ScrollView, not inside it — same reasoning
-          course/[id].tsx documents for its own tab. */}
-      <BackButton label="BACK" side="right" onBack={() => router.back()} />
+      <TextPromptDialog
+        visible={renaming}
+        title="RENAME COURSE"
+        placeholder="COURSE TITLE"
+        confirmLabel="SAVE"
+        initialValue={course.title}
+        isValid={isValidTitle}
+        onCancel={() => setRenaming(false)}
+        onConfirm={(title) => {
+          setRenaming(false);
+          renameCourse(course.id, title);
+          setRenamed(true);
+        }}
+      />
       <ConfirmationDialog
         visible={confirmDelete}
         title="DELETE COURSE?"
-        message={`This removes ${course?.title ?? "this course"}, its uploaded decks, and its saved progress.`}
+        message={`This removes ${course.title}, its uploaded decks, and its saved progress.`}
         confirmLabel="DELETE"
         confirmIcon="trash"
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => {
-          if (!course || course.seeded) return;
+          if (course.seeded) return;
           setConfirmDelete(false);
           const deckIds = deleteDecksForCourse(course.id);
           deleteProgressForDecks(deckIds);
@@ -156,96 +111,6 @@ export default function CourseSettings() {
           router.replace("/home");
         }}
       />
-    </View>
+    </PageScaffold>
   );
 }
-
-function RenameSection({
-  course,
-  draft,
-  onDraftChange,
-  renamed,
-  onRenamed,
-}: {
-  course: { id: string; title: string; seeded: boolean };
-  draft: string;
-  onDraftChange: (value: string) => void;
-  renamed: boolean;
-  onRenamed: () => void;
-}) {
-  const locked = course.seeded;
-  const canSave = !locked && isValidTitle(draft);
-
-  return (
-    <View>
-      <Text style={styles.groupLabel}>RENAME</Text>
-      <AuthField
-        label="COURSE TITLE"
-        value={draft}
-        onChangeText={onDraftChange}
-        editable={!locked}
-        autoCapitalize="characters"
-      />
-      {locked && (
-        <Text style={styles.note}>SAMPLE COURSES KEEP THEIR NAMES</Text>
-      )}
-      <View style={styles.gap} />
-      {/* Swipe rather than a tappable button — SwipeAction's own doc
-          comment covers why every commit in this app reads this way. */}
-      <SwipeAction
-        label="SAVE NAME"
-        icon="check"
-        hint="SWIPE RIGHT"
-        disabled={!canSave}
-        onConfirm={() => {
-          renameCourse(course.id, draft);
-          onRenamed();
-        }}
-      />
-      {renamed && <Text style={styles.confirm}>COURSE RENAMED</Text>}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Theme.background,
-  },
-  heading: {
-    fontFamily: Fonts.display,
-    color: Theme.text,
-    letterSpacing: 2,
-    fontSize: 40,
-  },
-  sectionLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: Theme.textMuted,
-    marginTop: Spacing.sm,
-  },
-  groupLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: Theme.textMuted,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.sm,
-  },
-  gap: {
-    height: Spacing.sm,
-  },
-  note: {
-    marginTop: Spacing.xs,
-    fontFamily: Fonts.body,
-    fontSize: 12,
-    color: Theme.textMuted,
-  },
-  confirm: {
-    marginTop: Spacing.sm,
-    fontFamily: Fonts.bodyBold,
-    fontSize: 13,
-    color: Theme.text,
-  },
-});

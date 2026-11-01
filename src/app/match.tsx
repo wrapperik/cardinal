@@ -19,7 +19,9 @@ import { useRecapRunner } from "@/features/recap/runner";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
+import { HoldPassPill } from "@/components/hold-pass-pill";
 import { showVerdict } from "@/components/verdict-burst";
+import { useTraditionalUx } from "@/features/preferences/preferences";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
@@ -59,6 +61,8 @@ const PASS_FOLLOW_DAMPING = 0.4;
  */
 export default function Match() {
   const insets = useSafeAreaInsets();
+  // Legacy passes on a hold (HoldPassPill); traditional keeps the swipe down.
+  const traditional = useTraditionalUx();
   const runner = useRecapRunner();
   const reducedMotion = useReducedMotion();
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -291,21 +295,25 @@ export default function Match() {
         style={[styles.passWrap, { bottom: insets.bottom + Spacing.xl }]}
         pointerEvents="box-none"
       >
-        <GestureDetector gesture={passDrag}>
-          <Animated.View style={[styles.passPill, passStyle]}>
-            <View style={styles.passBadge}>
-              <Svg width={10} height={10}>
-                <Path
-                  d="M2 2 L8 8 M8 2 L2 8"
-                  stroke={Colors.bone}
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                />
-              </Svg>
-            </View>
-            <Text style={styles.passText}>PASS</Text>
-          </Animated.View>
-        </GestureDetector>
+        {traditional ? (
+          <GestureDetector gesture={passDrag}>
+            <Animated.View style={[styles.passPill, passStyle]}>
+              <View style={styles.passBadge}>
+                <Svg width={10} height={10}>
+                  <Path
+                    d="M2 2 L8 8 M8 2 L2 8"
+                    stroke={Colors.bone}
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              </View>
+              <Text style={styles.passText}>PASS</Text>
+            </Animated.View>
+          </GestureDetector>
+        ) : (
+          <HoldPassPill onPass={skipRound} />
+        )}
       </View>
       <TutorialTip gameType="matchRelease" />
     </GameShell>

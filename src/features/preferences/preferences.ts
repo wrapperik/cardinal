@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react";
+
 import type { FieldAdapterConfig } from "@/lib/sync/adapter";
 import { createSyncedStore, type SyncedStoreConfig, type SyncStatus } from "@/lib/sync/store";
 
@@ -120,6 +122,53 @@ export function updatePreferences(patch: Partial<Preferences>): void {
 
 export function usePreferencesSyncStatus(): SyncStatus {
   return store.useSyncStatus();
+}
+
+/** How often the settings SYNC row re-reads the store. */
+export const SYNC_SUMMARY_REFRESH_MS = 120_000;
+
+/**
+ * A calm, past-tense sync summary: "SYNCED · 3 MIN AGO". A queued write
+ * flips the store to "syncing" for a few hundred milliseconds, so naming
+ * that state live made the row flicker on every preference change. Once the
+ * store has synced at least once, the row reports when, and only says
+ * SYNCING or OFFLINE when there is no sync to point back to.
+ */
+export function syncSummaryLabel(status: SyncStatus, lastSyncedAt: number | null, now: number): string {
+  if (lastSyncedAt === null) return status === "offline" ? "OFFLINE" : "SYNCING";
+  if (status === "offline") return "OFFLINE";
+  const minutes = Math.floor(Math.max(0, now - lastSyncedAt) / 60_000);
+  if (minutes < 1) return "SYNCED · JUST NOW";
+  if (minutes < 60) return `SYNCED · ${minutes} MIN AGO`;
+  const hours = Math.floor(minutes / 60);
+  return `SYNCED · ${hours} HR AGO`;
+}
+
+/**
+ * The SYNC row's text, recomputed every SYNC_SUMMARY_REFRESH_MS rather than
+ * on every status change — the one exception being the first sync, so a row
+ * opened mid-connect doesn't sit on SYNCING for two minutes.
+ */
+export function usePreferencesSyncSummary(): string {
+  // Subscribed so the first-sync flip below re-renders this; the label
+  // itself ignores status changes between ticks.
+  store.useSyncStatus();
+  const [now, setNow] = useState(() => Date.now());
+  const everSynced = store.getLastSyncedAt() !== null;
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), SYNC_SUMMARY_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  return useMemo(
+    // A first sync landing between ticks is newer than `now`; the label
+    // clamps that to JUST NOW rather than a negative age.
+    () => syncSummaryLabel(store.getSyncStatus(), store.getLastSyncedAt(), now),
+    // Recomputed on the timer, and once when the first sync lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [now, everSynced],
+  );
 }
 
 export function syncStatusLabel(status: SyncStatus): "SYNCED" | "SYNCING" | "OFFLINE" {

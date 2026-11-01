@@ -7,6 +7,7 @@ import {
   PREFERENCES_FIELD,
   isPreferencesRecord,
   syncStatusLabel,
+  syncSummaryLabel,
   type PreferencesRecord,
 } from "./preferences";
 
@@ -101,6 +102,26 @@ describe("liquidGlass", () => {
 
   it("defaults to on", () => {
     expect(DEFAULT_PREFERENCES.liquidGlass).toBe(true);
+  });
+});
+
+describe("syncSummaryLabel", () => {
+  const now = 10 * 60 * 60_000;
+
+  it("names the live state only before the first sync", () => {
+    expect(syncSummaryLabel("syncing", null, now)).toBe("SYNCING");
+    expect(syncSummaryLabel("offline", null, now)).toBe("OFFLINE");
+  });
+
+  it("reports how long ago it synced, even mid-write", () => {
+    expect(syncSummaryLabel("synced", now - 20_000, now)).toBe("SYNCED · JUST NOW");
+    expect(syncSummaryLabel("syncing", now - 60_000, now)).toBe("SYNCED · 1 MIN AGO");
+    expect(syncSummaryLabel("synced", now - 45 * 60_000, now)).toBe("SYNCED · 45 MIN AGO");
+    expect(syncSummaryLabel("synced", now - 3 * 60 * 60_000, now)).toBe("SYNCED · 3 HR AGO");
+  });
+
+  it("says offline once the connection is lost", () => {
+    expect(syncSummaryLabel("offline", now - 60_000, now)).toBe("OFFLINE");
   });
 });
 

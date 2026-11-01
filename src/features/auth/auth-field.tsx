@@ -145,6 +145,6 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
     fontFamily: Fonts.body,
     fontSize: 13,
-    color: Theme.incorrect,
+    color: Theme.accentText,
   },
 });

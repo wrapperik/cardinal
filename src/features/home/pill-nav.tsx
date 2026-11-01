@@ -10,7 +10,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing, Theme } from '@/constants/theme';
 import { selection } from '@/lib/haptics';
 import { useReducedMotion } from '@/lib/accessibility';
 
@@ -266,10 +266,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   pillTextActive: {
-    color: Colors.bone,
+    color: Theme.onAccent,
   },
   pillTextInactive: {
     color: Colors.bone,
-    opacity: 0.6,
+    // 0.6 sank below 4.5:1 over the glass; 0.8 stays quieter than the
+    // selected pill without going unreadable.
+    opacity: 0.8,
   },
 });

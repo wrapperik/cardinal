@@ -20,6 +20,11 @@ const PATHS = {
   upload: "M10 13.5 V3.5 M5.5 8 L10 3.5 L14.5 8 M3.5 13.5 V16.5 H16.5 V13.5",
   list: "M7.5 5 H16.5 M7.5 10 H16.5 M7.5 15 H16.5 M3.5 5 H4 M3.5 10 H4 M3.5 15 H4",
   sliders: "M3.5 6 H16.5 M3.5 14 H16.5 M7 3.5 V8.5 M13 11.5 V16.5",
+  person: "M10 9.5 A3 3 0 1 0 10 3.5 A3 3 0 1 0 10 9.5 Z M4 16.5 C4.6 13.5 7 12 10 12 C13 12 15.4 13.5 16 16.5",
+  mail: "M3 5 H17 V15 H3 Z M3.5 5.5 L10 11 L16.5 5.5",
+  cloud: "M6 15.5 H14.5 A3 3 0 0 0 14.5 9.5 A4.5 4.5 0 0 0 5.8 9 A3.3 3.3 0 0 0 6 15.5 Z",
+  vibrate: "M7 3.5 H13 V16.5 H7 Z M4 7 V13 M16 7 V13",
+  info: "M10 17 A7 7 0 1 0 10 3 A7 7 0 1 0 10 17 Z M10 9.5 V13.5 M10 6.5 V6.6",
 } as const;
 
 export type IconName = keyof typeof PATHS;

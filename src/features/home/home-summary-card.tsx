@@ -65,9 +65,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   label: {
-    // Theme.textMuted's grey goes muddy on rust; a dimmed bone keeps the
-    // labels quieter than the values without losing contrast.
-    color: "rgba(217, 217, 217, 0.78)",
+    // Full bone: any dimming on the darkened rust drops below 4.5:1. The
+    // labels stay quieter than the values through size and weight instead.
+    color: Colors.bone,
     fontFamily: Fonts.bodyBold,
     fontSize: 11,
     letterSpacing: 0.7,

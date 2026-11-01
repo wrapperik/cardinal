@@ -1,10 +1,7 @@
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
 
-import { ChoiceList } from "@/components/choice-list";
-import { SwipeAction } from "@/components/swipe-action";
+import { ListActionRow, ListChoiceRow, ListGroup } from "@/components/grouped-list";
 import { TextPromptDialog } from "@/components/text-prompt-dialog";
-import { Spacing } from "@/constants/theme";
 import type { Course } from "@/features/upload/types";
 
 interface Props {
@@ -13,10 +10,12 @@ interface Props {
   suggestedId?: string | null;
   onSelect: (id: string) => void;
   onCreate: (title: string) => void;
+  /** Muted line under the card — what happens if nothing is picked, or the model's suggestion. */
+  footer?: string;
 }
 
-/** A stable list of explicit choices, replacing the index-from-drag picker. */
-export function DestinationPicker({ courses, selectedId, suggestedId = null, onSelect, onCreate }: Props) {
+/** The COURSE group: one row per course to file the upload under, plus a row to name a new one. */
+export function DestinationPicker({ courses, selectedId, suggestedId = null, onSelect, onCreate, footer }: Props) {
   const [dialogVisible, setDialogVisible] = useState(false);
 
   // Seeded courses are the shipped demo decks — they can't be renamed, and
@@ -24,14 +23,19 @@ export function DestinationPicker({ courses, selectedId, suggestedId = null, onS
   const selectable = courses.filter((course) => !course.seeded);
 
   return (
-    <View style={styles.wrap}>
-      <ChoiceList
-        options={selectable.map((course) => ({ value: course.id, label: course.title }))}
-        value={selectedId}
-        suggestedValue={suggestedId}
-        onChange={onSelect}
-      />
-      <SwipeAction label="+ NEW COURSE" icon="plus" hint="SWIPE RIGHT" onConfirm={() => setDialogVisible(true)} />
+    <>
+      <ListGroup title="COURSE" footer={footer}>
+        {selectable.map((course) => (
+          <ListChoiceRow
+            key={course.id}
+            label={course.title}
+            detail={course.id === suggestedId ? "SUGGESTED" : undefined}
+            selected={course.id === selectedId}
+            onSelect={() => onSelect(course.id)}
+          />
+        ))}
+        <ListActionRow icon="plus" label="NEW COURSE" onPress={() => setDialogVisible(true)} />
+      </ListGroup>
       <TextPromptDialog
         visible={dialogVisible}
         title="NEW COURSE"
@@ -44,10 +48,6 @@ export function DestinationPicker({ courses, selectedId, suggestedId = null, onS
         }}
         onCancel={() => setDialogVisible(false)}
       />
-    </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { gap: Spacing.md },
-});

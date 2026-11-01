@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { IconName } from "@/components/icons";
-import { SwipeAction } from "@/components/swipe-action";
+import { ActionPair, SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { matchesTypedConfirmation } from "@/components/typed-confirmation";
 
@@ -66,8 +66,10 @@ export function TypedConfirmationDialog({
             />
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <SwipeAction label={submitting ? "DELETING..." : confirmLabel} icon={confirmIcon} tone="destructive" disabled={!confirmed || submitting} onConfirm={confirm} />
-          <SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" disabled={submitting} onConfirm={cancel} />
+          <ActionPair
+            primary={<SwipeAction label={submitting ? "DELETING..." : confirmLabel} icon={confirmIcon} tone="destructive" disabled={!confirmed || submitting} onConfirm={confirm} />}
+            secondary={<SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" disabled={submitting} onConfirm={cancel} />}
+          />
         </Pressable>
       </Pressable>
     </Modal>
@@ -91,5 +93,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 1,
   },
-  error: { fontFamily: Fonts.bodyBold, fontSize: 11, color: Theme.incorrect },
+  error: { fontFamily: Fonts.bodyBold, fontSize: 11, color: Theme.accentText },
 });

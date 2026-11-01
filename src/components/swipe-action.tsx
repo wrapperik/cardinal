@@ -1,3 +1,4 @@
+import { createContext, useContext, type ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring } from "react-native-reanimated";
@@ -30,33 +31,66 @@ export function SwipeAction(props: SwipeActionProps) {
   return traditional ? <TapAction {...props} /> : <GestureSwipeAction {...props} />;
 }
 
-// The fill has to contrast with the row it grows across — Theme.surface on
-// styles.row's own Theme.surface background was invisible, giving a
-// default-tone swipe no drag feedback at all. `default` and `accent` now
-// both resolve to rust; `accent` stays as an explicit name for rows that
-// are deliberately the primary action, not because it renders any differently.
-function toneFill(tone: NonNullable<SwipeActionProps["tone"]>) {
-  return tone === "default"
-    ? Colors.rust
-    : tone === "calm"
-      ? Colors.blue
-      : tone === "light"
-        ? TrailDark[2]
-        : Colors.rust;
+/** Set by ActionPair: its buttons share a row, so they render shorter. */
+const CompactContext = createContext(false);
+
+/**
+ * Two related actions — a dialog's confirm and cancel, a stage's next step
+ * and its way out. Traditional UX sets them side by side as two compact
+ * buttons, the way a native alert does: secondary on the left, primary on
+ * the right. Legacy UX stacks them, primary first, since a swipe row needs
+ * the full width to travel.
+ */
+export function ActionPair({ primary, secondary }: { primary: ReactElement; secondary: ReactElement }) {
+  const traditional = useTraditionalUx();
+  if (!traditional) {
+    return (
+      <View style={styles.pairStack}>
+        {primary}
+        {secondary}
+      </View>
+    );
+  }
+  return (
+    <CompactContext.Provider value>
+      <View style={styles.pairRow}>
+        <View style={styles.pairCell}>{secondary}</View>
+        <View style={styles.pairCell}>{primary}</View>
+      </View>
+    </CompactContext.Provider>
+  );
 }
 
-/** Traditional UX: an ordinary centred button, `[icon] LABEL`, fired by a tap.
- *  There is no drag to reveal the tone's fill, so unlike the swipe row it is
- *  styled at rest. `destructive` is a rust outline on the surface colour so it
- *  reads as distinct from the filled rust primary. */
+// The swipe fill has to contrast with the row it grows across — Theme.surface
+// on styles.row's own Theme.surface background was invisible, giving a
+// default-tone swipe no drag feedback at all. `default` and `accent` both
+// resolve to rust there. `calm` was blue, but blue and rust are also the
+// games' correct / incorrect colours, so a blue CANCEL beside a rust confirm
+// read as a right and a wrong answer; it is a neutral grey now.
+function toneFill(tone: NonNullable<SwipeActionProps["tone"]>) {
+  return tone === "calm"
+    ? TrailDark[0]
+    : tone === "light"
+      ? TrailDark[2]
+      : Colors.rust;
+}
+
+/**
+ * Traditional UX: an ordinary centred button, `[icon] LABEL`, fired by a tap.
+ * There is no drag to reveal a fill, so it is styled at rest — and kept off
+ * the games' blue / rust, which mean right and wrong everywhere else:
+ *
+ * - `accent`: the primary, solid bone with charcoal lettering.
+ * - `default`, `calm`: the neutral secondary, on the surface colour.
+ * - `light`: a lighter grey secondary.
+ * - `destructive`: a rust outline — the one place red is the honest signal.
+ */
 function TapAction({ label, onConfirm, tone = "default", disabled = false, icon }: SwipeActionProps) {
+  const compact = useContext(CompactContext);
   const destructive = tone === "destructive";
-  // At rest, `default` and `accent` can't share rust the way their drag fills
-  // do: a stack like SAVE / DISCARD would show two primaries. So `accent` is
-  // the filled primary and `default` the neutral secondary.
-  const secondary = tone === "default";
-  const background = destructive || secondary ? Theme.surface : toneFill(tone);
-  const foreground = destructive ? Colors.rust : Colors.bone;
+  const primary = tone === "accent";
+  const background = primary ? Colors.bone : tone === "light" ? TrailDark[2] : Theme.surface;
+  const foreground = destructive ? Theme.accentText : primary ? Colors.charcoal : Colors.bone;
   const text = icon === "plus" ? label.replace(/^\+\s*/, "") : label;
   return (
     <Pressable
@@ -68,14 +102,24 @@ function TapAction({ label, onConfirm, tone = "default", disabled = false, icon 
       style={({ pressed }) => [
         styles.row,
         styles.tapRow,
+        compact && styles.tapCompact,
         { backgroundColor: background },
-        destructive && { borderWidth: 2, borderColor: Colors.rust },
+        destructive && { borderWidth: 2, borderColor: Theme.accentText },
         pressed && styles.tapPressed,
         disabled && styles.disabled,
       ]}
     >
-      {icon && <Icon name={icon} color={foreground} />}
-      <Text style={[styles.label, styles.tapLabel, { color: foreground }]}>{text}</Text>
+      {icon && <Icon name={icon} size={compact ? 16 : 18} color={foreground} />}
+      <Text
+        style={[styles.label, styles.tapLabel, compact && styles.tapLabelCompact, { color: foreground }]}
+        numberOfLines={1}
+        // Half-width buttons hold labels like STAY SIGNED IN; shrink a
+        // little rather than truncate.
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
+        {text}
+      </Text>
     </Pressable>
   );
 }
@@ -134,6 +178,11 @@ const styles = StyleSheet.create({
   label: { fontFamily: Fonts.bodyBold, fontSize: 15, letterSpacing: 0.5, color: Theme.text },
   tapRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingHorizontal: Spacing.lg },
   tapPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  tapLabel: { textAlign: "center" },
+  tapLabel: { textAlign: "center", flexShrink: 1 },
+  tapCompact: { height: 48, paddingHorizontal: Spacing.md, gap: Spacing.xs },
+  tapLabelCompact: { fontSize: 14, letterSpacing: 0.3 },
+  pairRow: { flexDirection: "row", gap: Spacing.sm },
+  pairCell: { flex: 1 },
+  pairStack: { gap: Spacing.sm },
   hint: { fontFamily: Fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: Theme.textMuted },
 });

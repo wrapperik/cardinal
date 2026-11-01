@@ -1,12 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 
-import { BackButton } from "@/components/back-button";
-import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
+import { ListGroup, ListInfoRow } from "@/components/grouped-list";
+import { PageEmpty, PageScaffold } from "@/components/page-scaffold";
 import { SkeletonBlock } from "@/components/skeleton-block";
-import { Fonts, Spacing, Theme } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 import { useProgress, useProgressHydrated } from "@/features/progress/progress";
 import { dailyStats, formatDuration, studyStreakDays } from "@/features/score/score";
 import { summariseSessions } from "@/features/sessions/session-rules";
@@ -14,11 +13,7 @@ import { sessionsForCourse, useSessions, useSessionsHydrated } from "@/features/
 import { courseStats } from "@/features/upload/course-stats";
 import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
 import { useDecks, useDecksHydrated } from "@/features/upload/decks";
-import { SwipeAction } from "@/features/upload/swipe-action";
-import type { IconName } from "@/components/icons";
 import { useDelayedSkeleton } from "@/lib/loading";
-
-const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
 
 /** 0–1 → a rounded whole-number percent, matching every other accuracy figure in the app. */
 function pct(accuracy: number): string {
@@ -33,7 +28,6 @@ function pct(accuracy: number): string {
  * keep in sync with the real one.
  */
 export default function Progress() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { courseId } = useLocalSearchParams<{ courseId?: string }>();
   const courses = useCourses();
@@ -72,179 +66,69 @@ export default function Progress() {
   }, [progress, decks, courseId]);
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingTop: insets.top + CONTENT_TOP_CLEARANCE,
-          paddingHorizontal: Spacing.lg,
-          // Clears the home indicator, so the last stat row is never sitting
-          // in the strip iOS reserves for its own swipe.
-          paddingBottom: insets.bottom + Spacing.xl,
-        }}
-      >
-        {showSkeleton ? (
-          <ProgressSkeleton />
-        ) : !course ? (
-          <ProgressEmpty title="COURSE NOT FOUND" message="RETURN HOME TO CHOOSE A COURSE." />
-        ) : cardCount === 0 && !course.seeded ? (
-          <ProgressEmpty
-            title="NO CARDS YET"
-            message="UPLOAD MATERIAL TO BUILD YOUR FIRST RECAP."
-            actionLabel="UPLOAD MATERIAL"
-            actionIcon="plus"
-            onAction={() => router.replace({ pathname: "/upload", params: { courseId: course.id } })}
-          />
-        ) : allTime.sessionCount === 0 ? (
-          <ProgressEmpty
-            title={course.seeded ? "TRY THE DEMO" : "READY FOR YOUR FIRST RECAP"}
-            message={course.seeded ? "QUICK RECAP STARTS THE SAMPLE DECK." : "QUICK RECAP WILL START YOUR STUDY HISTORY."}
-            actionLabel="QUICK RECAP"
-            actionIcon="play"
-            onAction={() => router.replace({ pathname: "/recap", params: { courseId: course.id } })}
-          />
-        ) : (
-          <>
-            <Text style={styles.heading}>{course.title}</Text>
-            <Text style={styles.sectionLabel}>PROGRESS</Text>
+    <PageScaffold title="PROGRESS" subtitle={course?.title}>
+      {showSkeleton ? (
+        <ProgressSkeleton />
+      ) : !course ? (
+        <PageEmpty title="COURSE NOT FOUND" message="RETURN HOME TO CHOOSE A COURSE." />
+      ) : cardCount === 0 && !course.seeded ? (
+        <PageEmpty
+          title="NO CARDS YET"
+          message="UPLOAD MATERIAL TO BUILD YOUR FIRST RECAP."
+          actionLabel="UPLOAD MATERIAL"
+          actionIcon="plus"
+          onAction={() => router.replace({ pathname: "/upload", params: { courseId: course.id } })}
+        />
+      ) : allTime.sessionCount === 0 ? (
+        <PageEmpty
+          title={course.seeded ? "TRY THE DEMO" : "READY FOR YOUR FIRST RECAP"}
+          message={course.seeded ? "QUICK RECAP STARTS THE SAMPLE DECK." : "QUICK RECAP WILL START YOUR STUDY HISTORY."}
+          actionLabel="QUICK RECAP"
+          actionIcon="play"
+          onAction={() => router.replace({ pathname: "/recap", params: { courseId: course.id } })}
+        />
+      ) : (
+        <>
+          <ListGroup title="TODAY" iconless>
+            <ListInfoRow label="SCORE" value={String(today.score)} />
+            <ListInfoRow label="CARDS STUDIED" value={String(today.cardsStudied)} />
+            <ListInfoRow label="TIME STUDIED" value={formatDuration(today.studyMillis)} />
+            <ListInfoRow label="ACCURACY" value={pct(today.accuracy)} />
+            <ListInfoRow label="BEST STREAK" value={String(today.bestStreak)} />
+          </ListGroup>
 
-            <Text style={styles.groupLabel}>TODAY</Text>
-            <StatRow label="SCORE" value={String(today.score)} />
-            <StatRow label="CARDS STUDIED" value={String(today.cardsStudied)} />
-            <StatRow label="TIME STUDIED" value={formatDuration(today.studyMillis)} />
-            <StatRow label="ACCURACY" value={pct(today.accuracy)} />
-            <StatRow label="BEST STREAK" value={String(today.bestStreak)} />
-
-            <Text style={styles.groupLabel}>ALL TIME</Text>
-            <StatRow label="SESSIONS" value={String(allTime.sessionCount)} />
-            <StatRow label="CORRECT" value={String(allTime.totalCorrect)} />
-            <StatRow label="WRONG" value={String(allTime.totalWrong)} />
-            <StatRow label="ACCURACY" value={pct(allTime.accuracy)} />
-            <StatRow label="BEST STREAK" value={String(allTime.bestStreak)} />
-            <StatRow
+          <ListGroup title="ALL TIME" iconless>
+            <ListInfoRow label="SESSIONS" value={String(allTime.sessionCount)} />
+            <ListInfoRow label="CORRECT" value={String(allTime.totalCorrect)} />
+            <ListInfoRow label="WRONG" value={String(allTime.totalWrong)} />
+            <ListInfoRow label="ACCURACY" value={pct(allTime.accuracy)} />
+            <ListInfoRow label="BEST STREAK" value={String(allTime.bestStreak)} />
+            <ListInfoRow
               label="LAST STUDIED"
               value={allTime.lastStudiedAt ? new Date(allTime.lastStudiedAt).toLocaleDateString() : "—"}
             />
+          </ListGroup>
 
-            <Text style={styles.groupLabel}>OVERALL</Text>
-            <StatRow label="STUDY STREAK" value={`${streak} DAY${streak === 1 ? "" : "S"}`} />
-            <StatRow label="CARDS DUE" value={String(dueCount)} />
-          </>
-        )}
-      </ScrollView>
-
-      {/* Sibling of the ScrollView, not inside it — riding inside would
-          scroll the back button away with the content instead of leaving it
-          pinned, exactly as course/[id].tsx documents for its own. */}
-      <BackButton label="BACK" side="right" onBack={() => router.back()} />
-    </View>
-  );
-}
-
-/** A static label/value line, in the shape settings.tsx's InfoRow already
- *  established for this app — kept local rather than promoted to a shared
- *  component, since nothing outside this screen needs it yet. */
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statRow}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text numberOfLines={1} ellipsizeMode="middle" style={styles.statValue}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function ProgressEmpty({
-  title,
-  message,
-  actionLabel,
-  actionIcon,
-  onAction,
-}: {
-  title: string;
-  message: string;
-  actionLabel?: string;
-  actionIcon?: IconName;
-  onAction?: () => void;
-}) {
-  return (
-    <View style={styles.emptyState}>
-      <Text style={styles.heading}>{title}</Text>
-      <Text style={styles.emptyCopy}>{message}</Text>
-      {actionLabel && onAction && <SwipeAction label={actionLabel} icon={actionIcon} tone="accent" onConfirm={onAction} />}
-    </View>
+          <ListGroup title="OVERALL" iconless footer="Your study streak counts every course, not just this one.">
+            <ListInfoRow label="STUDY STREAK" value={`${streak} DAY${streak === 1 ? "" : "S"}`} />
+            <ListInfoRow label="CARDS DUE" value={String(dueCount)} />
+          </ListGroup>
+        </>
+      )}
+    </PageScaffold>
   );
 }
 
 function ProgressSkeleton() {
   return (
     <View style={styles.skeleton}>
-      <SkeletonBlock style={styles.headingSkeleton} />
-      <SkeletonBlock style={styles.labelSkeleton} />
-      {[0, 1, 2, 3, 4].map((index) => <SkeletonBlock key={index} style={styles.statSkeleton} />)}
+      <SkeletonBlock style={styles.groupSkeleton} />
+      <SkeletonBlock style={styles.groupSkeleton} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Theme.background,
-  },
-  heading: {
-    fontFamily: Fonts.display,
-    color: Theme.text,
-    letterSpacing: 2,
-    fontSize: 40,
-  },
-  sectionLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: Theme.textMuted,
-    marginTop: Spacing.sm,
-  },
-  groupLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: Theme.textMuted,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.sm,
-  },
-  statRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.glassEdge,
-  },
-  statLabel: {
-    fontFamily: Fonts.body,
-    fontSize: 15,
-    color: Theme.text,
-  },
-  statValue: {
-    flex: 1,
-    marginLeft: Spacing.lg,
-    textAlign: "right",
-    fontFamily: Fonts.bodyBold,
-    fontSize: 15,
-    color: Theme.textMuted,
-  },
-  emptyState: {
-    gap: Spacing.lg,
-  },
-  emptyCopy: {
-    fontFamily: Fonts.body,
-    fontSize: 16,
-    lineHeight: 22,
-    color: Theme.textMuted,
-  },
-  skeleton: { gap: Spacing.md },
-  headingSkeleton: { width: 220, height: 42 },
-  labelSkeleton: { width: 100, height: 14, marginBottom: Spacing.lg },
-  statSkeleton: { height: 48 },
+  skeleton: { marginTop: Spacing.lg, gap: Spacing.lg },
+  groupSkeleton: { height: 280 },
 });

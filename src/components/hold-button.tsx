@@ -27,12 +27,10 @@ export const HOLD_BUTTON_SIZE = 52;
  *  as a second commitment of equal weight to the hold that built it. */
 const RELEASE_MS = 160;
 
-/** Rust, translucent enough that the glass still bends what's behind it. */
-const GLASS_TINT = "rgba(197, 61, 35, 0.6)";
-
 /**
- * With Liquid Glass on, every icon button becomes the same rust-tinted
- * glass disc, whatever colour its caller asked for — the glass is the
+ * With Liquid Glass on, every icon button becomes the same untinted glass
+ * disc, taking its colour from whatever sits behind it, whatever colour
+ * its caller asked for — the glass is the
  * button's identity there, and mixing charcoal and rust discs would read as
  * two kinds of control. Without it, the caller's solid colour as before.
  */
@@ -45,7 +43,7 @@ function useFace(backgroundColor: string) {
 }
 
 function GlassFace() {
-  return <GlassView glassEffectStyle="regular" tintColor={GLASS_TINT} style={styles.glassFace} />;
+  return <GlassView glassEffectStyle="regular" style={styles.glassFace} />;
 }
 
 interface HoldButtonProps {

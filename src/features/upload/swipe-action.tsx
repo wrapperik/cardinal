@@ -1,1 +1,1 @@
-export { SwipeAction, type SwipeActionProps } from "@/components/swipe-action";
+export { ActionPair, SwipeAction, type SwipeActionProps } from "@/components/swipe-action";
