@@ -195,7 +195,15 @@ export default function Home() {
         {/* Liquid Glass on iOS 26+ unless switched off in Settings; the
             frosted blur everywhere else, so older devices look as before. */}
         {liquidGlass ? (
-          <GlassView glassEffectStyle="regular" colorScheme="dark" style={styles.dock}>
+          <GlassView
+            glassEffectStyle="regular"
+            colorScheme="dark"
+            // Without a tint the glass picks up the bone rows behind it and
+            // reads near-white; a charcoal tint keeps it a dark grey that
+            // sits with the rest of the screen.
+            tintColor={GLASS_TINT}
+            style={styles.dock}
+          >
             {dockContent}
           </GlassView>
         ) : (
@@ -207,6 +215,9 @@ export default function Home() {
     </View>
   );
 }
+
+/** Charcoal, translucent enough that the glass still refracts what's behind it. */
+const GLASS_TINT = "rgba(30, 30, 30, 0.72)";
 
 /** Gap between each row's shimmer, starting from the row nearest the dock. */
 const ROW_RIPPLE_MS = 70;
