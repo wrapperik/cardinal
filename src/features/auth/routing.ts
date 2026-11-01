@@ -2,20 +2,28 @@ export interface AuthRouteState {
   pathname: string;
   onboarded: boolean | null;
   signedIn: boolean;
+  /** True for a freshly created account that has not yet picked its UX mode. */
+  uxChoicePending?: boolean;
 }
 
 const AUTH_ROUTES = new Set(["/sign-in", "/sign-up"]);
 const PUBLIC_ENTRY_ROUTES = new Set(["/", ...AUTH_ROUTES]);
-type AuthDestination = "/" | "/home" | "/sign-in";
+const UX_CHOICE_ROUTE = "/ux-mode";
+type AuthDestination = "/" | "/home" | "/sign-in" | "/ux-mode";
 
 export function getAuthDestination({
   pathname,
   onboarded,
   signedIn,
+  uxChoicePending = false,
 }: AuthRouteState): AuthDestination | null {
   if (onboarded === null) return null;
 
   if (signedIn) {
+    // A new account is held on the choice screen until it picks; nobody else
+    // has any business there, so it bounces back to home once resolved.
+    if (uxChoicePending) return pathname === UX_CHOICE_ROUTE ? null : UX_CHOICE_ROUTE;
+    if (pathname === UX_CHOICE_ROUTE) return "/home";
     return PUBLIC_ENTRY_ROUTES.has(pathname) ? "/home" : null;
   }
 

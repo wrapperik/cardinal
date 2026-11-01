@@ -159,13 +159,18 @@ service cloud.firestore {
                         'dailyReminderEnabled',
                         'reminderTime',
                         'theme',
+                        'uxMode',
                         'updatedAt'
                       ])
                    && incoming().userId == userId
-                   && incoming().accessibilityTapZones is bool
+                   // accessibilityTapZones and theme are retired: the client
+                   // no longer writes them, so they are validated only when
+                   // an older record still carries them.
+                   && (!('accessibilityTapZones' in incoming()) || incoming().accessibilityTapZones is bool)
                    && incoming().hapticsEnabled is bool
                    && incoming().dailyReminderEnabled is bool
-                   && incoming().theme is string
+                   && (!('theme' in incoming()) || incoming().theme is string)
+                   && (!('uxMode' in incoming()) || incoming().uxMode in ['legacy', 'traditional'])
                    && isServerTime('updatedAt')
                    // "HH:MM", 24-hour local.
                    && incoming().reminderTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');

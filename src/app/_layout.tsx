@@ -62,6 +62,7 @@ export default function RootLayout() {
             >
               <Stack.Screen name="sign-up" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
               <Stack.Screen name="sign-in" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              <Stack.Screen name="ux-mode" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
               {/* The one screen that reverses the app's push direction: it
                   reads as a panel sliding over home from the right, so its
                   BackButton sits on the left with a left-pointing chevron

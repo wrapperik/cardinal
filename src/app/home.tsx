@@ -16,6 +16,7 @@ import { courseStats } from "@/features/upload/course-stats";
 import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
 import { useDecks, useDecksHydrated } from "@/features/upload/decks";
 import { hideDrafts, useDraftIds } from "@/features/upload/drafts";
+import { useTraditionalUx } from "@/features/preferences/preferences";
 import { useDelayedSkeleton } from "@/lib/loading";
 
 /**
@@ -28,6 +29,7 @@ import { useDelayedSkeleton } from "@/lib/loading";
 export default function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const traditional = useTraditionalUx();
 
   // An upload writes its course and deck to Firestore before anyone confirms
   // it, and the sheet sits over this screen while that happens — so the pills
@@ -145,7 +147,7 @@ export default function Home() {
           // Unreachable in practice — the seeded courses mean courses.length
           // is never 0 — but the row stack must not render broken if that
           // ever changes.
-          <Text style={styles.empty}>HOLD THE PLUS TO ADD YOUR FIRST COURSE</Text>
+          <Text style={styles.empty}>{traditional ? "TAP" : "HOLD"} THE PLUS TO ADD YOUR FIRST COURSE</Text>
         ) : null}
       </ScrollView>
 

@@ -1,6 +1,6 @@
 import { useCallback, type ReactNode } from "react";
 import { useFocusEffect } from "expo-router";
-import { StyleSheet } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -13,6 +13,7 @@ import Animated, {
 
 import { Colors, HOLD_MS, Motion, Radius } from "@/constants/theme";
 import { useReducedMotion } from "@/lib/accessibility";
+import { useTraditionalUx } from "@/features/preferences/preferences";
 import { impact, ImpactFeedbackStyle } from "@/lib/haptics";
 
 /** Fixed footprint for both icon buttons, so the fill overlay (below) has a
@@ -46,7 +47,65 @@ interface HoldButtonProps {
  * holds instead, and the fill below makes the hold legible rather than a
  * guess at how long to keep a finger down.
  */
-export function HoldButton({
+export function HoldButton(props: HoldButtonProps) {
+  const traditional = useTraditionalUx();
+  return traditional ? <TapButton {...props} /> : <GestureHoldButton {...props} />;
+}
+
+/**
+ * Traditional UX: the same disc, fired by an ordinary press. A caller's hold
+ * wording ("Hold to leave this game") is rephrased for assistive tech, since
+ * the instruction would otherwise be wrong for this mode.
+ */
+function TapButton({
+  glyph,
+  label,
+  hint = "Hold to activate",
+  onHold,
+  backgroundColor = Colors.charcoal,
+}: HoldButtonProps) {
+  const reducedMotion = useReducedMotion();
+  const scale = useSharedValue(1);
+  const fill = useSharedValue(0);
+
+  // Same reset as the hold variant: a pushed screen leaves its source mounted.
+  useFocusEffect(useCallback(() => {
+    scale.value = 1;
+    fill.value = 0;
+    return undefined;
+  }, [fill, scale]));
+
+  const circleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const fillStyle = useAnimatedStyle(() => ({ opacity: fill.value * 0.18 }));
+
+  return (
+    <Pressable
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint.replace(/^Hold to /, "Double tap to ")}
+      onPressIn={() => {
+        scale.value = reducedMotion ? 1 : withSpring(0.92, Motion.press);
+        fill.value = reducedMotion ? 1 : withTiming(1, { duration: 80 });
+      }}
+      onPressOut={() => {
+        scale.value = reducedMotion ? 1 : withSpring(1, Motion.press);
+        fill.value = reducedMotion ? 0 : withTiming(0, { duration: RELEASE_MS });
+      }}
+      onPress={() => {
+        impact(ImpactFeedbackStyle.Medium);
+        onHold();
+      }}
+    >
+      <Animated.View style={[styles.button, { backgroundColor }, circleStyle]}>
+        <Animated.View style={[styles.tapFill, fillStyle]} />
+        {glyph}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+function GestureHoldButton({
   glyph,
   label,
   hint = "Hold to activate",
@@ -135,6 +194,10 @@ export function HoldButton({
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityHint={hint}
+        // A screen reader's double tap is a tap, not a sustained hold, so
+        // assistive tech gets the action directly rather than a control it
+        // cannot operate.
+        onAccessibilityTap={fireHold}
       >
         <Animated.View style={[styles.fill, fillStyle]} />
         {/* Rendered after the fill so the glyph always paints on top and
@@ -162,5 +225,10 @@ const styles = StyleSheet.create({
     height: HOLD_BUTTON_SIZE,
     backgroundColor: Colors.bone,
     opacity: 0.18,
+  },
+  // A flat wash over the whole disc, for the instant a tap is pressed.
+  tapFill: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: Colors.bone,
   },
 });

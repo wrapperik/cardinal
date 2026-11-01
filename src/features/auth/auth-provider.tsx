@@ -16,6 +16,12 @@ import {
   setOnboardingComplete,
 } from "@/features/auth/onboarding";
 import {
+  clearUxChoicePending,
+  getUxChoicePending,
+  setUxChoicePending,
+} from "@/features/auth/ux-choice";
+import { updatePreferences, type UxMode } from "@/features/preferences/preferences";
+import {
   createEmailAccount,
   changeCurrentUserPassword,
   deleteCurrentAccount,
@@ -30,6 +36,9 @@ interface AuthContextValue {
   initializing: boolean;
   onboarded: boolean | null;
   completeOnboarding: () => Promise<void>;
+  /** True until a new account has picked traditional or legacy UX. */
+  uxChoicePending: boolean | null;
+  completeUxChoice: (mode: UxMode) => Promise<void>;
   signUp: typeof createEmailAccount;
   signIn: typeof signInWithEmail;
   sendPasswordReset: typeof resetPassword;
@@ -45,9 +54,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [uxChoicePending, setUxChoicePendingState] = useState<boolean | null>(null);
 
   useEffect(() => {
     getOnboardingComplete().then(setOnboarded);
+    getUxChoicePending().then(setUxChoicePendingState);
     return onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
@@ -59,11 +70,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setOnboarded(true);
   }, []);
 
+  const completeUxChoice = useCallback(async (mode: UxMode) => {
+    updatePreferences({ uxMode: mode });
+    await clearUxChoicePending();
+    setUxChoicePendingState(false);
+  }, []);
+
   // Update the local session immediately. Firebase will emit the same state
   // shortly afterwards, but waiting for that event left the route guard with a
   // brief unauthenticated window after submitting either auth form.
+  //
+  // Sign-up also raises the UX-choice flag first, before the user is set, so
+  // the guard never sees a signed-in new account without it and lets them
+  // through to /home.
   const signUp = useCallback(async (...args: Parameters<typeof createEmailAccount>) => {
     const nextUser = await createEmailAccount(...args);
+    await setUxChoicePending();
+    setUxChoicePendingState(true);
     setUser(nextUser);
     return nextUser;
   }, []);
@@ -83,14 +106,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const signOutNow = useCallback(async () => {
     await signOutUser();
     await clearOnboardingComplete();
+    await clearUxChoicePending();
     setOnboarded(false);
+    setUxChoicePendingState(false);
     setUser(null);
   }, []);
 
   const deleteAccount = useCallback(async () => {
     await deleteCurrentAccount();
     await clearOnboardingComplete();
+    await clearUxChoicePending();
     setOnboarded(false);
+    setUxChoicePendingState(false);
     setUser(null);
   }, []);
 
@@ -105,9 +132,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      initializing: !authReady || onboarded === null,
+      initializing: !authReady || onboarded === null || uxChoicePending === null,
       onboarded,
       completeOnboarding,
+      uxChoicePending,
+      completeUxChoice,
       signUp,
       signIn,
       sendPasswordReset: resetPassword,
@@ -119,6 +148,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [
       authReady,
       completeOnboarding,
+      completeUxChoice,
+      uxChoicePending,
       changePassword,
       deleteAccount,
       onboarded,

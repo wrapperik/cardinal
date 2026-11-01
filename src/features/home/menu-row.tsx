@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -12,6 +12,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { Colors, Fonts, Motion, Radius, Spacing, Theme } from '@/constants/theme';
 import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from '@/constants/gestures';
+import { useTraditionalUx } from '@/features/preferences/preferences';
 import { useReducedMotion } from '@/lib/accessibility';
 import { selection } from '@/lib/haptics';
 
@@ -45,7 +46,59 @@ interface MenuRowProps {
  * balance against, and a leftward drag should do nothing rather than arm
  * something the row cannot deliver.
  */
-export function MenuRow({ label, badge, onPress, last }: MenuRowProps) {
+export function MenuRow(props: MenuRowProps) {
+  const traditional = useTraditionalUx();
+  return traditional ? <TapMenuRow {...props} /> : <SwipeMenuRow {...props} />;
+}
+
+/**
+ * Traditional UX: an ordinary tappable row. The rust fill floods the whole
+ * row while pressed, and the chevron moves to the right as a plain
+ * disclosure indicator instead of marking where a swipe starts.
+ */
+function TapMenuRow({ label, badge, onPress, last }: MenuRowProps) {
+  const accessibilityLabel = badge ? `${label}, ${badge}` : label;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={() => {
+        selection();
+        onPress();
+      }}
+      style={[styles.row, !last && styles.hairline]}
+    >
+      {({ pressed }) => (
+        <>
+          <View style={[styles.fill, styles.fillFull, { opacity: pressed ? 1 : 0 }]} />
+          <View style={styles.content}>
+            <Text style={styles.label} numberOfLines={1}>
+              {label}
+            </Text>
+            {badge != null && (
+              <View style={[styles.badge, styles.badgeTrailing]}>
+                <Text style={styles.badgeText}>{badge}</Text>
+              </View>
+            )}
+            <Svg width={8} height={14} viewBox="0 0 8 14" fill="none">
+              <Path
+                d="M1 1 L7 7 L1 13"
+                stroke={Colors.bone}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+          </View>
+        </>
+      )}
+    </Pressable>
+  );
+}
+
+function SwipeMenuRow({ label, badge, onPress, last }: MenuRowProps) {
   const reducedMotion = useReducedMotion();
   const drag = useSharedValue(0);
 
@@ -177,6 +230,7 @@ const styles = StyleSheet.create({
   // The row's padding lives here rather than on the row itself: the content
   // is what translates under the finger, and padding on the clipping parent
   // would inset the fill away from the edge it has to grow from.
+  fillFull: { right: 0 },
   content: {
     flex: 1,
     flexDirection: 'row',
@@ -199,6 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
   },
+  badgeTrailing: { marginRight: Spacing.md },
   badgeText: {
     fontFamily: Fonts.bodyMedium,
     fontSize: 13,

@@ -12,6 +12,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { HOLD_BUTTON_SIZE } from "@/components/hold-button";
 import { SwipeAction } from "@/components/swipe-action";
 import { TypedConfirmationDialog } from "@/components/typed-confirmation-dialog";
@@ -25,14 +26,17 @@ import {
   updatePreferences,
   usePreferences,
   usePreferencesSyncStatus,
+  useTraditionalUx,
 } from "@/features/preferences/preferences";
 
 /**
- * Settings, as an ordinary pushed screen. No tap target opens it any more
- * either — it's reached by holding the gear icon on home's nav bar — but
- * once inside there is still nothing to tap: the SIGN OUT row and HAPTICS
- * toggle are both drag-only, matching the no-tap grammar the rest of the app
- * uses.
+ * Settings, as an ordinary pushed screen. In legacy UX there is nothing to
+ * tap: it's reached by holding the gear icon on home's nav bar, and the SIGN
+ * OUT row and HAPTICS toggle are both drag-only, matching the no-tap grammar
+ * the rest of the app uses. In traditional UX the same controls are plain
+ * taps (SwipeAction, HoldButton and ToggleRow each branch on the preference),
+ * and the INTERACTION section below is where the person switches between the
+ * two.
  */
 export default function Settings() {
   const insets = useSafeAreaInsets();
@@ -41,6 +45,7 @@ export default function Settings() {
   const preferences = usePreferences();
   const syncStatus = usePreferencesSyncStatus();
   const isAdmin = useIsAdmin();
+  const traditional = useTraditionalUx();
   const [displayName, setDisplayName] = useState(user?.displayName ?? "STUDENT");
 
   useEffect(() => setDisplayName(user?.displayName ?? "STUDENT"), [user?.displayName]);
@@ -92,6 +97,21 @@ export default function Settings() {
         <View style={styles.profileActions}>
           <SignOutRow onSignOut={signOutUser} />
           <DeleteAccountRow onDelete={deleteAccount} />
+        </View>
+
+        <Text style={styles.sectionLabel}>INTERACTION</Text>
+        <InfoRow label="UX" value={traditional ? "TRADITIONAL" : "LEGACY"} />
+        <Text style={styles.uxNote}>
+          {traditional
+            ? "BUTTONS AND TAPS ACROSS THE APP. THE GAMES KEEP THEIR GESTURES."
+            : "HOLDS, SWIPES AND DRAGS ACROSS THE APP. NO BUTTONS."}
+        </Text>
+        <View style={styles.profileActions}>
+          <SwipeAction
+            label={traditional ? "SWITCH TO LEGACY UX" : "SWITCH TO TRADITIONAL UX"}
+            tone="default"
+            onConfirm={() => updatePreferences({ uxMode: traditional ? "legacy" : "traditional" })}
+          />
         </View>
 
         <Text style={styles.sectionLabel}>FEEDBACK</Text>
@@ -229,9 +249,14 @@ function AccountDialog({ visible, title, message, error, onCancel, children }: {
  *  same reasoning SwipeAction generalises for the upload flow, just applied
  *  to the one row in the app that can't be undone by swiping again. */
 function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
+  const traditional = useTraditionalUx();
   const [error, setError] = useState(false);
+  // Traditional UX makes the row a single tap, which loses the deliberate
+  // swipe that guarded it — so a tap asks first instead of signing out.
+  const [confirming, setConfirming] = useState(false);
 
   const signOut = async () => {
+    setConfirming(false);
     setError(false);
     try {
       await onSignOut();
@@ -242,8 +267,22 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
   return (
     <View>
-      <SwipeAction label="SIGN OUT" direction="left" tone="destructive" onConfirm={signOut} />
+      <SwipeAction
+        label="SIGN OUT"
+        direction="left"
+        tone="destructive"
+        onConfirm={traditional ? () => setConfirming(true) : signOut}
+      />
       {error && <Text style={styles.signOutError}>COULDN&apos;T SIGN OUT. TRY AGAIN.</Text>}
+      <ConfirmationDialog
+        visible={confirming}
+        title="SIGN OUT?"
+        message="Your decks and progress stay synced to your account."
+        confirmLabel="SIGN OUT"
+        cancelLabel="STAY SIGNED IN"
+        onConfirm={signOut}
+        onCancel={() => setConfirming(false)}
+      />
     </View>
   );
 }
@@ -285,8 +324,9 @@ function DeleteAccountRow({ onDelete }: { onDelete: () => Promise<void> }) {
 }
 
 /**
- * A drag-only preference switch — the knob follows the finger
- * and releasing snaps it to the nearer side, matching the no-tap premise.
+ * A preference switch. Legacy: drag-only — the knob follows the finger and
+ * releasing snaps it to the nearer side. Traditional: tapping the row or the
+ * track flips it, with the knob animating exactly as it does after a drag.
  */
 function ToggleRow({
   label,
@@ -297,6 +337,7 @@ function ToggleRow({
   value: boolean;
   onChange: (value: boolean) => void;
 }) {
+  const traditional = useTraditionalUx();
   const knob = useSharedValue(value ? 1 : 0); // 0 = off, 1 = on
 
   useEffect(() => {
@@ -328,6 +369,26 @@ function ToggleRow({
   const knobStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: knob.value * 22 }],
   }));
+
+  if (traditional) {
+    return (
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityLabel={label}
+        accessibilityState={{ checked: value }}
+        onPress={() => onChange(!value)}
+        style={styles.infoRow}
+      >
+        <Text style={styles.infoLabel}>{label}</Text>
+        <View style={styles.toggleWrap}>
+          <Text style={styles.toggleState}>{value ? "ON" : "OFF"}</Text>
+          <Animated.View style={[styles.track, trackStyle]}>
+            <Animated.View style={[styles.knob, knobStyle]} />
+          </Animated.View>
+        </View>
+      </Pressable>
+    );
+  }
 
   return (
     <View style={styles.infoRow}>
@@ -390,6 +451,13 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontFamily: Fonts.bodyBold,
     fontSize: 15,
+    color: Theme.textMuted,
+  },
+  uxNote: {
+    marginTop: Spacing.sm,
+    fontFamily: Fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 0.6,
     color: Theme.textMuted,
   },
   signOutError: {

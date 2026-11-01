@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
+import { useTraditionalUx } from "@/features/preferences/preferences";
 
 const BUTTON_SIZE = 40;
 
@@ -19,6 +20,7 @@ const BUTTON_SIZE = 40;
 export function HelpButton() {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
+  const traditional = useTraditionalUx();
 
   return (
     <>
@@ -43,10 +45,14 @@ export function HelpButton() {
           <Pressable style={styles.card} onPress={() => {}}>
             <Text style={styles.title}>HOW TO USE CARDINAL</Text>
             <Text style={styles.message}>
-              HOLD THE PLUS ICON IN THE TOP NAV TO UPLOAD YOUR OWN MATERIAL AND STUDY IT HERE.
+              {traditional
+                ? "TAP THE PLUS ICON IN THE TOP NAV TO UPLOAD YOUR OWN MATERIAL AND STUDY IT HERE."
+                : "HOLD THE PLUS ICON IN THE TOP NAV TO UPLOAD YOUR OWN MATERIAL AND STUDY IT HERE."}
             </Text>
             <Text style={styles.message}>
-              NOTHING IN CARDINAL RESPONDS TO A TAP. EVERY ACTION IS A HOLD OR A SWIPE.
+              {traditional
+                ? "TAP BUTTONS AND ROWS TO USE THEM. THE GAMES STILL USE HOLDS AND SWIPES."
+                : "NOTHING IN CARDINAL RESPONDS TO A TAP. EVERY ACTION IS A HOLD OR A SWIPE."}
             </Text>
             <SwipeAction label="GOT IT" tone="calm" onConfirm={() => setVisible(false)} />
           </Pressable>

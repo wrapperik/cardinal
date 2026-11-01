@@ -1,7 +1,15 @@
 import type { FieldAdapterConfig } from "@/lib/sync/adapter";
 import { createSyncedStore, type SyncedStoreConfig, type SyncStatus } from "@/lib/sync/store";
 
+/**
+ * How the app takes input. `legacy` is the original gesture grammar — holds,
+ * swipes and drags for every commitment. `traditional` swaps each of those
+ * for an ordinary tap target, for people who would rather just press things.
+ */
+export type UxMode = "legacy" | "traditional";
+
 export interface Preferences {
+  uxMode: UxMode;
   hapticsEnabled: boolean;
   dailyReminderEnabled: boolean;
   reminderTime: string;
@@ -13,6 +21,7 @@ export interface PreferencesRecord extends Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
+  uxMode: "legacy",
   hapticsEnabled: true,
   dailyReminderEnabled: false,
   reminderTime: "19:30",
@@ -41,6 +50,9 @@ export function isPreferencesRecord(value: unknown): value is PreferencesRecord 
   const candidate = value as Partial<PreferencesRecord>;
   return (
     candidate.id === "settings" &&
+    // Optional on the wire: records written before the choice existed are
+    // read back as legacy by normalise() rather than rejected.
+    (candidate.uxMode === undefined || candidate.uxMode === "legacy" || candidate.uxMode === "traditional") &&
     typeof candidate.hapticsEnabled === "boolean" &&
     typeof candidate.dailyReminderEnabled === "boolean" &&
     typeof candidate.reminderTime === "string" &&
@@ -61,12 +73,32 @@ const preferencesSyncConfig: SyncedStoreConfig<PreferencesRecord> = {
 
 const store = createSyncedStore<PreferencesRecord>(preferencesSyncConfig);
 
+// Remembers the last upgrade so a pre-uxMode record maps to the same object
+// on every render, rather than a fresh copy that defeats memo and effect deps.
+let lastRaw: PreferencesRecord | undefined;
+let lastNormalised: PreferencesRecord = DEFAULT_RECORD;
+
+function normalise(record: PreferencesRecord | undefined): PreferencesRecord {
+  if (!record) return DEFAULT_RECORD;
+  if (record.uxMode) return record;
+  if (record !== lastRaw) {
+    lastRaw = record;
+    lastNormalised = { ...record, uxMode: DEFAULT_PREFERENCES.uxMode };
+  }
+  return lastNormalised;
+}
+
 export function usePreferences(): PreferencesRecord {
-  return store.useRecords()[0] ?? DEFAULT_RECORD;
+  return normalise(store.useRecords()[0]);
 }
 
 export function getPreferences(): PreferencesRecord {
-  return store.getRecords()[0] ?? DEFAULT_RECORD;
+  return normalise(store.getRecords()[0]);
+}
+
+/** True when every hold, swipe and drag should render as a plain tap target. */
+export function useTraditionalUx(): boolean {
+  return usePreferences().uxMode === "traditional";
 }
 
 export function updatePreferences(patch: Partial<Preferences>): void {

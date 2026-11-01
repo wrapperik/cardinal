@@ -388,6 +388,37 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
       );
     });
 
+    it('accepts a valid uxMode', async () => {
+      await assertSucceeds(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
+          ...validPreferences(ALICE),
+          uxMode: 'traditional',
+        }),
+      );
+    });
+
+    it('rejects an unknown uxMode', async () => {
+      await assertFails(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
+          ...validPreferences(ALICE),
+          uxMode: 'other',
+        }),
+      );
+    });
+
+    it('accepts a document without the retired tap-zone and theme fields', async () => {
+      await assertSucceeds(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
+          userId: ALICE,
+          hapticsEnabled: true,
+          dailyReminderEnabled: false,
+          reminderTime: '19:30',
+          uxMode: 'legacy',
+          updatedAt: serverTimestamp(),
+        }),
+      );
+    });
+
     it('rejects unknown fields', async () => {
       await assertFails(
         setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {

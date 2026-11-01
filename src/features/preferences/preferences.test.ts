@@ -45,6 +45,7 @@ describe("preferences sync config", () => {
       hapticsEnabled: true,
       dailyReminderEnabled: false,
       reminderTime: "19:30",
+      uxMode: "legacy",
     });
     expect(payload.updatedAt).toBeDefined();
   });
@@ -62,6 +63,28 @@ describe("preferences sync config", () => {
       reminderTime: "19:30",
       updatedAt: 1_000,
     })).toBe(true);
+  });
+});
+
+describe("uxMode", () => {
+  it("accepts records written before the choice existed", () => {
+    expect(isPreferencesRecord({
+      id: "settings",
+      hapticsEnabled: true,
+      dailyReminderEnabled: false,
+      reminderTime: "19:30",
+      updatedAt: 1_000,
+    })).toBe(true);
+  });
+
+  it("accepts both modes and rejects anything else", () => {
+    expect(isPreferencesRecord(preferences({ uxMode: "legacy" }))).toBe(true);
+    expect(isPreferencesRecord(preferences({ uxMode: "traditional" }))).toBe(true);
+    expect(isPreferencesRecord({ ...preferences(), uxMode: "other" })).toBe(false);
+  });
+
+  it("defaults to legacy", () => {
+    expect(DEFAULT_PREFERENCES.uxMode).toBe("legacy");
   });
 });
 

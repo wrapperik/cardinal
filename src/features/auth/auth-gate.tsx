@@ -14,11 +14,12 @@ export function AuthGate() {
   const pathname = usePathname();
   const router = useRouter();
   const navigationState = useRootNavigationState();
-  const { initializing, onboarded, user } = useAuth();
+  const { initializing, onboarded, uxChoicePending, user } = useAuth();
   const destination = getAuthDestination({
     pathname,
     onboarded,
     signedIn: user !== null,
+    uxChoicePending: uxChoicePending === true,
   });
 
   useEffect(() => {

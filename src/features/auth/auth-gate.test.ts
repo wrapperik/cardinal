@@ -93,4 +93,42 @@ describe("getAuthDestination", () => {
       }),
     ).toBeNull();
   });
+
+  it("holds a new account on the UX choice screen until it picks", () => {
+    expect(
+      getAuthDestination({
+        pathname: "/sign-up",
+        onboarded: true,
+        signedIn: true,
+        uxChoicePending: true,
+      }),
+    ).toBe("/ux-mode");
+    expect(
+      getAuthDestination({
+        pathname: "/home",
+        onboarded: true,
+        signedIn: true,
+        uxChoicePending: true,
+      }),
+    ).toBe("/ux-mode");
+    expect(
+      getAuthDestination({
+        pathname: "/ux-mode",
+        onboarded: true,
+        signedIn: true,
+        uxChoicePending: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("sends a signed-in user off the UX choice screen once resolved", () => {
+    expect(
+      getAuthDestination({
+        pathname: "/ux-mode",
+        onboarded: true,
+        signedIn: true,
+        uxChoicePending: false,
+      }),
+    ).toBe("/home");
+  });
 });

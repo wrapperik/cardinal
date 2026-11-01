@@ -58,6 +58,7 @@ erDiagram
         boolean dailyReminderEnabled
         string reminderTime "HH:MM local"
         string theme
+        string uxMode "legacy or traditional"
         timestamp updatedAt
     }
 
