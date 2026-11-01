@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { BlurView } from "expo-blur";
+import { GlassView } from "expo-glass-effect";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -19,6 +20,7 @@ import { useDecks, useDecksHydrated } from "@/features/upload/decks";
 import { hideDrafts, useDraftIds } from "@/features/upload/drafts";
 import { useTraditionalUx } from "@/features/preferences/preferences";
 import { useDelayedSkeleton } from "@/lib/loading";
+import { useLiquidGlass } from "@/lib/liquid-glass";
 
 /**
  * Home: a rust header (wordmark, the two hold-to-activate icons, the course
@@ -31,6 +33,7 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const traditional = useTraditionalUx();
+  const liquidGlass = useLiquidGlass();
 
   // An upload writes its course and deck to Firestore before anyone confirms
   // it, and the sheet sits over this screen while that happens — so the pills
@@ -94,6 +97,16 @@ export default function Home() {
   const handleChange = useCallback((id: string) => setActiveId(id), []);
   const onUpload = useCallback(() => router.push("/upload"), [router]);
   const onSettings = useCallback(() => router.push("/settings"), [router]);
+
+  const dockContent = (
+    <>
+      <Text style={styles.dockLabel} accessibilityRole="header">COURSE</Text>
+      <View style={styles.dockDivider} />
+      <View style={styles.dockTrack}>
+        {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
+      </View>
+    </>
+  );
 
   return (
     <View style={styles.container}>
@@ -179,13 +192,17 @@ export default function Home() {
         style={[styles.dockWrap, { bottom: insets.bottom + Spacing.sm }]}
         onLayout={(event) => setDockHeight(event.nativeEvent.layout.height + insets.bottom + Spacing.sm)}
       >
-        <BlurView intensity={30} tint="dark" style={styles.dock}>
-          <Text style={styles.dockLabel} accessibilityRole="header">COURSE</Text>
-          <View style={styles.dockDivider} />
-          <View style={styles.dockTrack}>
-            {showSkeleton ? <PillSkeleton /> : <PillNav items={courses} activeId={active?.id ?? null} onChange={handleChange} />}
-          </View>
-        </BlurView>
+        {/* Liquid Glass on iOS 26+ unless switched off in Settings; the
+            frosted blur everywhere else, so older devices look as before. */}
+        {liquidGlass ? (
+          <GlassView glassEffectStyle="regular" colorScheme="dark" style={styles.dock}>
+            {dockContent}
+          </GlassView>
+        ) : (
+          <BlurView intensity={30} tint="dark" style={[styles.dock, styles.dockFrosted]}>
+            {dockContent}
+          </BlurView>
+        )}
       </View>
     </View>
   );
@@ -252,6 +269,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     // Required, or the blur ignores borderRadius and renders as a square.
     overflow: "hidden",
+  },
+  // Fallback only: Liquid Glass draws its own edge and tint, and a fill
+  // under it would flatten the effect.
+  dockFrosted: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Theme.glassEdge,
     backgroundColor: "rgba(43, 43, 43, 0.82)",

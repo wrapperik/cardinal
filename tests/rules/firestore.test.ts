@@ -406,6 +406,21 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('firestore.rules', () => {
       );
     });
 
+    it('accepts a liquidGlass flag and rejects a non-boolean one', async () => {
+      await assertSucceeds(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
+          ...validPreferences(ALICE),
+          liquidGlass: false,
+        }),
+      );
+      await assertFails(
+        setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {
+          ...validPreferences(ALICE),
+          liquidGlass: 'yes',
+        }),
+      );
+    });
+
     it('accepts a document without the retired tap-zone and theme fields', async () => {
       await assertSucceeds(
         setDoc(doc(as(ALICE), 'users', ALICE, 'preferences', 'settings'), {

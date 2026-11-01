@@ -28,6 +28,7 @@ import {
   usePreferencesSyncStatus,
   useTraditionalUx,
 } from "@/features/preferences/preferences";
+import { LIQUID_GLASS_SUPPORTED } from "@/lib/liquid-glass";
 
 /**
  * Settings, as an ordinary pushed screen. In legacy UX there is nothing to
@@ -114,6 +115,19 @@ export default function Settings() {
             onConfirm={() => updatePreferences({ uxMode: traditional ? "legacy" : "traditional" })}
           />
         </View>
+
+        {/* Only offered where it can render — on older iOS and Android the
+            switch would do nothing. */}
+        {LIQUID_GLASS_SUPPORTED && (
+          <>
+            <Text style={styles.sectionLabel}>APPEARANCE</Text>
+            <ToggleRow
+              label="LIQUID GLASS"
+              value={preferences.liquidGlass}
+              onChange={(liquidGlass) => updatePreferences({ liquidGlass })}
+            />
+          </>
+        )}
 
         <Text style={styles.sectionLabel}>FEEDBACK</Text>
         <ToggleRow

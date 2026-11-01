@@ -88,6 +88,22 @@ describe("uxMode", () => {
   });
 });
 
+describe("liquidGlass", () => {
+  it("accepts records written before the toggle existed", () => {
+    const { liquidGlass: _omitted, ...older } = preferences();
+    expect(isPreferencesRecord(older)).toBe(true);
+  });
+
+  it("accepts booleans only", () => {
+    expect(isPreferencesRecord(preferences({ liquidGlass: false }))).toBe(true);
+    expect(isPreferencesRecord({ ...preferences(), liquidGlass: "yes" })).toBe(false);
+  });
+
+  it("defaults to on", () => {
+    expect(DEFAULT_PREFERENCES.liquidGlass).toBe(true);
+  });
+});
+
 describe("syncStatusLabel", () => {
   it("keeps settings copy aligned with the actual store state", () => {
     expect(syncStatusLabel("synced")).toBe("SYNCED");

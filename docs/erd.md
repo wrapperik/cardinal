@@ -59,6 +59,7 @@ erDiagram
         string reminderTime "HH:MM local"
         string theme
         string uxMode "legacy or traditional"
+        boolean liquidGlass
         timestamp updatedAt
     }
 

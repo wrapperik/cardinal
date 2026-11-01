@@ -10,6 +10,12 @@ export type UxMode = "legacy" | "traditional";
 
 export interface Preferences {
   uxMode: UxMode;
+  /**
+   * Whether surfaces that support it (home's course bar) use iOS 26 Liquid
+   * Glass. Ignored where the platform can't render it — see
+   * useLiquidGlass in lib/liquid-glass.ts.
+   */
+  liquidGlass: boolean;
   hapticsEnabled: boolean;
   dailyReminderEnabled: boolean;
   reminderTime: string;
@@ -22,6 +28,7 @@ export interface PreferencesRecord extends Preferences {
 
 export const DEFAULT_PREFERENCES: Preferences = {
   uxMode: "legacy",
+  liquidGlass: true,
   hapticsEnabled: true,
   dailyReminderEnabled: false,
   reminderTime: "19:30",
@@ -53,6 +60,7 @@ export function isPreferencesRecord(value: unknown): value is PreferencesRecord 
     // Optional on the wire: records written before the choice existed are
     // read back as legacy by normalise() rather than rejected.
     (candidate.uxMode === undefined || candidate.uxMode === "legacy" || candidate.uxMode === "traditional") &&
+    (candidate.liquidGlass === undefined || typeof candidate.liquidGlass === "boolean") &&
     typeof candidate.hapticsEnabled === "boolean" &&
     typeof candidate.dailyReminderEnabled === "boolean" &&
     typeof candidate.reminderTime === "string" &&
@@ -73,17 +81,22 @@ const preferencesSyncConfig: SyncedStoreConfig<PreferencesRecord> = {
 
 const store = createSyncedStore<PreferencesRecord>(preferencesSyncConfig);
 
-// Remembers the last upgrade so a pre-uxMode record maps to the same object
+// Remembers the last upgrade so an older record maps to the same object
 // on every render, rather than a fresh copy that defeats memo and effect deps.
 let lastRaw: PreferencesRecord | undefined;
 let lastNormalised: PreferencesRecord = DEFAULT_RECORD;
 
 function normalise(record: PreferencesRecord | undefined): PreferencesRecord {
   if (!record) return DEFAULT_RECORD;
-  if (record.uxMode) return record;
+  // Fields added after launch are optional on the wire; fill them in here.
+  if (record.uxMode !== undefined && record.liquidGlass !== undefined) return record;
   if (record !== lastRaw) {
     lastRaw = record;
-    lastNormalised = { ...record, uxMode: DEFAULT_PREFERENCES.uxMode };
+    lastNormalised = {
+      ...record,
+      uxMode: record.uxMode ?? DEFAULT_PREFERENCES.uxMode,
+      liquidGlass: record.liquidGlass ?? DEFAULT_PREFERENCES.liquidGlass,
+    };
   }
   return lastNormalised;
 }

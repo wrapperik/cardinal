@@ -160,6 +160,7 @@ service cloud.firestore {
                         'reminderTime',
                         'theme',
                         'uxMode',
+                        'liquidGlass',
                         'updatedAt'
                       ])
                    && incoming().userId == userId
@@ -171,6 +172,7 @@ service cloud.firestore {
                    && incoming().dailyReminderEnabled is bool
                    && (!('theme' in incoming()) || incoming().theme is string)
                    && (!('uxMode' in incoming()) || incoming().uxMode in ['legacy', 'traditional'])
+                   && (!('liquidGlass' in incoming()) || incoming().liquidGlass is bool)
                    && isServerTime('updatedAt')
                    // "HH:MM", 24-hour local.
                    && incoming().reminderTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
