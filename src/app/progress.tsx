@@ -15,6 +15,7 @@ import { courseStats } from "@/features/upload/course-stats";
 import { useCourses, useCoursesHydrated } from "@/features/upload/courses";
 import { useDecks, useDecksHydrated } from "@/features/upload/decks";
 import { SwipeAction } from "@/features/upload/swipe-action";
+import type { IconName } from "@/components/icons";
 import { useDelayedSkeleton } from "@/lib/loading";
 
 const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
@@ -91,6 +92,7 @@ export default function Progress() {
             title="NO CARDS YET"
             message="UPLOAD MATERIAL TO BUILD YOUR FIRST RECAP."
             actionLabel="UPLOAD MATERIAL"
+            actionIcon="plus"
             onAction={() => router.replace({ pathname: "/upload", params: { courseId: course.id } })}
           />
         ) : allTime.sessionCount === 0 ? (
@@ -98,6 +100,7 @@ export default function Progress() {
             title={course.seeded ? "TRY THE DEMO" : "READY FOR YOUR FIRST RECAP"}
             message={course.seeded ? "QUICK RECAP STARTS THE SAMPLE DECK." : "QUICK RECAP WILL START YOUR STUDY HISTORY."}
             actionLabel="QUICK RECAP"
+            actionIcon="play"
             onAction={() => router.replace({ pathname: "/recap", params: { courseId: course.id } })}
           />
         ) : (
@@ -156,18 +159,20 @@ function ProgressEmpty({
   title,
   message,
   actionLabel,
+  actionIcon,
   onAction,
 }: {
   title: string;
   message: string;
   actionLabel?: string;
+  actionIcon?: IconName;
   onAction?: () => void;
 }) {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.heading}>{title}</Text>
       <Text style={styles.emptyCopy}>{message}</Text>
-      {actionLabel && onAction && <SwipeAction label={actionLabel} tone="accent" onConfirm={onAction} />}
+      {actionLabel && onAction && <SwipeAction label={actionLabel} icon={actionIcon} tone="accent" onConfirm={onAction} />}
     </View>
   );
 }

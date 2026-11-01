@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import type { IconName } from "@/components/icons";
 import { SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 import { matchesTypedConfirmation } from "@/components/typed-confirmation";
@@ -11,6 +12,7 @@ interface Props {
   message: string;
   confirmation: string;
   confirmLabel: string;
+  confirmIcon?: IconName;
   submitting?: boolean;
   error?: string | null;
   onConfirm: () => void;
@@ -24,6 +26,7 @@ export function TypedConfirmationDialog({
   message,
   confirmation,
   confirmLabel,
+  confirmIcon = "trash",
   submitting = false,
   error = null,
   onConfirm,
@@ -63,8 +66,8 @@ export function TypedConfirmationDialog({
             />
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <SwipeAction label={submitting ? "DELETING..." : confirmLabel} tone="destructive" disabled={!confirmed || submitting} onConfirm={confirm} />
-          <SwipeAction label="CANCEL" direction="left" tone="calm" disabled={submitting} onConfirm={cancel} />
+          <SwipeAction label={submitting ? "DELETING..." : confirmLabel} icon={confirmIcon} tone="destructive" disabled={!confirmed || submitting} onConfirm={confirm} />
+          <SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" disabled={submitting} onConfirm={cancel} />
         </Pressable>
       </Pressable>
     </Modal>

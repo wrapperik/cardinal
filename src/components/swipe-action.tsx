@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Svg, { Path } from "react-native-svg";
 import Animated, { runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring } from "react-native-reanimated";
 
+import { Icon, type IconName } from "@/components/icons";
 import { Colors, Fonts, Motion, Radius, Spacing, Theme, TrailDark } from "@/constants/theme";
 import { DELAYED_FILL_SPRING, SWIPE_COMMIT_DISTANCE, SWIPE_MAX_DRAG } from "@/constants/gestures";
 import { useReducedMotion } from "@/lib/accessibility";
@@ -16,6 +16,8 @@ export interface SwipeActionProps {
   tone?: "default" | "accent" | "destructive" | "calm" | "light";
   direction?: "left" | "right";
   disabled?: boolean;
+  /** Traditional UX only; the legacy swipe row ignores it. */
+  icon?: IconName;
 }
 
 /**
@@ -43,10 +45,19 @@ function toneFill(tone: NonNullable<SwipeActionProps["tone"]>) {
         : Colors.rust;
 }
 
-/** Traditional UX: same footprint and colours, fired by a tap. The tone's fill
- *  floods the row while it is pressed; there is no gesture to hint at, so the
- *  right-hand cue is a quiet disclosure chevron instead of "SWIPE …" copy. */
-function TapAction({ label, onConfirm, tone = "default", disabled = false }: SwipeActionProps) {
+/** Traditional UX: an ordinary centred button, `[icon] LABEL`, fired by a tap.
+ *  There is no drag to reveal the tone's fill, so unlike the swipe row it is
+ *  styled at rest. `destructive` is a rust outline on the surface colour so it
+ *  reads as distinct from the filled rust primary. */
+function TapAction({ label, onConfirm, tone = "default", disabled = false, icon }: SwipeActionProps) {
+  const destructive = tone === "destructive";
+  // At rest, `default` and `accent` can't share rust the way their drag fills
+  // do: a stack like SAVE / DISCARD would show two primaries. So `accent` is
+  // the filled primary and `default` the neutral secondary.
+  const secondary = tone === "default";
+  const background = destructive || secondary ? Theme.surface : toneFill(tone);
+  const foreground = destructive ? Colors.rust : Colors.bone;
+  const text = icon === "plus" ? label.replace(/^\+\s*/, "") : label;
   return (
     <Pressable
       accessibilityRole="button"
@@ -54,19 +65,17 @@ function TapAction({ label, onConfirm, tone = "default", disabled = false }: Swi
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={() => { selection(); onConfirm(); }}
-      style={[styles.row, disabled && styles.disabled]}
+      style={({ pressed }) => [
+        styles.row,
+        styles.tapRow,
+        { backgroundColor: background },
+        destructive && { borderWidth: 2, borderColor: Colors.rust },
+        pressed && styles.tapPressed,
+        disabled && styles.disabled,
+      ]}
     >
-      {({ pressed }) => (
-        <>
-          <View style={[styles.fillFull, { backgroundColor: toneFill(tone), opacity: pressed ? 1 : 0 }]} />
-          <View style={styles.content}>
-            <Text style={styles.label}>{label}</Text>
-            <Svg width={8} height={14} viewBox="0 0 8 14" fill="none">
-              <Path d="M1 1 L7 7 L1 13" stroke={Theme.textMuted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </Svg>
-          </View>
-        </>
-      )}
+      {icon && <Icon name={icon} color={foreground} />}
+      <Text style={[styles.label, styles.tapLabel, { color: foreground }]}>{text}</Text>
     </Pressable>
   );
 }
@@ -120,9 +129,11 @@ const styles = StyleSheet.create({
   row: { height: 56, borderRadius: Radius.card, backgroundColor: Theme.surface, overflow: "hidden" },
   disabled: { opacity: 0.4 },
   fill: { position: "absolute", top: 0, bottom: 0 },
-  fillFull: { ...StyleSheet.absoluteFill },
   left: { left: 0 }, right: { right: 0 },
   content: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.lg },
   label: { fontFamily: Fonts.bodyBold, fontSize: 15, letterSpacing: 0.5, color: Theme.text },
+  tapRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingHorizontal: Spacing.lg },
+  tapPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  tapLabel: { textAlign: "center" },
   hint: { fontFamily: Fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: Theme.textMuted },
 });

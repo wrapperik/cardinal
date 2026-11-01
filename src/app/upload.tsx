@@ -551,6 +551,7 @@ export default function Upload() {
         title="DISCARD UPLOAD?"
         message="Your selected file and extracted cards will be cleared."
         confirmLabel="DISCARD"
+        confirmIcon="trash"
         onCancel={() => setDiscardIntent(null)}
         onConfirm={() => {
           const intent = discardIntent;
@@ -577,7 +578,7 @@ function IdleStage({ error, onPick }: { error: string | null; onPick: () => void
   return (
     <View style={styles.stageGap}>
       <Text style={styles.copy}>PDF IN, CARDS OUT</Text>
-      <SwipeAction label="CHOOSE A FILE" hint="SWIPE RIGHT" onConfirm={onPick} />
+      <SwipeAction label="CHOOSE A FILE" icon="file" hint="SWIPE RIGHT" onConfirm={onPick} />
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
@@ -618,7 +619,7 @@ function PickedStage({
         <Text style={styles.note}>NO COURSE CHOSEN — THE MODEL WILL DECIDE</Text>
       )}
 
-      <SwipeAction label="EXTRACT" hint="SWIPE RIGHT" tone="accent" onConfirm={onExtract} />
+      <SwipeAction label="EXTRACT" icon="sparkle" hint="SWIPE RIGHT" tone="accent" onConfirm={onExtract} />
     </View>
   );
 }
@@ -667,7 +668,7 @@ function ExtractingStage({ file, progress, phase, onCancel }: { file: PickedFile
         <View style={[styles.progressFill, { width: `${pct}%` }]} />
       </View>
       <Text style={styles.progressPct}>{pct}%</Text>
-      <SwipeAction label="CANCEL" hint="SWIPE RIGHT" onConfirm={onCancel} />
+      <SwipeAction label="CANCEL" icon="close" hint="SWIPE RIGHT" onConfirm={onCancel} />
     </View>
   );
 }
@@ -723,7 +724,7 @@ function ReviewStage({
         <View key={`${card.gameType}-${index}`} style={styles.cardReviewRow}>
           <Text style={styles.breakdownLine}>{TEMPLATE_LABELS[card.gameType]}</Text>
           <Text style={styles.note}>{cardPreview(card)}</Text>
-          <SwipeAction label="DROP" hint="SWIPE RIGHT" onConfirm={() => onDropCard(index)} />
+          <SwipeAction label="DROP" icon="trash" hint="SWIPE RIGHT" onConfirm={() => onDropCard(index)} />
         </View>
       ))}
 
@@ -742,8 +743,8 @@ function ReviewStage({
 
       <View style={styles.divider} />
 
-      <SwipeAction label={saveLabel} hint="SWIPE RIGHT" tone="accent" onConfirm={onSave} />
-      <SwipeAction label="DISCARD" hint="SWIPE RIGHT" onConfirm={onDiscard} />
+      <SwipeAction label={saveLabel} icon="check" hint="SWIPE RIGHT" tone="accent" onConfirm={onSave} />
+      <SwipeAction label="DISCARD" icon="close" hint="SWIPE RIGHT" onConfirm={onDiscard} />
     </View>
   );
 }
@@ -761,8 +762,8 @@ function SavedStage({ courseTitle, count, saving = false, onStudy, onDone }: { c
       <Text style={styles.copy}>
         {count} CARD{count === 1 ? "" : "S"} ADDED TO {courseTitle ?? "—"}
       </Text>
-      {onStudy && <SwipeAction label="STUDY NOW" hint="SWIPE RIGHT" tone="accent" onConfirm={onStudy} />}
-      {onDone && <SwipeAction label="DONE" hint="SWIPE RIGHT" onConfirm={onDone} />}
+      {onStudy && <SwipeAction label="STUDY NOW" icon="play" hint="SWIPE RIGHT" tone="accent" onConfirm={onStudy} />}
+      {onDone && <SwipeAction label="DONE" icon="check" hint="SWIPE RIGHT" onConfirm={onDone} />}
     </View>
   );
 }
@@ -779,8 +780,8 @@ function FailedStage({
   return (
     <View style={styles.stageGap}>
       <Text style={styles.error}>{message ?? "SOMETHING WENT WRONG"}</Text>
-      <SwipeAction label="TRY AGAIN" hint="SWIPE RIGHT" onConfirm={onRetry} />
-      <SwipeAction label="START OVER" hint="SWIPE RIGHT" onConfirm={onStartOver} />
+      <SwipeAction label="TRY AGAIN" icon="refresh" hint="SWIPE RIGHT" onConfirm={onRetry} />
+      <SwipeAction label="START OVER" icon="refresh" hint="SWIPE RIGHT" onConfirm={onStartOver} />
     </View>
   );
 }

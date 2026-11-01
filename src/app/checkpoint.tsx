@@ -36,7 +36,7 @@ export default function Checkpoint() {
         <View style={[styles.content, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.xl }]}>
           <Text style={styles.unavailable}>THIS CHECKPOINT IS NO LONGER AVAILABLE.</Text>
           <View style={styles.gap} />
-          <SwipeAction label="DONE" onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))} />
+          <SwipeAction label="DONE" icon="check" onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))} />
         </View>
       </View>
     );
@@ -80,11 +80,11 @@ export default function Checkpoint() {
         <StatRow label="TIME" value={formatDuration(elapsed)} />
 
         <View style={styles.gap} />
-        <SwipeAction label="CONTINUE" hint="SWIPE RIGHT" tone="accent" onConfirm={continueRecap} />
+        <SwipeAction label="CONTINUE" icon="arrowRight" hint="SWIPE RIGHT" tone="accent" onConfirm={continueRecap} />
         <View style={styles.gapSmall} />
         <Text style={styles.stopHint}>STOPPING NOW SAVES YOUR PLACE FOR THIS DECK.</Text>
         <View style={styles.gapSmall} />
-        <SwipeAction label="STOP FOR NOW" hint="SWIPE RIGHT" onConfirm={stopForNow} />
+        <SwipeAction label="STOP FOR NOW" icon="pause" hint="SWIPE RIGHT" onConfirm={stopForNow} />
       </ScrollView>
     </View>
   );

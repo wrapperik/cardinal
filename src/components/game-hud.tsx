@@ -119,6 +119,7 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
         title="START AGAIN?"
         message="This attempt will close and the deck will restart from its first card."
         confirmLabel="RESTART"
+        confirmIcon="refresh"
         onCancel={() => setConfirmRestart(false)}
         onConfirm={() => { setConfirmRestart(false); runner.restart(); }}
       />
@@ -129,6 +130,7 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
           ? "Your progress is saved at the last checkpoint, so you can continue later."
           : "This game will end and your current score will be cleared."}
         confirmLabel="LEAVE"
+        confirmIcon="signOut"
         cancelLabel="CONTINUE"
         onCancel={() => setConfirmExit(false)}
         onConfirm={() => { setConfirmExit(false); runner.abandon(); }}

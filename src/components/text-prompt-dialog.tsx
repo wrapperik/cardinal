@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
+import type { IconName } from "@/components/icons";
 import { SwipeAction } from "@/components/swipe-action";
 import { Fonts, Radius, Spacing, Theme } from "@/constants/theme";
 
@@ -9,12 +10,13 @@ interface Props {
   title: string;
   placeholder: string;
   confirmLabel: string;
+  confirmIcon?: IconName;
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }
 
 /** A single free-text prompt, modelled on ConfirmationDialog's modal/backdrop/card shell. */
-export function TextPromptDialog({ visible, title, placeholder, confirmLabel, onConfirm, onCancel }: Props) {
+export function TextPromptDialog({ visible, title, placeholder, confirmLabel, confirmIcon = "check", onConfirm, onCancel }: Props) {
   const [value, setValue] = useState("");
 
   // Cleared on every open rather than on close, so the field can't flash the
@@ -40,8 +42,8 @@ export function TextPromptDialog({ visible, title, placeholder, confirmLabel, on
             selectionColor={Theme.accent}
             style={styles.input}
           />
-          <SwipeAction label={confirmLabel} tone="accent" disabled={trimmed.length === 0} onConfirm={() => onConfirm(trimmed)} />
-          <SwipeAction label="CANCEL" direction="left" tone="calm" onConfirm={onCancel} />
+          <SwipeAction label={confirmLabel} icon={confirmIcon} tone="accent" disabled={trimmed.length === 0} onConfirm={() => onConfirm(trimmed)} />
+          <SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" onConfirm={onCancel} />
         </Pressable>
       </Pressable>
     </Modal>

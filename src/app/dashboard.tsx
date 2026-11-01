@@ -13,6 +13,7 @@ import { DashboardCard } from "@/features/admin/dashboard-card";
 import { formatCount, formatGeneratedAt, formatPercent, formatRelativeTime } from "@/features/admin/dashboard-format";
 import { useDashboard } from "@/features/admin/use-dashboard";
 import { SwipeAction } from "@/features/upload/swipe-action";
+import type { IconName } from "@/components/icons";
 import { useDelayedSkeleton } from "@/lib/loading";
 
 const CONTENT_TOP_CLEARANCE = HOLD_BUTTON_SIZE + Spacing.lg;
@@ -70,6 +71,7 @@ export default function Dashboard() {
             title="DASHBOARD UNAVAILABLE"
             message={error ?? "COULDN'T LOAD THE DASHBOARD. TRY AGAIN."}
             actionLabel="TRY AGAIN"
+            actionIcon="refresh"
             onAction={refresh}
           />
         ) : snapshot ? (
@@ -141,7 +143,7 @@ export default function Dashboard() {
             )}
 
             <View style={styles.refresh}>
-              <SwipeAction label="REFRESH" tone="accent" onConfirm={refresh} />
+              <SwipeAction label="REFRESH" icon="refresh" tone="accent" onConfirm={refresh} />
             </View>
           </>
         ) : null}
@@ -206,18 +208,20 @@ function DashboardEmpty({
   title,
   message,
   actionLabel,
+  actionIcon,
   onAction,
 }: {
   title: string;
   message: string;
   actionLabel?: string;
+  actionIcon?: IconName;
   onAction?: () => void;
 }) {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.heading}>{title}</Text>
       <Text style={styles.emptyCopy}>{message}</Text>
-      {actionLabel && onAction && <SwipeAction label={actionLabel} tone="accent" onConfirm={onAction} />}
+      {actionLabel && onAction && <SwipeAction label={actionLabel} icon={actionIcon} tone="accent" onConfirm={onAction} />}
     </View>
   );
 }

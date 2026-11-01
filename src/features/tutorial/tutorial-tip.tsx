@@ -25,7 +25,7 @@ export function TutorialTip({ gameType }: { gameType: GameType }) {
           <Text style={styles.eyebrow}>HOW IT WORKS</Text>
           <Text style={styles.title}>{tip.title}</Text>
           <Text style={styles.body}>{tip.body}</Text>
-          <SwipeAction label="GOT IT" hint="SWIPE RIGHT" tone="accent" onConfirm={() => setVisible(false)} />
+          <SwipeAction label="GOT IT" icon="check" hint="SWIPE RIGHT" tone="accent" onConfirm={() => setVisible(false)} />
         </Pressable>
       </Pressable>
     </Modal>

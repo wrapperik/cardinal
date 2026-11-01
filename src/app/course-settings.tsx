@@ -108,6 +108,7 @@ export default function CourseSettings() {
               <Text style={styles.groupLabel}>UPLOAD</Text>
               <SwipeAction
                 label="UPLOAD INTO THIS COURSE"
+                icon="upload"
                 hint="SWIPE RIGHT"
                 tone="accent"
                 onConfirm={() =>
@@ -124,6 +125,7 @@ export default function CourseSettings() {
               ) : (
                 <SwipeAction
                   label="DELETE COURSE"
+                  icon="trash"
                   hint="SWIPE RIGHT"
                   tone="destructive"
                   onConfirm={() => setConfirmDelete(true)}
@@ -142,6 +144,7 @@ export default function CourseSettings() {
         title="DELETE COURSE?"
         message={`This removes ${course?.title ?? "this course"}, its uploaded decks, and its saved progress.`}
         confirmLabel="DELETE"
+        confirmIcon="trash"
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => {
           if (!course || course.seeded) return;
@@ -191,6 +194,7 @@ function RenameSection({
           comment covers why every commit in this app reads this way. */}
       <SwipeAction
         label="SAVE NAME"
+        icon="check"
         hint="SWIPE RIGHT"
         disabled={!canSave}
         onConfirm={() => {

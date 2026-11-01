@@ -64,6 +64,7 @@ export default function Complete() {
             <View style={styles.gap} />
             <SwipeAction
               label="DONE"
+              icon="check"
               hint="SWIPE RIGHT"
               tone="calm"
               onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}
@@ -106,6 +107,7 @@ export default function Complete() {
             <View style={styles.gap} />
             <SwipeAction
               label="STUDY AGAIN"
+              icon="refresh"
               hint="SWIPE RIGHT"
               tone="light"
               onConfirm={() =>
@@ -115,6 +117,7 @@ export default function Complete() {
             <View style={styles.gapSmall} />
             <SwipeAction
               label="DONE"
+              icon="check"
               hint="SWIPE RIGHT"
               tone="calm"
               onConfirm={() => (router.canGoBack() ? router.back() : router.replace("/home"))}

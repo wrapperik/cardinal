@@ -54,7 +54,7 @@ export function HelpButton() {
                 ? "TAP BUTTONS AND ROWS TO USE THEM. THE GAMES STILL USE HOLDS AND SWIPES."
                 : "NOTHING IN CARDINAL RESPONDS TO A TAP. EVERY ACTION IS A HOLD OR A SWIPE."}
             </Text>
-            <SwipeAction label="GOT IT" tone="calm" onConfirm={() => setVisible(false)} />
+            <SwipeAction label="GOT IT" icon="check" tone="calm" onConfirm={() => setVisible(false)} />
           </Pressable>
         </Pressable>
       </Modal>

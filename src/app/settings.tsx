@@ -88,7 +88,7 @@ export default function Settings() {
                 the dashboard re-checks the token's custom claim server-side,
                 which is the check that actually matters. */}
             <View style={styles.profileActions}>
-              <SwipeAction label="DASHBOARD" tone="accent" onConfirm={() => router.push("/dashboard")} />
+              <SwipeAction label="DASHBOARD" icon="chart" tone="accent" onConfirm={() => router.push("/dashboard")} />
             </View>
           </>
         )}
@@ -109,6 +109,7 @@ export default function Settings() {
         <View style={styles.profileActions}>
           <SwipeAction
             label={traditional ? "SWITCH TO LEGACY UX" : "SWITCH TO TRADITIONAL UX"}
+            icon="swap"
             tone="default"
             onConfirm={() => updatePreferences({ uxMode: traditional ? "legacy" : "traditional" })}
           />
@@ -170,10 +171,10 @@ function EditNameRow({ name, onSave }: { name: string; onSave: (name: string) =>
 
   return (
     <View>
-      <SwipeAction label="EDIT NAME" tone="default" onConfirm={open} />
+      <SwipeAction label="EDIT NAME" icon="pencil" tone="default" onConfirm={open} />
       <AccountDialog visible={visible} title="EDIT NAME" message="CHOOSE THE NAME SHOWN ON YOUR ACCOUNT." error={error} onCancel={() => setVisible(false)}>
         <TextInput value={value} onChangeText={setValue} autoCapitalize="words" autoCorrect={false} editable={!saving} style={styles.input} accessibilityLabel="NAME" />
-        <SwipeAction label={saving ? "SAVING..." : "SAVE NAME"} tone="accent" disabled={saving} onConfirm={save} />
+        <SwipeAction label={saving ? "SAVING..." : "SAVE NAME"} icon="check" tone="accent" disabled={saving} onConfirm={save} />
       </AccountDialog>
     </View>
   );
@@ -212,11 +213,11 @@ function ChangePasswordRow({ onChangePassword }: { onChangePassword: (currentPas
 
   return (
     <View>
-      <SwipeAction label="CHANGE PASSWORD" tone="default" onConfirm={open} />
+      <SwipeAction label="CHANGE PASSWORD" icon="lock" tone="default" onConfirm={open} />
       <AccountDialog visible={visible} title="CHANGE PASSWORD" message="ENTER YOUR CURRENT PASSWORD BEFORE CHOOSING A NEW ONE." error={error} onCancel={() => setVisible(false)}>
         <TextInput value={currentPassword} onChangeText={setCurrentPassword} placeholder="CURRENT PASSWORD" placeholderTextColor={Theme.textMuted} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!changing} style={styles.input} accessibilityLabel="CURRENT PASSWORD" />
         <TextInput value={nextPassword} onChangeText={setNextPassword} placeholder="NEW PASSWORD" placeholderTextColor={Theme.textMuted} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!changing} style={styles.input} accessibilityLabel="NEW PASSWORD" />
-        <SwipeAction label={changing ? "UPDATING..." : "CHANGE PASSWORD"} tone="accent" disabled={changing} onConfirm={change} />
+        <SwipeAction label={changing ? "UPDATING..." : "CHANGE PASSWORD"} icon="check" tone="accent" disabled={changing} onConfirm={change} />
       </AccountDialog>
     </View>
   );
@@ -238,7 +239,7 @@ function AccountDialog({ visible, title, message, error, onCancel, children }: {
           <Text style={styles.dialogMessage}>{message}</Text>
           {children}
           {error ? <Text style={styles.dialogError}>{error}</Text> : null}
-          <SwipeAction label="CANCEL" direction="left" tone="calm" onConfirm={onCancel} />
+          <SwipeAction label="CANCEL" icon="close" direction="left" tone="calm" onConfirm={onCancel} />
         </Pressable>
       </Pressable>
     </Modal>
@@ -269,6 +270,7 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
     <View>
       <SwipeAction
         label="SIGN OUT"
+        icon="signOut"
         direction="left"
         tone="destructive"
         onConfirm={traditional ? () => setConfirming(true) : signOut}
@@ -279,6 +281,7 @@ function SignOutRow({ onSignOut }: { onSignOut: () => Promise<void> }) {
         title="SIGN OUT?"
         message="Your decks and progress stay synced to your account."
         confirmLabel="SIGN OUT"
+        confirmIcon="signOut"
         cancelLabel="STAY SIGNED IN"
         onConfirm={signOut}
         onCancel={() => setConfirming(false)}
@@ -307,13 +310,14 @@ function DeleteAccountRow({ onDelete }: { onDelete: () => Promise<void> }) {
 
   return (
     <View>
-      <SwipeAction label="DELETE ACCOUNT" direction="left" tone="destructive" onConfirm={() => setVisible(true)} />
+      <SwipeAction label="DELETE ACCOUNT" icon="trash" direction="left" tone="destructive" onConfirm={() => setVisible(true)} />
       <TypedConfirmationDialog
         visible={visible}
         title="DELETE ACCOUNT?"
         message="THIS ERASES YOUR COURSES, CARDS, UPLOADS AND STUDY HISTORY FOREVER."
         confirmation="DELETE"
         confirmLabel="DELETE FOREVER"
+        confirmIcon="trash"
         submitting={deleting}
         error={error}
         onConfirm={confirmDelete}

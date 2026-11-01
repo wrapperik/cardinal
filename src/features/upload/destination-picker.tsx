@@ -31,12 +31,13 @@ export function DestinationPicker({ courses, selectedId, suggestedId = null, onS
         suggestedValue={suggestedId}
         onChange={onSelect}
       />
-      <SwipeAction label="+ NEW COURSE" hint="SWIPE RIGHT" onConfirm={() => setDialogVisible(true)} />
+      <SwipeAction label="+ NEW COURSE" icon="plus" hint="SWIPE RIGHT" onConfirm={() => setDialogVisible(true)} />
       <TextPromptDialog
         visible={dialogVisible}
         title="NEW COURSE"
         placeholder="COURSE TITLE"
         confirmLabel="CREATE"
+        confirmIcon="plus"
         onConfirm={(title) => {
           setDialogVisible(false);
           onCreate(title);
