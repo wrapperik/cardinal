@@ -121,7 +121,7 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.55)" },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.55)" },
   sheet: {
     position: "absolute",
     left: 0,

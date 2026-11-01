@@ -30,7 +30,9 @@
       [
         "expo-font",
         {
-          "fonts": ["./assets/fonts/LEDDotMatrix-400.ttf"]
+          "fonts": [
+            "./assets/fonts/LEDDotMatrix-400.ttf"
+          ]
         }
       ],
       [
@@ -40,7 +42,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-image",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

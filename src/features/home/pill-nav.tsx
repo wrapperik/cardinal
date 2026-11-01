@@ -7,6 +7,7 @@ import {
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
@@ -49,7 +50,9 @@ interface PillNavProps {
  */
 export function PillNav({ items, activeId, onChange }: PillNavProps) {
   const reducedMotion = useReducedMotion();
-  const scrollRef = useRef<ScrollView>(null);
+  // RN 0.88 types ScrollView as a function component, so the ref is the
+  // imperative instance type rather than the component itself.
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const measured = useRef<(Measurement | undefined)[]>([]);
   const [layout, setLayout] = useState<Measurement[]>([]);
   const [viewportWidth, setViewportWidth] = useState(0);

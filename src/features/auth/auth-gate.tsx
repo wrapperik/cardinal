@@ -40,7 +40,7 @@ export function AuthGate() {
 
 const styles = StyleSheet.create({
   loading: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flex: 1,
     zIndex: 10,
     alignItems: "center",
