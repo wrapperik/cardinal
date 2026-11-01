@@ -29,6 +29,7 @@ import { Colors, EDGE_PILL_HEIGHT, Fonts, Gestures, Spacing, Theme } from "@/con
 import { useRecapRunner } from "@/features/recap/runner";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useTrueFalseStatements } from "@/features/upload/play";
+import { showVerdict } from "@/components/verdict-burst";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 import type { TrueFalseStatement } from "@/features/true-false/statements";
@@ -142,6 +143,7 @@ export default function TrueFalse() {
     if (committing.current) return;
 
     if (answer === -1) {
+      showVerdict("pass");
       if (runner.report("passed")) return;
       advanceStatement();
       return;
@@ -153,6 +155,7 @@ export default function TrueFalse() {
     verdictActive.value = true;
     verdictCorrect.value = correct;
     if (!correct) revealSide.value = statement.isTrue ? 1 : 0;
+    showVerdict(correct ? "correct" : "wrong");
     notification(
       correct
         ? NotificationFeedbackType.Success

@@ -29,6 +29,7 @@ import { DEFAULT_CHARACTER_ID } from "@/features/character/roster";
 import { useRecapRunner } from "@/features/recap/runner";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useQuizQuestions } from "@/features/upload/play";
+import { showVerdict } from "@/components/verdict-burst";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
@@ -161,6 +162,7 @@ export default function Quiz() {
     if (committing.current) return;
 
     if (answer === -1) {
+      showVerdict("pass");
       if (runner.report("passed")) return;
       advanceQuestion();
       return;
@@ -171,6 +173,7 @@ export default function Quiz() {
     verdictIndex.value = answer;
     verdictCorrect.value = correct;
     if (!correct) revealCorrect.value = question.correctIndex;
+    showVerdict(correct ? "correct" : "wrong");
     notification(
       correct
         ? NotificationFeedbackType.Success

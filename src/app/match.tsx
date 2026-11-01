@@ -19,6 +19,7 @@ import { useRecapRunner } from "@/features/recap/runner";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useMatchRounds } from "@/features/upload/play";
 import { getMatchZoneHeight } from "@/features/match/layout";
+import { showVerdict } from "@/components/verdict-burst";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
@@ -176,6 +177,7 @@ export default function Match() {
   // Dragged, not tapped — skips with no verdict, same as true-false's Pass.
   function skipRound() {
     if (committing.current) return;
+    showVerdict("pass");
     if (runner.report("passed")) return;
     resetZoneVisuals();
     fumbled.current = false;
@@ -457,6 +459,7 @@ function DraggableTerm({
     const correct = zoneOrder[zonePos] === pairIndex;
     if (correct) {
       matchedFlags[zonePos].value = true;
+      showVerdict("correct");
       notification(NotificationFeedbackType.Success);
       onCorrect(zonePos, pairIndex);
       // No spring-back. The card already stopped inside the zone it hit —
@@ -466,6 +469,7 @@ function DraggableTerm({
       wrongFlags[zonePos].value = true;
       dx.value = withSpring(0, SETTLE_SPRING);
       dy.value = withSpring(0, SETTLE_SPRING);
+      showVerdict("wrong");
       notification(NotificationFeedbackType.Error);
       onWrong();
       setTimeout(() => {

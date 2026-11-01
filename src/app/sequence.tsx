@@ -19,6 +19,7 @@ import type { SequenceRound } from "@/features/sequence/rounds";
 import { finishSequencePassGesture } from "@/features/sequence/pass-gesture";
 import { TutorialTip } from "@/features/tutorial/tutorial-tip";
 import { useSequenceRounds } from "@/features/upload/play";
+import { showVerdict } from "@/components/verdict-burst";
 import { notification, NotificationFeedbackType } from "@/lib/haptics";
 import { motionDuration, useReducedMotion } from "@/lib/accessibility";
 
@@ -187,6 +188,7 @@ export default function Sequence() {
 
   function skipRound() {
     if (committing.current) return;
+    showVerdict("pass");
     if (runner.report("passed")) return;
     advanceRound();
   }
@@ -210,6 +212,7 @@ export default function Sequence() {
 
     committing.current = true;
     solved.value = true;
+    showVerdict("correct");
     notification(NotificationFeedbackType.Success);
 
     resolveTimeout.current = setTimeout(() => {

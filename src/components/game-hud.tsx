@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "@/components/back-button";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { RestartButton } from "@/components/restart-button";
+import { VerdictBurstHost } from "@/components/verdict-burst";
 import { Colors, Fonts, Motion, Spacing, Theme } from "@/constants/theme";
 import { useReducedMotion } from "@/lib/accessibility";
 import type { RecapRunner } from "@/features/recap/runner";
@@ -105,6 +106,9 @@ export function GameHUD({ step, total, runner }: GameHUDProps) {
           )}
         </View>
       </View>
+
+      {/* Painted last, above game content; pointer-events none so it never eats a swipe. */}
+      <VerdictBurstHost />
 
       <BackButton
         label="EXIT"
