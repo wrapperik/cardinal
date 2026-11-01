@@ -220,7 +220,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.rust,
     borderBottomLeftRadius: Radius.header,
     borderBottomRightRadius: Radius.header,
-    paddingBottom: Spacing.lg,
+    // Matches cardWrap's side inset, so the stats card sits in an even
+    // frame of rust on three sides.
+    paddingBottom: Spacing.sm,
     gap: Spacing.lg,
   },
   // No horizontal padding of its own: the menu rows have to reach both screen
